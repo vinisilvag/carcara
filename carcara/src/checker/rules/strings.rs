@@ -1,6 +1,6 @@
 use super::{
-    assert_clause_len, assert_eq, assert_num_args, assert_num_premises, assert_polyeq_expected,
-    get_premise_term, RuleArgs, RuleResult,
+    assert_clause_len, assert_eq, assert_num_args, assert_num_premises, assert_polyeq,
+    assert_polyeq_expected, get_premise_term, RuleArgs, RuleResult,
 };
 use crate::{ast::*, checker::error::CheckerError};
 use std::{cmp, time::Duration};
@@ -870,6 +870,45 @@ pub fn concat_cprop_suffix(RuleArgs { premises, conclusion, pool, .. }: RuleArgs
     let expected = expand_string_constants(pool, &conclusion[0]);
 
     assert_eq(&expected, &expanded)
+}
+
+pub fn re_inter(
+    RuleArgs {
+        premises, conclusion, polyeq_time, ..
+    }: RuleArgs,
+) -> RuleResult {
+    assert_num_premises(premises, 2)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let (x_conc, (s_conc, t_conc)) = match_term_err!((strinre x (reinter s t)) = &conclusion[0])?;
+
+    let t_1 = get_premise_term(&premises[0])?;
+    let t_2 = get_premise_term(&premises[1])?;
+    let (x_1, s) = match_term_err!((strinre x s) = t_1)?;
+    let (x_2, t) = match_term_err!((strinre x t) = t_2)?;
+
+    assert_polyeq(x_conc, x_1, polyeq_time)?;
+    assert_polyeq(x_conc, x_2, polyeq_time)?;
+
+    assert_eq(s_conc, s)?;
+    assert_eq(t_conc, t)?;
+
+    Ok(())
+}
+
+// TODO:
+pub fn re_unfold_pos(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    Ok(())
+}
+
+// TODO:
+pub fn re_unfold_neg(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    Ok(())
+}
+
+// TODO:
+pub fn re_unfold_neg_concat_fixed(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    Ok(())
 }
 
 mod tests {
