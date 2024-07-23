@@ -178,6 +178,9 @@ macro_rules! match_term {
     (@GET_VARIANT strconcat) => { $crate::ast::Operator::StrConcat };
     (@GET_VARIANT strsubstr) => { $crate::ast::Operator::Substring };
     (@GET_VARIANT strlen)    => { $crate::ast::Operator::StrLen };
+
+    (@GET_VARIANT strinre)    => { $crate::ast::Operator::StrInRe };
+    (@GET_VARIANT reinter)    => { $crate::ast::Operator::ReIntersection };
 }
 
 /// A variant of `match_term` that returns a `Result<_, CheckerError>` instead of an `Option`.
