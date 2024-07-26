@@ -320,6 +320,22 @@ fn extract_arguments(t: &Rc<Term>) -> Result<Vec<Rc<Term>>, CheckerError> {
     Ok(args_t.clone())
 }
 
+fn re_unfold_pos_concat(t: Rc<Term>, r: Rc<Term>) -> (Rc<Term>, Rc<Term>) {
+    fn re_unfold_pos_concat_rec(
+        t: Rc<Term>,
+        r_1: Rc<Term>,
+        r_2: Rc<Term>,
+        r_o: Rc<Term>,
+        i: i32,
+    ) -> (Rc<Term>, Rc<Term>) {
+        ()
+    }
+
+    // perguntar pro Haniel
+    // re_unfold_pos_concat_rec(t, r, r, 0)
+    re_unfold_pos_concat_rec(t, r.clone(), r.clone(), r.clone(), 0)
+}
+
 pub fn concat_eq(
     RuleArgs {
         premises,
@@ -896,13 +912,29 @@ pub fn re_inter(
     Ok(())
 }
 
-// TODO:
 pub fn re_unfold_pos(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
-    Ok(())
+    assert_num_premises(premises, 1)?;
+    assert_clause_len(conclusion, 1)?;
+
+    // match conclusion form
+
+    let term = get_premise_term(&premises[0])?;
+    let (t, r) = match_term_err!((strinre t r) = term)?;
+
+    let expanded = match r.as_ref() {
+        Term::Op(Operator::ReKleeneClosure, args) => {},
+        Term::Op(Operator::ReConcat, args) => {},
+        _ => // throw CheckerError,
+    }?;
+
+    assert_eq(&conclusion[0], expanded)
 }
 
 // TODO:
 pub fn re_unfold_neg(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 1)?;
+    assert_clause_len(conclusion, 1)?;
+
     Ok(())
 }
 
