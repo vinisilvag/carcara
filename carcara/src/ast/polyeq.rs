@@ -19,6 +19,15 @@ enum Concat {
     Term(Rc<Term>),
 }
 
+fn to_concat(args: &[Rc<Term>]) -> Vec<Concat> {
+    args.iter()
+        .map(|arg| match arg.as_ref() {
+            Term::Const(Constant::String(s)) => Concat::Constant(s.clone()),
+            _ => Concat::Term(arg.clone()),
+        })
+        .collect()
+}
+
 /// A trait that represents objects that can be compared for equality modulo reordering of
 /// equalities or alpha equivalence.
 pub trait Polyeq {
@@ -33,7 +42,7 @@ pub trait Polyeq {
 /// This function records how long it takes to run, and adds that duration to the `time` argument.
 pub fn polyeq(a: &Rc<Term>, b: &Rc<Term>, time: &mut Duration) -> bool {
     let start = Instant::now();
-    let result = Polyeq::eq(&mut PolyeqComparator::new(true, false, false), a, b);
+    let result = Polyeq::eq(&mut PolyeqComparator::new(true, false, false, false), a, b);
     *time += start.elapsed();
     result
 }
@@ -45,7 +54,7 @@ pub fn polyeq(a: &Rc<Term>, b: &Rc<Term>, time: &mut Duration) -> bool {
 /// `(and (= a b) (= b c) (= c d))`.
 pub fn polyeq_mod_nary(a: &Rc<Term>, b: &Rc<Term>, time: &mut Duration) -> bool {
     let start = Instant::now();
-    let result = Polyeq::eq(&mut PolyeqComparator::new(true, false, true), a, b);
+    let result = Polyeq::eq(&mut PolyeqComparator::new(true, false, true, false), a, b);
     *time += start.elapsed();
     result
 }
@@ -57,7 +66,7 @@ pub fn polyeq_mod_nary(a: &Rc<Term>, b: &Rc<Term>, time: &mut Duration) -> bool 
 pub fn tracing_polyeq_mod_nary(a: &Rc<Term>, b: &Rc<Term>, time: &mut Duration) -> (bool, usize) {
     let start = Instant::now();
 
-    let mut comp = PolyeqComparator::new(true, false, true);
+    let mut comp = PolyeqComparator::new(true, false, true, false);
     let result = Polyeq::eq(&mut comp, a, b);
 
     *time += start.elapsed();
@@ -74,7 +83,19 @@ pub fn tracing_polyeq_mod_nary(a: &Rc<Term>, b: &Rc<Term>, time: &mut Duration) 
 /// This function records how long it takes to run, and adds that duration to the `time` argument.
 pub fn alpha_equiv(a: &Rc<Term>, b: &Rc<Term>, time: &mut Duration) -> bool {
     let start = Instant::now();
-    let result = Polyeq::eq(&mut PolyeqComparator::new(true, true, false), a, b);
+    let result = Polyeq::eq(&mut PolyeqComparator::new(true, true, false, false), a, b);
+    *time += start.elapsed();
+    result
+}
+
+/// Similar to `polyeq`, but also compares modulo the equality of String constants and String concatenations.
+///
+/// That is, for this function, String concatenations with constant arguments can be
+/// considered equal to the String constant of those arguments collected. For example, the term
+/// `(str.++ "a" "bd" "d")` is considered equal to the String constant `"abcd"`.
+pub fn polyeq_mod_string_concat(a: &Rc<Term>, b: &Rc<Term>, time: &mut Duration) -> bool {
+    let start = Instant::now();
+    let result = Polyeq::eq(&mut PolyeqComparator::new(true, false, false, true), a, b);
     *time += start.elapsed();
     result
 }
@@ -108,6 +129,7 @@ pub struct PolyeqComparator {
     is_mod_reordering: bool,
     de_bruijn_map: Option<DeBruijnMap>,
     is_mod_nary: bool,
+    is_mod_string_concat: bool,
 
     current_depth: usize,
     max_depth: usize,
@@ -122,13 +144,21 @@ impl PolyeqComparator {
     //  - If `is_alpha_equivalence` is `true`, the comparator will compare terms for alpha
     /// equivalence.
     /// - If `is_mod_nary` is `true`, the comparator will compare terms modulo the expansion of
-    /// n-ary operators
-    pub fn new(is_mod_reordering: bool, is_alpha_equivalence: bool, is_mod_nary: bool) -> Self {
+    /// n-ary operators.
+    /// - If `is_mod_string_concat` is `true`, the comparator will compare terms modulo the collection of
+    /// String constants arguments in the String concatenation.
+    pub fn new(
+        is_mod_reordering: bool,
+        is_alpha_equivalence: bool,
+        is_mod_nary: bool,
+        is_mod_string_concat: bool,
+    ) -> Self {
         Self {
             is_mod_reordering,
             cache: HashMapStack::new(),
             de_bruijn_map: is_alpha_equivalence.then(DeBruijnMap::new),
             is_mod_nary,
+            is_mod_string_concat,
             current_depth: 0,
             max_depth: 0,
         }
@@ -180,6 +210,13 @@ impl PolyeqComparator {
         op_b: Operator,
         args_b: &[Rc<Term>],
     ) -> bool {
+        // Modulo string concatenation
+        if self.is_mod_string_concat {
+            let concat_args_a: Vec<Concat> = to_concat(args_a);
+            let concat_args_b: Vec<Concat> = to_concat(args_b);
+            return self.compare_strings(concat_args_a, concat_args_b);
+        }
+
         // Modulo reordering of equalities
         if self.is_mod_reordering {
             if let (Operator::Equals, [a_1, a_2], Operator::Equals, [b_1, b_2]) =
@@ -274,15 +311,6 @@ impl PolyeqComparator {
     }
 
     fn remainder(&mut self, a: Vec<Concat>, b: Vec<Concat>) -> (Vec<Concat>, Vec<Concat>) {
-        fn to_concat(args: &[Rc<Term>]) -> Vec<Concat> {
-            args.iter()
-                .map(|arg| match arg.as_ref() {
-                    Term::Const(Constant::String(s)) => Concat::Constant(s.clone()),
-                    _ => Concat::Term(arg.clone()),
-                })
-                .collect()
-        }
-
         match (a.first(), b.first()) {
             (None | Some(_), None) | (None, Some(_)) => (a, b),
             (Some(a_head), Some(b_head)) => match (a_head, b_head) {
@@ -466,45 +494,6 @@ impl Polyeq for Term {
                     args: args_b,
                 },
             ) => op_a == op_b && op_args_a == op_args_b && Polyeq::eq(comp, args_a, args_b),
-            (Term::Op(Operator::StrConcat, args_a), Term::Op(Operator::StrConcat, args_b)) => {
-                let concat_args_a: Vec<Concat> = args_a
-                    .iter()
-                    .map(|arg| match arg.as_ref() {
-                        Term::Const(Constant::String(s)) => Concat::Constant(s.clone()),
-                        _ => Concat::Term(arg.clone()),
-                    })
-                    .collect();
-                let concat_args_b: Vec<Concat> = args_b
-                    .iter()
-                    .map(|arg| match arg.as_ref() {
-                        Term::Const(Constant::String(s)) => Concat::Constant(s.clone()),
-                        _ => Concat::Term(arg.clone()),
-                    })
-                    .collect();
-                comp.compare_strings(concat_args_a, concat_args_b)
-            }
-            (Term::Op(Operator::StrConcat, args_a), Term::Const(Constant::String(b))) => {
-                let concat_args_a: Vec<Concat> = args_a
-                    .iter()
-                    .map(|arg| match arg.as_ref() {
-                        Term::Const(Constant::String(s)) => Concat::Constant(s.clone()),
-                        _ => Concat::Term(arg.clone()),
-                    })
-                    .collect();
-                let concat_args_b = vec![Concat::Constant(b.clone())];
-                comp.compare_strings(concat_args_a, concat_args_b)
-            }
-            (Term::Const(Constant::String(a)), Term::Op(Operator::StrConcat, args_b)) => {
-                let concat_args_a = vec![Concat::Constant(a.clone())];
-                let concat_args_b: Vec<Concat> = args_b
-                    .iter()
-                    .map(|arg| match arg.as_ref() {
-                        Term::Const(Constant::String(s)) => Concat::Constant(s.clone()),
-                        _ => Concat::Term(arg.clone()),
-                    })
-                    .collect();
-                comp.compare_strings(concat_args_a, concat_args_b)
-            }
 
             (Term::Op(op_a, args_a), Term::Op(op_b, args_b)) => {
                 comp.compare_op(*op_a, args_a, *op_b, args_b)
@@ -516,7 +505,30 @@ impl Polyeq for Term {
             (Term::Let(binds_a, a), Term::Let(binds_b, b)) => {
                 comp.compare_binder(binds_a, binds_b, a, b)
             }
-            _ => false,
+            _ => {
+                if comp.is_mod_string_concat {
+                    return match (a, b) {
+                        (
+                            Term::Op(Operator::StrConcat, args_a),
+                            Term::Const(Constant::String(b)),
+                        ) => {
+                            let concat_args_a: Vec<Concat> = to_concat(args_a);
+                            let concat_args_b = vec![Concat::Constant(b.clone())];
+                            comp.compare_strings(concat_args_a, concat_args_b)
+                        }
+                        (
+                            Term::Const(Constant::String(a)),
+                            Term::Op(Operator::StrConcat, args_b),
+                        ) => {
+                            let concat_args_a = vec![Concat::Constant(a.clone())];
+                            let concat_args_b: Vec<Concat> = to_concat(args_b);
+                            comp.compare_strings(concat_args_a, concat_args_b)
+                        }
+                        _ => false,
+                    };
+                }
+                false
+            }
         }
     }
 }
