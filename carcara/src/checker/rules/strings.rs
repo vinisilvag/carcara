@@ -336,6 +336,30 @@ fn re_unfold_pos_concat(t: Rc<Term>, r: Rc<Term>) -> (Rc<Term>, Rc<Term>) {
     re_unfold_pos_concat_rec(t, r.clone(), r.clone(), r.clone(), 0)
 }
 
+fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> i32 {
+    match r.as_ref() {
+        Term::Op(Operator::ReConcat, args) => {
+            let [r_1, r_2 @ ..] = &args[..];
+            let r_2_concat = concat(pool, r_2.to_vec());
+            return str_fixed_len_re(pool, r_1.clone()) + str_fixed_len_re(pool, r_2_concat);
+        }
+        Term::Op(Operator::ReAllChar, _) => 1,
+        Term::Op(Operator::ReRange, _) => 1,
+        Term::Op(Operator::StrToRe, args) => {
+            if let Some(s_1) = args.first() {
+                // extract s_1 String
+                // return s_1.len();
+                0
+            } else {
+                0
+            }
+        }
+        Term::Op(Operator::ReUnion, args) => {}
+        Term::Op(Operator::ReIntersection, args) => {}
+        _ => 0,
+    }
+}
+
 pub fn concat_eq(
     RuleArgs {
         premises,
@@ -922,12 +946,24 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleRes
     let (t, r) = match_term_err!((strinre t r) = term)?;
 
     let expanded = match r.as_ref() {
-        Term::Op(Operator::ReKleeneClosure, args) => {},
-        Term::Op(Operator::ReConcat, args) => {},
-        _ => // throw CheckerError,
-    }?;
+        Term::Op(Operator::ReKleeneClosure, args) => {
+            if let Some(r_1) = args.first() {
+                println!("{:?}", r_1)
+            }
+        }
+        Term::Op(Operator::ReConcat, args) => {
+            println!("{:?}", args)
+        }
+        _ => {
+            return Err(CheckerError::TermOfWrongForm(
+                "(re.* ...) or (re.++ ...)",
+                r.clone(),
+            ))
+        }
+    };
 
-    assert_eq(&conclusion[0], expanded)
+    // assert_eq(&conclusion[0], expanded)
+    Ok(())
 }
 
 // TODO:
@@ -935,11 +971,69 @@ pub fn re_unfold_neg(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleRes
     assert_num_premises(premises, 1)?;
     assert_clause_len(conclusion, 1)?;
 
+    // match conclusion form
+
+    let term = get_premise_term(&premises[0])?;
+    let (t, r) = match_term_err!((not (strinre t r)) = term)?;
+
+    let expanded = match r.as_ref() {
+        Term::Op(Operator::ReKleeneClosure, args) => {
+            if let Some(r_1) = args.first() {
+                println!("{:?}", r_1)
+            }
+        }
+        Term::Op(Operator::ReConcat, args) => {
+            println!("{:?}", args)
+        }
+        _ => {
+            return Err(CheckerError::TermOfWrongForm(
+                "(re.* ...) or (re.++ ...)",
+                r.clone(),
+            ))
+        }
+    };
+
     Ok(())
 }
 
 // TODO:
-pub fn re_unfold_neg_concat_fixed(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+pub fn re_unfold_neg_concat_fixed(
+    RuleArgs {
+        premises, args, conclusion, pool, ..
+    }: RuleArgs,
+) -> RuleResult {
+    assert_num_premises(premises, 1)?;
+    assert_num_args(args, 1)?;
+    assert_clause_len(conclusion, 1)?;
+
+    // match conclusion form
+
+    let term = get_premise_term(&premises[0])?;
+    let rev = args[0].as_term()?.as_bool_err()?;
+    let (s, r) = match_term_err!((not (strinre s r)) = term)?;
+
+    let expanded = if let Term::Op(Operator::ReConcat, args) = r.as_ref() {
+        println!("args: {:?}", args);
+        let [r_1, r_2 @ ..] = &args[..];
+        println!("r_1: {:?}", r_1);
+        println!("r_2: {:?}", r_2);
+        let n = str_fixed_len_re(pool, r.clone());
+        let n = Term::new_int(n);
+        let n = pool.add(n);
+        if rev {
+            // (or (not (str.in_re ($str_suffix s n) r1))
+            //     (not (str.in_re ($str_prefix s (- (str.len s) n)) ($singleton_elim ($str_rev rev r2)))))
+        } else {
+            // (or (not (str.in_re ($str_prefix s n) r1))
+            //     (not (str.in_re ($str_suffix_rem s n) ($singleton_elim r2)))))))
+            let pref = build_skolem_prefix(pool, s.clone(), n.clone());
+            let suff = build_skolem_suffix_rem(pool, s.clone(), n.clone());
+            build_term!(pool, (or (not (strinre {pref.clone()} {})) (not (strinre {suff.clone()} ()))))
+        }
+    } else {
+        return Err(CheckerError::TermOfWrongForm("(re.++ ...)", r.clone()));
+    };
+
     Ok(())
 }
 
