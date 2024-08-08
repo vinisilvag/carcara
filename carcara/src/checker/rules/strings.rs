@@ -277,6 +277,10 @@ fn build_skolem_suffix_rem(pool: &mut dyn TermPool, u: Rc<Term>, n: Rc<Term>) ->
     build_term!(pool, (strsubstr {u.clone()} {n.clone()} (- (strlen {u.clone()}) {n})))
 }
 
+fn build_skolem_suffix(pool: &mut dyn TermPool, u: Rc<Term>, n: Rc<Term>) -> Rc<Term> {
+    build_term!(pool, (strsubstr {u.clone()} (- (strlen {u.clone()}) {n.clone()}) {n.clone()}))
+}
+
 fn build_skolem_unify_split_prefix(pool: &mut dyn TermPool, t: Rc<Term>, s: Rc<Term>) -> Rc<Term> {
     let t_len = pool.add(Term::Op(Operator::StrLen, vec![t.clone()]));
     let s_len = pool.add(Term::Op(Operator::StrLen, vec![s.clone()]));
@@ -967,7 +971,7 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleRes
 }
 
 // TODO:
-pub fn re_unfold_neg(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+pub fn re_unfold_neg(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
     assert_num_premises(premises, 1)?;
     assert_clause_len(conclusion, 1)?;
 
@@ -976,14 +980,50 @@ pub fn re_unfold_neg(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleRes
     let term = get_premise_term(&premises[0])?;
     let (t, r) = match_term_err!((not (strinre t r)) = term)?;
 
+    let int_sort = pool.add(Term::Sort(Sort::Int));
+    let l = pool.add(Term::new_var("L", int_sort.clone()));
+    let pref = build_skolem_prefix(pool, t.clone(), l.clone());
+    let suff = build_skolem_suffix_rem(pool, t.clone(), l.clone());
+
     let expanded = match r.as_ref() {
         Term::Op(Operator::ReKleeneClosure, args) => {
             if let Some(r_1) = args.first() {
-                println!("{:?}", r_1)
+                println!("{:?}", r_1);
+                let inner = build_term!(pool,
+                    (or
+                        (<= {l.clone()} 0)
+                        (< (strlen {t.clone()}) {l.clone()})
+                        (not (strinre {pref.clone()} {r_1.clone()}))
+                        (not (strinre {suff.clone()} {r.clone()}))
+                    )
+                );
+                let quantifier = Term::Binder(
+                    Binder::Forall,
+                    BindingList(vec![("L".into(), int_sort.clone())]),
+                    inner,
+                );
+                println!("r* conc: {:?}", quantifier);
             }
         }
         Term::Op(Operator::ReConcat, args) => {
-            println!("{:?}", args)
+            println!("{:?}", args);
+            if let [r_1, r_2 @ ..] = &args[..] {
+                // how to handle $singleton_elim
+                let inner = build_term!(pool,
+                    (or
+                        (< {l.clone()} 0)
+                        (< (strlen {t.clone()}) {l.clone()})
+                        (not (strinre {pref.clone()} {r_1.clone()}))
+                        (not (strinre {suff.clone()} {}))
+                    )
+                );
+                let quantifier = Term::Binder(
+                    Binder::Forall,
+                    BindingList(vec![("L".into(), int_sort.clone())]),
+                    inner,
+                );
+                println!("r++ conc: {:?}", quantifier);
+            }
         }
         _ => {
             return Err(CheckerError::TermOfWrongForm(
@@ -993,6 +1033,7 @@ pub fn re_unfold_neg(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleRes
         }
     };
 
+    // assert_eq(&conclusion[0], expanded)
     Ok(())
 }
 
@@ -1017,18 +1058,31 @@ pub fn re_unfold_neg_concat_fixed(
         let [r_1, r_2 @ ..] = &args[..];
         println!("r_1: {:?}", r_1);
         println!("r_2: {:?}", r_2);
-        let n = str_fixed_len_re(pool, r.clone());
-        let n = Term::new_int(n);
+        let n = Term::new_int(str_fixed_len_re(pool, r.clone()));
         let n = pool.add(n);
         if rev {
             // (or (not (str.in_re ($str_suffix s n) r1))
             //     (not (str.in_re ($str_prefix s (- (str.len s) n)) ($singleton_elim ($str_rev rev r2)))))
+            let diff = build_term!(pool, (- (strlen {s.clone()}) {n.clone()}));
+            let pref = build_skolem_prefix(pool, s.clone(), diff.clone());
+            let suff = build_skolem_suffix(pool, s.clone(), n.clone());
+            build_term!(pool,
+                (or
+                    (not (strinre {suff.clone()} {r_1.clone()}))
+                    (not (strinre {pref.clone()} {}))
+                )
+            )
         } else {
             // (or (not (str.in_re ($str_prefix s n) r1))
             //     (not (str.in_re ($str_suffix_rem s n) ($singleton_elim r2)))))))
             let pref = build_skolem_prefix(pool, s.clone(), n.clone());
             let suff = build_skolem_suffix_rem(pool, s.clone(), n.clone());
-            build_term!(pool, (or (not (strinre {pref.clone()} {})) (not (strinre {suff.clone()} ()))))
+            build_term!(pool,
+                (or
+                    (not (strinre {pref.clone()} {r_1.clone()}))
+                    (not (strinre {suff.clone()} {}))
+                )
+            )
         }
     } else {
         return Err(CheckerError::TermOfWrongForm("(re.++ ...)", r.clone()));
