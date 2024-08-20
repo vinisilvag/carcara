@@ -324,6 +324,14 @@ fn extract_arguments(t: &Rc<Term>) -> Result<Vec<Rc<Term>>, CheckerError> {
     Ok(args_t.clone())
 }
 
+fn singleton_elim(pool: &mut dyn TermPool, r_list: Vec<Rc<Term>>) -> Rc<Term> {
+    if r_list.len() == 1 {
+        r_list[0].clone()
+    } else {
+        pool.add(Term::Op(Operator::ReConcat, r_list))
+    }
+}
+
 fn re_unfold_pos_concat(t: Rc<Term>, r: Rc<Term>) -> (Rc<Term>, Rc<Term>) {
     fn re_unfold_pos_concat_rec(
         t: Rc<Term>,
@@ -332,7 +340,7 @@ fn re_unfold_pos_concat(t: Rc<Term>, r: Rc<Term>) -> (Rc<Term>, Rc<Term>) {
         r_o: Rc<Term>,
         i: i32,
     ) -> (Rc<Term>, Rc<Term>) {
-        ()
+        todo!()
     }
 
     // perguntar pro Haniel
@@ -340,27 +348,34 @@ fn re_unfold_pos_concat(t: Rc<Term>, r: Rc<Term>) -> (Rc<Term>, Rc<Term>) {
     re_unfold_pos_concat_rec(t, r.clone(), r.clone(), r.clone(), 0)
 }
 
-fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> i32 {
+fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> Result<i32, CheckerError> {
     match r.as_ref() {
         Term::Op(Operator::ReConcat, args) => {
-            let [r_1, r_2 @ ..] = &args[..];
-            let r_2_concat = concat(pool, r_2.to_vec());
-            return str_fixed_len_re(pool, r_1.clone()) + str_fixed_len_re(pool, r_2_concat);
+            if let [r_1, r_2 @ ..] = &args[..] {
+                let r_2_concat = concat(pool, r_2.to_vec());
+                Ok(str_fixed_len_re(pool, r_1.clone())? + str_fixed_len_re(pool, r_2_concat)?)
+            } else {
+                Err(CheckerError::WrongNumberOfTermsInOp(
+                    Operator::ReConcat,
+                    (2..).into(),
+                    args.len(),
+                ))
+            }
         }
-        Term::Op(Operator::ReAllChar, _) => 1,
-        Term::Op(Operator::ReRange, _) => 1,
+        Term::Op(Operator::ReAllChar, _) => Ok(1),
+        Term::Op(Operator::ReRange, _) => Ok(1),
         Term::Op(Operator::StrToRe, args) => {
             if let Some(s_1) = args.first() {
                 // extract s_1 String
                 // return s_1.len();
-                0
+                Ok(0)
             } else {
-                0
+                Ok(0)
             }
         }
-        Term::Op(Operator::ReUnion, args) => {}
-        Term::Op(Operator::ReIntersection, args) => {}
-        _ => 0,
+        Term::Op(Operator::ReUnion, args) => todo!(),
+        Term::Op(Operator::ReIntersection, args) => todo!(),
+        _ => Ok(0),
     }
 }
 
@@ -952,30 +967,28 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleRes
     let expanded = match r.as_ref() {
         Term::Op(Operator::ReKleeneClosure, args) => {
             if let Some(r_1) = args.first() {
-                println!("{:?}", r_1)
+                println!("{:?}", r_1);
+                todo!()
+            } else {
+                todo!()
             }
         }
         Term::Op(Operator::ReConcat, args) => {
-            println!("{:?}", args)
+            println!("{:?}", args);
+            todo!()
         }
-        _ => {
-            return Err(CheckerError::TermOfWrongForm(
-                "(re.* ...) or (re.++ ...)",
-                r.clone(),
-            ))
-        }
-    };
+        _ => Err(CheckerError::TermOfWrongForm(
+            "(re.* ...) or (re.++ ...)",
+            r.clone(),
+        )),
+    }?;
 
-    // assert_eq(&conclusion[0], expanded)
-    Ok(())
+    assert_eq(&conclusion[0], &expanded)
 }
 
-// TODO:
 pub fn re_unfold_neg(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
     assert_num_premises(premises, 1)?;
     assert_clause_len(conclusion, 1)?;
-
-    // match conclusion form
 
     let term = get_premise_term(&premises[0])?;
     let (t, r) = match_term_err!((not (strinre t r)) = term)?;
@@ -987,6 +1000,21 @@ pub fn re_unfold_neg(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
 
     let expanded = match r.as_ref() {
         Term::Op(Operator::ReKleeneClosure, args) => {
+            // check conclusion form
+            match_term_err!(
+                (and
+                    (not (= t ""))
+                    (forall ...
+                        (or
+                            (<= l 0)
+                            (< (strlen t) l)
+                            (not (strinre pref r_1))
+                            // (not (strinre suff r))
+                        )
+                    )
+                ) = &conclusion[0]
+            )?;
+
             if let Some(r_1) = args.first() {
                 println!("{:?}", r_1);
                 let inner = build_term!(pool,
@@ -997,98 +1025,166 @@ pub fn re_unfold_neg(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
                         (not (strinre {suff.clone()} {r.clone()}))
                     )
                 );
-                let quantifier = Term::Binder(
+                let quantifier = pool.add(Term::Binder(
                     Binder::Forall,
                     BindingList(vec![("L".into(), int_sort.clone())]),
                     inner,
-                );
+                ));
                 println!("r* conc: {:?}", quantifier);
+                let empty = pool.add(Term::new_string(""));
+                Ok(build_term!(pool,
+                    (and
+                        (not (= {t.clone()} {empty.clone()}))
+                        {quantifier.clone()}
+                    )
+                ))
+            } else {
+                Err(CheckerError::WrongNumberOfTermsInOp(
+                    Operator::ReKleeneClosure,
+                    1.into(),
+                    args.len(),
+                ))
             }
         }
         Term::Op(Operator::ReConcat, args) => {
+            // check conclusion form
+            match_term_err!(
+                 (forall ...
+                     (or
+                         (< l 0)
+                         (< (strlen t) l)
+                         (not (strinre pref r_1))
+                         // (not (strinre suff r))
+                     )
+                 ) = &conclusion[0]
+            )?;
+
             println!("{:?}", args);
             if let [r_1, r_2 @ ..] = &args[..] {
-                // how to handle $singleton_elim
                 let inner = build_term!(pool,
                     (or
                         (< {l.clone()} 0)
                         (< (strlen {t.clone()}) {l.clone()})
                         (not (strinre {pref.clone()} {r_1.clone()}))
-                        (not (strinre {suff.clone()} {}))
+                        (not (strinre {suff.clone()} {singleton_elim(pool, r_2.to_vec())}))
                     )
                 );
-                let quantifier = Term::Binder(
+                let quantifier = pool.add(Term::Binder(
                     Binder::Forall,
                     BindingList(vec![("L".into(), int_sort.clone())]),
                     inner,
-                );
+                ));
                 println!("r++ conc: {:?}", quantifier);
+                Ok(quantifier)
+            } else {
+                Err(CheckerError::WrongNumberOfTermsInOp(
+                    Operator::ReConcat,
+                    (2..).into(),
+                    args.len(),
+                ))
             }
         }
-        _ => {
-            return Err(CheckerError::TermOfWrongForm(
-                "(re.* ...) or (re.++ ...)",
-                r.clone(),
-            ))
-        }
-    };
+        _ => Err(CheckerError::TermOfWrongForm(
+            "(re.* ...) or (re.++ ...)",
+            r.clone(),
+        )),
+    }?;
 
-    // assert_eq(&conclusion[0], expanded)
-    Ok(())
+    assert_eq(&conclusion[0], &expanded)
 }
 
-// TODO:
-pub fn re_unfold_neg_concat_fixed(
-    RuleArgs {
-        premises, args, conclusion, pool, ..
-    }: RuleArgs,
+pub fn re_unfold_neg_concat_fixed_pref(
+    RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
 ) -> RuleResult {
     assert_num_premises(premises, 1)?;
-    assert_num_args(args, 1)?;
     assert_clause_len(conclusion, 1)?;
 
-    // match conclusion form
+    match_term_err!(
+        (or
+            (not (strinre pref r_1))
+            (not (strinre suff r_2))
+        ) = &conclusion[0]
+    )?;
 
     let term = get_premise_term(&premises[0])?;
-    let rev = args[0].as_term()?.as_bool_err()?;
     let (s, r) = match_term_err!((not (strinre s r)) = term)?;
 
     let expanded = if let Term::Op(Operator::ReConcat, args) = r.as_ref() {
         println!("args: {:?}", args);
-        let [r_1, r_2 @ ..] = &args[..];
-        println!("r_1: {:?}", r_1);
-        println!("r_2: {:?}", r_2);
-        let n = Term::new_int(str_fixed_len_re(pool, r.clone()));
-        let n = pool.add(n);
-        if rev {
-            // (or (not (str.in_re ($str_suffix s n) r1))
-            //     (not (str.in_re ($str_prefix s (- (str.len s) n)) ($singleton_elim ($str_rev rev r2)))))
-            let diff = build_term!(pool, (- (strlen {s.clone()}) {n.clone()}));
-            let pref = build_skolem_prefix(pool, s.clone(), diff.clone());
-            let suff = build_skolem_suffix(pool, s.clone(), n.clone());
-            build_term!(pool,
-                (or
-                    (not (strinre {suff.clone()} {r_1.clone()}))
-                    (not (strinre {pref.clone()} {}))
-                )
-            )
-        } else {
-            // (or (not (str.in_re ($str_prefix s n) r1))
-            //     (not (str.in_re ($str_suffix_rem s n) ($singleton_elim r2)))))))
+        if let [r_1, r_2 @ ..] = &args[..] {
+            println!("r_1: {:?}", r_1);
+            println!("r_2: {:?}", r_2);
+            let n = Term::new_int(str_fixed_len_re(pool, r.clone())?);
+            let n = pool.add(n);
+            println!("n: {:?}", n);
             let pref = build_skolem_prefix(pool, s.clone(), n.clone());
             let suff = build_skolem_suffix_rem(pool, s.clone(), n.clone());
-            build_term!(pool,
+            println!("pref: {:?}", pref);
+            println!("suff: {:?}", suff);
+            Ok(build_term!(pool,
                 (or
                     (not (strinre {pref.clone()} {r_1.clone()}))
-                    (not (strinre {suff.clone()} {}))
+                    (not (strinre {suff.clone()} {singleton_elim(pool, r_2.to_vec())}))
                 )
-            )
+            ))
+        } else {
+            Err(CheckerError::WrongNumberOfTermsInOp(
+                Operator::ReConcat,
+                (2..).into(),
+                args.len(),
+            ))
         }
     } else {
-        return Err(CheckerError::TermOfWrongForm("(re.++ ...)", r.clone()));
-    };
+        Err(CheckerError::TermOfWrongForm("(re.++ ...)", r.clone()))
+    }?;
 
-    Ok(())
+    assert_eq(&conclusion[0], &expanded)
+}
+
+pub fn re_unfold_neg_concat_fixed_suff(
+    RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
+) -> RuleResult {
+    assert_num_premises(premises, 1)?;
+    assert_clause_len(conclusion, 1)?;
+
+    match_term_err!(
+        (or
+            (not (strinre suff r_1))
+            (not (strinre pref r_2))
+        ) = &conclusion[0]
+    )?;
+
+    let term = get_premise_term(&premises[0])?;
+    let (s, r) = match_term_err!((not (strinre s r)) = term)?;
+
+    let expanded = if let Term::Op(Operator::ReConcat, args) = r.as_ref() {
+        println!("args: {:?}", args);
+        let [r_1, r_2 @ ..] = &args[..] else { todo!() };
+        println!("r_1: {:?}", r_1);
+        println!("r_2: {:?}", r_2);
+        let n = Term::new_int(str_fixed_len_re(pool, r.clone())?);
+        let n = pool.add(n);
+        println!("n: {:?}", n);
+        let diff = build_term!(pool, (- (strlen {s.clone()}) {n.clone()}));
+        println!("diff: {:?}", diff);
+        let pref = build_skolem_prefix(pool, s.clone(), diff.clone());
+        let suff = build_skolem_suffix(pool, s.clone(), n.clone());
+        println!("pref: {:?}", pref);
+        println!("suff: {:?}", suff);
+        let mut r_2_reverse = r_2.to_vec();
+        r_2_reverse.reverse();
+        println!("r_2 reverse: {:?}", r_2_reverse);
+        Ok(build_term!(pool,
+            (or
+                (not (strinre {suff.clone()} {r_1.clone()}))
+                (not (strinre {pref.clone()} {singleton_elim(pool, r_2_reverse)}))
+            )
+        ))
+    } else {
+        Err(CheckerError::TermOfWrongForm("(re.++ ...)", r.clone()))
+    }?;
+
+    assert_eq(&conclusion[0], &expanded)
 }
 
 mod tests {
@@ -2000,6 +2096,93 @@ mod tests {
                    (assume h2 (not (= (str.len d) 0)))
                    (step t1 (cl (= d (str.substr "aabc" (- (str.len "aabc") 3) 3))) :rule concat_cprop_suffix :premises (h1 h2))"#: false,
             }
+        }
+    }
+
+    #[test]
+    fn re_inter() {
+        test_cases! {
+            definitions = "
+                (declare-fun x () String)
+                (declare-fun y () String)
+                (declare-fun z () String)
+                (declare-fun a () RegLan)
+                (declare-fun b () RegLan)
+                (declare-fun c () RegLan)
+                (declare-fun d () RegLan)
+            ",
+            "Simple working examples" {
+                r#"(assume h1 (str.in_re x a))
+                   (assume h2 (str.in_re x b))
+                   (step t1 (cl (str.in_re x (re.inter a b))) :rule re_inter :premises (h1 h2))"#: true,
+                r#"(assume h1 (str.in_re "xyz" c))
+                   (assume h2 (str.in_re "xyz" d))
+                   (step t1 (cl (str.in_re "xyz" (re.inter c d))) :rule re_inter :premises (h1 h2))"#: true,
+            }
+            "Premise terms are not str.in_re applications" {
+                r#"(assume h1 (and (str.in_re x a) true))
+                   (assume h2 (str.in_re x b))
+                   (step t1 (cl (str.in_re x (re.inter a b))) :rule re_inter :premises (h1 h2))"#: false,
+                r#"(assume h1 (str.in_re x a))
+                   (assume h2 (or false (str.in_re x b)))
+                   (step t1 (cl (str.in_re x (re.inter a b))) :rule re_inter :premises (h1 h2))"#: false,
+            }
+            "Conclusion term is not of the form (str.in_re t (re.inter r_1 r_2))" {
+                r#"(assume h1 (str.in_re "xyz" c))
+                   (assume h2 (str.in_re "xyz" d))
+                   (step t1 (cl (not (str.in_re "xyz" (re.inter c d)))) :rule re_inter :premises (h1 h2))"#: false,
+                r#"(assume h1 (str.in_re "xyz" c))
+                   (assume h2 (str.in_re "xyz" d))
+                   (step t1 (cl (str.in_re "xyz" (re.union c d))) :rule re_inter :premises (h1 h2))"#: false,
+            }
+            "Different terms in the premise" {
+                r#"(assume h1 (str.in_re x a))
+                   (assume h2 (str.in_re y b))
+                   (step t1 (cl (str.in_re x (re.inter a b))) :rule re_inter :premises (h1 h2))"#: false,
+            }
+            "Different terms in the premise and conclusion" {
+                r#"(assume h1 (str.in_re x a))
+                   (assume h2 (str.in_re x b))
+                   (step t1 (cl (str.in_re y (re.inter a b))) :rule re_inter :premises (h1 h2))"#: false,
+                r#"(assume h1 (str.in_re x a))
+                   (assume h2 (str.in_re y b))
+                   (step t1 (cl (str.in_re y (re.inter a b))) :rule re_inter :premises (h1 h2))"#: false,
+                r#"(assume h1 (str.in_re y a))
+                   (assume h2 (str.in_re x b))
+                   (step t1 (cl (str.in_re y (re.inter a b))) :rule re_inter :premises (h1 h2))"#: false,
+            }
+            "Regular expressions in the premises differs from the ones in the conclusion" {
+                r#"(assume h1 (str.in_re x a))
+                   (assume h2 (str.in_re x b))
+                   (step t1 (cl (str.in_re x (re.inter c d))) :rule re_inter :premises (h1 h2))"#: false,
+                r#"(assume h1 (str.in_re x a))
+                   (assume h2 (str.in_re x b))
+                   (step t1 (cl (str.in_re x (re.inter a d))) :rule re_inter :premises (h1 h2))"#: false,
+                r#"(assume h1 (str.in_re x a))
+                   (assume h2 (str.in_re x b))
+                   (step t1 (cl (str.in_re x (re.inter c b))) :rule re_inter :premises (h1 h2))"#: false,
+            }
+        }
+    }
+
+    #[test]
+    fn re_unfold_neg() {
+        test_cases! {
+            definitions = "
+                (declare-fun x () String)
+                (declare-fun y () String)
+                (declare-fun z () String)
+                (declare-fun a () RegLan)
+                (declare-fun b () RegLan)
+                (declare-fun c () RegLan)
+                (declare-fun d () RegLan)
+            ",
+            "Simple working examples" {}
+            "" {}
+            "" {}
+            "" {}
+            "" {}
+            "" {}
         }
     }
 }
