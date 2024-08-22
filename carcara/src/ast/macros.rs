@@ -136,6 +136,9 @@ macro_rules! match_term {
     (@ARGS ($arg1:tt $arg2:tt $arg3:tt) = $var:expr) => {
         match_term!(@ARGS_IDENT (arg1: $arg1, arg2: $arg2, arg3: $arg3) = $var)
     };
+    (@ARGS ($arg1:tt $arg2:tt $arg3:tt $arg4:tt) = $var:expr) => {
+        match_term!(@ARGS_IDENT (arg1: $arg1, arg2: $arg2, arg3: $arg3, arg4: $arg4) = $var)
+    };
     (@ARGS_IDENT ( $($name:ident : $arg:tt),* ) = $var:expr) => {
         if let [$($name),*] = $var {
             #[allow(unused_parens)]
