@@ -325,10 +325,9 @@ fn extract_arguments(t: &Rc<Term>) -> Result<Vec<Rc<Term>>, CheckerError> {
 }
 
 fn singleton_elim(pool: &mut dyn TermPool, r_list: Vec<Rc<Term>>) -> Rc<Term> {
-    if r_list.len() == 1 {
-        r_list[0].clone()
-    } else {
-        pool.add(Term::Op(Operator::ReConcat, r_list))
+    match r_list.len() {
+        1 => r_list[0].clone(),
+        _ => pool.add(Term::Op(Operator::ReConcat, r_list)),
     }
 }
 
