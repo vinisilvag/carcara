@@ -379,11 +379,20 @@ fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> Result<usize, Check
         }
         Term::Op(Operator::ReUnion, args) => {
             if let [r_1, r_2 @ ..] = &args[..] {
-                // (eo::ite (eo::is_eq r1 re.none)
-                //     n
-                //     (eo::requires ($str_fixed_len_re r1) n n))
                 let n = str_fixed_len_re(pool, r_1.clone())?;
-                todo!()
+                if r_2.len() == 1 {
+                    match r_2.first().unwrap().as_ref() {
+                        Term::Op(Operator::ReNone, _) => Ok(n),
+                        _ => Err(CheckerError::LengthCannotBeEvaluated(r.clone())),
+                    }
+                } else {
+                    let new_r_2 = pool.add(Term::Op(Operator::ReUnion, r_2.to_vec()));
+                    if str_fixed_len_re(pool, new_r_2)? == n {
+                        Ok(n)
+                    } else {
+                        Err(CheckerError::LengthCannotBeEvaluated(r.clone()))
+                    }
+                }
             } else {
                 Err(CheckerError::WrongNumberOfTermsInOp(
                     Operator::ReUnion,
@@ -394,11 +403,20 @@ fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> Result<usize, Check
         }
         Term::Op(Operator::ReIntersection, args) => {
             if let [r_1, r_2 @ ..] = &args[..] {
-                // (eo::ite (eo::is_eq r1 re.all)
-                //      n
-                //      (eo::requires ($str_fixed_len_re r1) n n))
                 let n = str_fixed_len_re(pool, r_1.clone())?;
-                todo!()
+                if r_2.len() == 1 {
+                    match r_2.first().unwrap().as_ref() {
+                        Term::Op(Operator::ReAll, _) => Ok(n),
+                        _ => Err(CheckerError::LengthCannotBeEvaluated(r.clone())),
+                    }
+                } else {
+                    let new_r_2 = pool.add(Term::Op(Operator::ReIntersection, r_2.to_vec()));
+                    if str_fixed_len_re(pool, new_r_2)? == n {
+                        Ok(n)
+                    } else {
+                        Err(CheckerError::LengthCannotBeEvaluated(r.clone()))
+                    }
+                }
             } else {
                 Err(CheckerError::WrongNumberOfTermsInOp(
                     Operator::ReIntersection,
@@ -1136,17 +1154,17 @@ pub fn re_unfold_neg_concat_fixed_pref(
     let (s, r) = match_term_err!((not (strinre s r)) = term)?;
 
     let expanded = if let Term::Op(Operator::ReConcat, args) = r.as_ref() {
-        println!("args: {:?}", args);
+        // println!("args: {:?}", args);
         if let [r_1, r_2 @ ..] = &args[..] {
-            println!("r_1: {:?}", r_1);
-            println!("r_2: {:?}", r_2);
-            let n = Term::new_int(str_fixed_len_re(pool, r.clone())?);
+            // println!("r_1: {:?}", r_1);
+            // println!("r_2: {:?}", r_2);
+            let n = Term::new_int(str_fixed_len_re(pool, r_1.clone())?);
             let n = pool.add(n);
-            println!("n: {:?}", n);
+            // println!("n: {:?}", n);
             let pref = build_skolem_prefix(pool, s.clone(), n.clone());
             let suff = build_skolem_suffix_rem(pool, s.clone(), n.clone());
-            println!("pref: {:?}", pref);
-            println!("suff: {:?}", suff);
+            // println!("pref: {:?}", pref);
+            // println!("suff: {:?}", suff);
             Ok(build_term!(pool,
                 (or
                     (not (strinre {pref.clone()} {r_1.clone()}))
@@ -1163,6 +1181,9 @@ pub fn re_unfold_neg_concat_fixed_pref(
     } else {
         Err(CheckerError::TermOfWrongForm("(re.++ ...)", r.clone()))
     }?;
+
+    // println!("conc: {:?}", &conclusion[0]);
+    // println!("deri: {:?}", &expanded);
 
     assert_eq(&conclusion[0], &expanded)
 }
@@ -2317,17 +2338,51 @@ mod tests {
                 (declare-fun d () RegLan)
             ",
             "Simple working examples" {
-                r#"(assume h1 (not (str.in_re x (re.++ (str.to_re y) b))))
-                   (step t1 (cl (or (not (str.in_re x a)) (not (str.in_re x b)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: true,
-                // r#"(assume h1 (not (str.in_re "xyz" (re.++ b c d))))
-                //    (step t1 (cl (or (not (str.in_re x b)) (not (str.in_re x (re.++ c d))))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: true,
+                r#"(assume h1 (not (str.in_re x (re.++ (str.to_re "xyz") b))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 3) (str.to_re "xyz"))) (not (str.in_re (str.substr x 3 (- (str.len x) 3)) b)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: true,
+                r#"(assume h1 (not (str.in_re x (re.++ (re.++ (str.to_re "x") (str.to_re "yzw")) a))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 4) (re.++ (str.to_re "x") (str.to_re "yzw")))) (not (str.in_re (str.substr x 4 (- (str.len x) 4)) a)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: true,
+                r#"(assume h1 (not (str.in_re x (re.++ re.allchar c))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 1) re.allchar)) (not (str.in_re (str.substr x 1 (- (str.len x) 1)) c)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: true,
+                r#"(assume h1 (not (str.in_re x (re.++ (re.union (str.to_re "xy") re.none) d))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 2) (re.union (str.to_re "xy") re.none))) (not (str.in_re (str.substr x 2 (- (str.len x) 2)) d)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: true,
+                r#"(assume h1 (not (str.in_re x (re.++ (re.inter (str.to_re "xy") re.all) a))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 2) (re.inter (str.to_re "xy") re.all))) (not (str.in_re (str.substr x 2 (- (str.len x) 2)) a)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: true,
+                r#"(assume h1 (not (str.in_re x (re.++ (re.inter (str.to_re "xy") (str.to_re "zw") re.all) b))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 2) (re.inter (str.to_re "xy") (str.to_re "zw") re.all))) (not (str.in_re (str.substr x 2 (- (str.len x) 2)) b)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: true,
             }
-            "Premise is not of the form (not (str.in_re t R))" {}
-            "Regular expression in the premise is not a re.++ application" {}
-            "" {}
-            "" {}
-            "" {}
-            "" {}
+            "Premise is not of the form (not (str.in_re t R))" {
+                r#"(assume h1 (str.in_re x (re.++ (str.to_re "xyz") b)))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 3) (str.to_re "xyz"))) (not (str.in_re (str.substr x 3 (- (str.len x) 3)) b)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+                r#"(assume h1 (not (str.< x y)))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 3) (str.to_re "xyz"))) (not (str.in_re (str.substr x 3 (- (str.len x) 3)) b)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+            }
+            "Regular expression in the premise is not a re.++ application" {
+                r#"(assume h1 (not (str.in_re x a)))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 4) (re.++ (str.to_re "x") (str.to_re "yzw")))) (not (str.in_re (str.substr x 4 (- (str.len x) 4)) a)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+                r#"(assume h1 (not (str.in_re x re.all)))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 4) (re.++ (str.to_re "x") (str.to_re "yzw")))) (not (str.in_re (str.substr x 4 (- (str.len x) 4)) a)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+                r#"(assume h1 (not (str.in_re x (re.union (re.++ (str.to_re "x") (str.to_re "yzw")) a))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 4) (re.++ (str.to_re "x") (str.to_re "yzw")))) (not (str.in_re (str.substr x 4 (- (str.len x) 4)) a)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+                r#"(assume h1 (not (str.in_re x (re.inter (re.++ (str.to_re "x") (str.to_re "yzw")) a))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 4) (re.++ (str.to_re "x") (str.to_re "yzw")))) (not (str.in_re (str.substr x 4 (- (str.len x) 4)) a)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+            }
+            "Conclusion is not of the form (or (not (str.in_re pref r_1)) (not (str.in_re suff r_2)))" {
+                r#"(assume h1 (not (str.in_re x (re.++ re.allchar c))))
+                   (step t1 (cl (and (not (str.in_re (str.substr x 0 1) re.allchar)) (not (str.in_re (str.substr x 1 (- (str.len x) 1)) c)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+                r#"(assume h1 (not (str.in_re x (re.++ re.allchar c))))
+                   (step t1 (cl (or (str.in_re (str.substr x 0 1) re.allchar) (not (str.in_re (str.substr x 1 (- (str.len x) 1)) c)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+                r#"(assume h1 (not (str.in_re x (re.++ re.allchar c))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 1) re.allchar)) (str.in_re (str.substr x 1 (- (str.len x) 1)) c))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+                r#"(assume h1 (not (str.in_re x (re.++ re.allchar c))))
+                   (step t1 (cl (or (not (str.< x y)) (not (str.in_re (str.substr x 1 (- (str.len x) 1)) c)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+                r#"(assume h1 (not (str.in_re x (re.++ re.allchar c))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 1) re.allchar)) (not (str.< y z)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: false,
+            }
+            "Cannot calculate the regular expression fixed length" {
+                r#"(assume h1 (not (str.in_re x (re.++ () d))))
+                   (step t1 (cl (or (not (str.in_re (str.substr x 0 2) (re.union (str.to_re "xy") re.none))) (not (str.in_re (str.substr x 2 (- (str.len x) 2)) d)))) :rule re_unfold_neg_concat_fixed_pref :premises (h1))"#: true,
+            }
         }
     }
 }
