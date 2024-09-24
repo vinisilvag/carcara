@@ -1211,12 +1211,12 @@ pub fn re_unfold_neg_concat_fixed_suff(
     assert_num_premises(premises, 1)?;
     assert_clause_len(conclusion, 1)?;
 
-    // match_term_err!(
-    //     (or
-    //         (not (strinre suff r_1))
-    //         (not (strinre pref r_2))
-    //     ) = &conclusion[0]
-    // )?;
+    match_term_err!(
+        (or
+            (not (strinre suff r_1))
+            (not (strinre pref r_2))
+        ) = &conclusion[0]
+    )?;
 
     let term = get_premise_term(&premises[0])?;
     let (s, r) = match_term_err!((not (strinre s r)) = term)?;
