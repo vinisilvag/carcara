@@ -1169,25 +1169,34 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
                 //         (eo::cons and (= t (str.++ k1 k2 k3)) M)
                 //         (not (= k1 ""))
                 //         (not (= k3 ""))))))))
-                println!("{:?}", r_1);
                 let new_t = pool.add(Term::Op(
                     Operator::ReConcat,
                     vec![r_1.clone(), r.clone(), r_1.clone()],
                 ));
                 let (k, m) = re_unfold_pos_concat(pool, t.clone(), new_t)?;
+                match k.as_ref() {
+                    Term::Op(Operator::StrConcat, concat_args) => {
+                        // k1, k2 and k3 = concat_args are fixed?
+                        // (and a) should be valid? https://github.com/cvc5/ethos/blob/main/user_manual.md
+
+                        // Ok(build_term!(
+                        //     pool,
+                        //     (or
+                        //         (= {t.clone()} "")
+                        //         (strinre {t.clone()} {r_1.clone()})
+                        //         (and
+                        //             ( ... )
+                        //             (not (= {k_1.clone()} ""))
+                        //             (not (= {k_3.clone()} ""))
+                        //         )
+                        //     )
+                        // ))
+                    }
+                    _ => {
+                        // Throw an error?
+                    }
+                }
                 todo!()
-                // build_term!(
-                //     pool,
-                //     (or
-                //         (= {t.clone()} "")
-                //         (strinre {t.clone()} {r_1.clone()})
-                //         (and
-                //             ()
-                //             ()
-                //             ()
-                //         )
-                //     )
-                // )
             } else {
                 Err(CheckerError::WrongNumberOfTermsInOp(
                     Operator::ReKleeneClosure,
@@ -1196,16 +1205,14 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
                 ))
             }
         }
-        Term::Op(Operator::ReConcat, args) => {
-            // ((re.++ r1 r2)
-            // (eo::match ((tk String) (M Bool :list))
-            // ($re_unfold_pos_concat t r)
-            // (((@pair tk M)
-            //     (eo::define ((teq (= t tk))) (eo::ite (eo::is_eq M true) teq (and teq M)))))))
-            println!("{:?}", args);
+        Term::Op(Operator::ReConcat, _) => {
             let (tk, m) = re_unfold_pos_concat(pool, t.clone(), r.clone())?;
             let teq = build_term!(pool, (= {t.clone()} {tk.clone()}));
-            todo!()
+            if m.is_bool_true() {
+                Ok(teq)
+            } else {
+                Ok(build_term!(pool, (and {teq.clone()} {m.clone()})))
+            }
         }
         _ => Err(CheckerError::TermOfWrongForm(
             "(re.* ...) or (re.++ ...)",
