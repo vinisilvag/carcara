@@ -334,7 +334,11 @@ fn singleton_elim(pool: &mut dyn TermPool, r_list: Vec<Rc<Term>>) -> Rc<Term> {
     }
 }
 
-fn re_unfold_pos_concat(pool: &mut dyn TermPool, t: Rc<Term>, r: Rc<Term>) {
+fn re_unfold_pos_concat(
+    pool: &mut dyn TermPool,
+    t: Rc<Term>,
+    r: Rc<Term>,
+) -> Result<(Rc<Term>, Rc<Term>), CheckerError> {
     fn re_unfold_pos_component(t: Rc<Term>, ro: Rc<Term>, n: usize) -> Rc<Term> {
         todo!()
     }
@@ -345,45 +349,70 @@ fn re_unfold_pos_concat(pool: &mut dyn TermPool, t: Rc<Term>, r: Rc<Term>) {
         r: Rc<Term>,
         ro: Rc<Term>,
         n: usize,
-    ) {
+    ) -> Result<(Rc<Term>, Rc<Term>), CheckerError> {
         match r.as_ref() {
             Term::Op(Operator::StrToRe, args) => {
                 if let Some(_) = args.first() {
-                    // What does this mean?
-                    // return ("", true)
+                    Ok((
+                        pool.add(Term::new_string("")),
+                        pool.add(Term::new_bool(true)),
+                    ))
                 } else {
-                    // Err(CheckerError::WrongNumberOfTermsInOp(
-                    //     Operator::StrToRe,
-                    //     (1).into(),
-                    //     args.len(),
-                    // ))
+                    Err(CheckerError::WrongNumberOfTermsInOp(
+                        Operator::StrToRe,
+                        (1).into(),
+                        args.len(),
+                    ))
                 }
             }
             Term::Op(Operator::ReConcat, args) => {
                 if let [r_1, r_2 @ ..] = &args[..] {
-                    // Recursive call
                     let re_conc = pool.add(Term::Op(Operator::ReConcat, r_2.to_vec()));
-                    re_unfold_pos_concat_rec(pool, t, re_conc, ro, n + 1);
-
-                    // Match on what r_1 is
-                    // If it is a constant regular expression, append s (obtained from the
-                    // recursive call)
-                    // ((str.to_re s) (@pair (str.++ s c) M))
+                    let (c, m) = re_unfold_pos_concat_rec(pool, t, re_conc, ro, n + 1)?;
 
                     // Else, make the skolem and append with constraint
                     // (r            (eo::define ((k (@re_unfold_pos_component t ro i)))
                     //               (@pair (str.++ k c) (and (str.in_re k r) M))))
                     // @re_unfold_pos_component definition?
+
+                    match r_1.as_ref() {
+                        Term::Op(Operator::StrToRe, str_to_re_args) => {
+                            if let Some(s) = str_to_re_args.first() {
+                                return Ok((
+                                    build_term!(pool, (strconcat {s.clone()} {c.clone()})),
+                                    m,
+                                ));
+                            } else {
+                                return Err(CheckerError::WrongNumberOfTermsInOp(
+                                    Operator::StrToRe,
+                                    (1).into(),
+                                    str_to_re_args.len(),
+                                ));
+                            }
+                        }
+                        _ => {
+                            let k = re_unfold_pos_component(t, ro, n);
+                            Ok((
+                                build_term!(pool, (strconcat {k.clone()} {c.clone()})),
+                                build_term!(
+                                    pool,
+                                    (and (strinre {k.clone()} {r.clone()}) {m.clone()})
+                                ),
+                            ))
+                        }
+                    }
                 } else {
-                    // Err(CheckerError::WrongNumberOfTermsInOp(
-                    //     Operator::ReConcat,
-                    //     (2..).into(),
-                    //     args.len(),
-                    // ))
+                    Err(CheckerError::WrongNumberOfTermsInOp(
+                        Operator::ReConcat,
+                        (2..).into(),
+                        args.len(),
+                    ))
                 }
             }
             _ => {
+                // Confirmar com o Haniel
                 // Throw error: operator not allowed
+                Err(CheckerError::CannotApplyReUnfoldPos(r.clone()))
             }
         }
     }
@@ -1122,12 +1151,6 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
     assert_clause_len(conclusion, 1)?;
 
     // match conclusion form
-    // match_term_err!(
-    //     (or
-    //         (not (strinre pref r_1))
-    //         (not (strinre suff r_2))
-    //     ) = &conclusion[0]
-    // )?;
 
     let term = get_premise_term(&premises[0])?;
     let (t, r) = match_term_err!((strinre t r) = term)?;
@@ -1151,8 +1174,20 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
                     Operator::ReConcat,
                     vec![r_1.clone(), r.clone(), r_1.clone()],
                 ));
-                re_unfold_pos_concat(pool, t.clone(), new_t);
-                todo!();
+                let (k, m) = re_unfold_pos_concat(pool, t.clone(), new_t)?;
+                todo!()
+                // build_term!(
+                //     pool,
+                //     (or
+                //         (= {t.clone()} "")
+                //         (strinre {t.clone()} {r_1.clone()})
+                //         (and
+                //             ()
+                //             ()
+                //             ()
+                //         )
+                //     )
+                // )
             } else {
                 Err(CheckerError::WrongNumberOfTermsInOp(
                     Operator::ReKleeneClosure,
@@ -1168,7 +1203,8 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
             // (((@pair tk M)
             //     (eo::define ((teq (= t tk))) (eo::ite (eo::is_eq M true) teq (and teq M)))))))
             println!("{:?}", args);
-            re_unfold_pos_concat(pool, t.clone(), r.clone());
+            let (tk, m) = re_unfold_pos_concat(pool, t.clone(), r.clone())?;
+            let teq = build_term!(pool, (= {t.clone()} {tk.clone()}));
             todo!()
         }
         _ => Err(CheckerError::TermOfWrongForm(

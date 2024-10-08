@@ -71,6 +71,10 @@ pub enum CheckerError {
     #[error("cannot evaluate the fixed length of the term '{0}'")]
     LengthCannotBeEvaluated(Rc<Term>),
 
+    // Temporary
+    #[error("cannot apply the re_unfold_pos rule to the term '{0}'")]
+    CannotApplyReUnfoldPos(Rc<Term>),
+
     // General errors
     #[error("expected {0} premises, got {1}")]
     WrongNumberOfPremises(Range, usize),
