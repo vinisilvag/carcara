@@ -1176,33 +1176,32 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
                 let (k, m) = re_unfold_pos_concat(pool, t.clone(), new_t)?;
                 match k.as_ref() {
                     Term::Op(Operator::StrConcat, concat_args) => {
-                        // k1, k2 and k3 = concat_args are fixed?
-                        // (and a) should be valid? https://github.com/cvc5/ethos/blob/main/user_manual.md
-
-                        // Ok(build_term!(
-                        //     pool,
-                        //     (or
-                        //         (= {t.clone()} "")
-                        //         (strinre {t.clone()} {r_1.clone()})
-                        //         (and
-                        //             ( ... )
-                        //             (not (= {k_1.clone()} ""))
-                        //             (not (= {k_3.clone()} ""))
-                        //         )
-                        //     )
-                        // ))
+                        match &concat_args[..] {
+                            [k_1, k_2, k_3] => {
+                                // Ok(build_term!(
+                                //     pool,
+                                //     (or
+                                //         (= {t.clone()} "")
+                                //         (strinre {t.clone()} {r_1.clone()})
+                                //         (and
+                                //             ( ... )
+                                //             (not (= {k_1.clone()} ""))
+                                //             (not (= {k_3.clone()} ""))
+                                //         )
+                                //     )
+                                // ))
+                                Ok(build_term!(pool, true))
+                            }
+                            _ => Err(CheckerError::TermOfWrongForm(
+                                "(str.++ k1 k2 k3)",
+                                k.clone(),
+                            )),
+                        }
                     }
-                    _ => {
-                        // Throw an error?
-                    }
+                    _ => Err(CheckerError::TermOfWrongForm("(str.++ ...)", k.clone())),
                 }
-                todo!()
             } else {
-                Err(CheckerError::WrongNumberOfTermsInOp(
-                    Operator::ReKleeneClosure,
-                    1.into(),
-                    args.len(),
-                ))
+                unreachable!()
             }
         }
         Term::Op(Operator::ReConcat, _) => {
