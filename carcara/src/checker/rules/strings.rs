@@ -343,41 +343,37 @@ fn re_unfold_pos_concat(
         pool: &mut dyn TermPool,
         t: Rc<Term>,
         r: Rc<Term>,
-        n: usize,
         i: usize,
-    ) -> Rc<Term> {
-        let mut re_concat_args: Vec<Rc<Term>> = Vec::new();
-        let mut str_concat_args: Vec<Rc<Term>> = Vec::new();
-        let str_sort = pool.add(Term::Sort(Sort::String));
-        let reglan_sort = pool.add(Term::Sort(Sort::RegLan));
-        for j in 0..(n + 1) {
-            re_concat_args.push(pool.add(Term::Var(format!("R_{j}"), reglan_sort.clone())));
-            str_concat_args.push(pool.add(Term::Var(format!("k_{j}"), str_sort.clone())));
+    ) -> Result<Rc<Term>, CheckerError> {
+        let t_args = match t.as_ref() {
+            Term::Op(Operator::StrConcat, args) => args,
+            _ => return Err(CheckerError::CannotApplyReUnfoldPosComponent(t.clone())),
+        };
+        let r_args = match r.as_ref() {
+            Term::Op(Operator::ReConcat, args) => args,
+            _ => return Err(CheckerError::CannotApplyReUnfoldPosComponent(r.clone())),
+        };
+        if r_args.len() != t_args.len() {
+            return Err(
+                CheckerError::CannotApplyReUnfoldPosComponentDifferentArgNum(t.clone(), r.clone()),
+            );
         }
-        let re_concat = pool.add(Term::Op(Operator::ReConcat, re_concat_args));
-        let str_concat = pool.add(Term::Op(Operator::ReConcat, str_concat_args));
+        let n = t_args.len();
 
+        let str_sort = pool.add(Term::Sort(Sort::String));
         let mut args: Vec<Rc<Term>> = Vec::new();
-        args.push(build_term!(pool, (strinre {t.clone()} {r.clone()})));
-        args.push(build_term!(pool, (= {r} {re_concat})));
-        args.push(build_term!(pool, (= {t} {str_concat})));
-        let mut steps: Vec<Rc<Term>> = Vec::new();
-        for j in 0..(n + 1) {
-            let re_var = pool.add(Term::Var(format!("R_{j}"), reglan_sort.clone()));
-            let string_var = pool.add(Term::Var(format!("k_{j}"), str_sort.clone()));
-            steps.push(build_term!(pool, (strinre {string_var} {re_var})));
+        for j in 0..n {
+            args.push(build_term!(pool, (strinre {t_args[j].clone()} {r_args[j].clone()})))
         }
-        args.extend(steps);
         let x = pool.add(Term::new_var("x", str_sort.clone()));
-        let k_i = pool.add(Term::Var(format!("k_{i}"), str_sort.clone()));
-        args.push(build_term!(pool, (= {x} {k_i})));
+        args.push(build_term!(pool, (= {x} {t_args[i].clone()})));
 
         let conjunction = pool.add(Term::Op(Operator::And, args));
-        pool.add(Term::Binder(
+        Ok(pool.add(Term::Binder(
             Binder::Choice,
             BindingList(vec![("x".into(), str_sort.clone())]),
             conjunction,
-        ))
+        )))
     }
 
     fn re_unfold_pos_concat_recursive(
@@ -1192,11 +1188,13 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
                         [k_1, k_2, k_3] => {
                             let eq = build_term!(pool, (= {t.clone()} (strconcat {k_1.clone()} {k_2.clone()} {k_3.clone()})));
                             let empty = pool.add(Term::new_string(""));
+                            // TODO: arrumar essa parte aqui
                             let conjunction: Rc<Term> = if m.is_bool_true() {
                                 build_term!(pool, (and {eq.clone()}))
                             } else {
                                 build_term!(pool, (and {eq} {m}))
                             };
+                            // Ate aqui
                             Ok(build_term!(
                                 pool,
                                 (or
