@@ -38,6 +38,25 @@ fn string_concat_flatten(pool: &mut dyn TermPool, term: Rc<Term>) -> Vec<Rc<Term
     flattened
 }
 
+fn flatten_concatenation(pool: &mut dyn TermPool, term: Rc<Term>, op: Operator) -> Vec<Rc<Term>> {
+    let mut flattened = Vec::new();
+    match term.as_ref() {
+        Term::Op(t_op, args) => {
+            if *t_op == op {
+                for arg in args {
+                    flattened.extend(string_concat_flatten(pool, arg.clone()));
+                }
+            } else {
+                flattened.push(term.clone())
+            }
+        }
+        _ => {
+            flattened.push(term.clone());
+        }
+    }
+    flattened
+}
+
 fn is_compatible(s: Vec<Rc<Term>>, t: Vec<Rc<Term>>) -> bool {
     match (&s[..], &t[..]) {
         (_, []) => true,
@@ -346,11 +365,15 @@ fn re_unfold_pos_concat(
         i: usize,
     ) -> Result<Rc<Term>, CheckerError> {
         let t_args = match t.as_ref() {
-            Term::Op(Operator::StrConcat, args) => args,
+            Term::Op(Operator::StrConcat, _) => {
+                flatten_concatenation(pool, t.clone(), Operator::StrConcat)
+            }
             _ => return Err(CheckerError::CannotApplyReUnfoldPosComponent(t.clone())),
         };
         let r_args = match r.as_ref() {
-            Term::Op(Operator::ReConcat, args) => args,
+            Term::Op(Operator::ReConcat, _) => {
+                flatten_concatenation(pool, t.clone(), Operator::ReConcat)
+            }
             _ => return Err(CheckerError::CannotApplyReUnfoldPosComponent(r.clone())),
         };
         if r_args.len() != t_args.len() {
