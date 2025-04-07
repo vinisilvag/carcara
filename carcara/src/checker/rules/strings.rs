@@ -1160,7 +1160,9 @@ pub fn re_inter(
     Ok(())
 }
 
-pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+pub fn re_kleene_star_unfold_pos(
+    RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
+) -> RuleResult {
     assert_num_premises(premises, 1)?;
     assert_clause_len(conclusion, 1)?;
 
@@ -1170,17 +1172,6 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
     let expanded = match r.as_ref() {
         Term::Op(Operator::ReKleeneClosure, args) => {
             if let Some(r_1) = args.first() {
-                // (eo::match ((k1 String) (k2 String) (k3 String) (M Bool :list))
-                //                              new_t
-                // ($re_unfold_pos_concat t (re.++ r1 r r1))
-                // (((@pair (str.++ k1 k2 k3) M)
-                //     (or
-                //     (= t "")
-                //     (str.in_re t r1)
-                //     (and
-                //         (eo::cons and (= t (str.++ k1 k2 k3)) M)
-                //         (not (= k1 ""))
-                //         (not (= k3 ""))))))))
                 let new_t = pool.add(Term::Op(
                     Operator::ReConcat,
                     vec![r_1.clone(), r.clone(), r_1.clone()],
@@ -1224,6 +1215,20 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
                 unreachable!()
             }
         }
+        _ => Err(CheckerError::TermOfWrongForm("(re.* ...)", r.clone())),
+    }?;
+
+    assert_eq(&conclusion[0], &expanded)
+}
+
+pub fn re_concat_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 1)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let term = get_premise_term(&premises[0])?;
+    let (t, r) = match_term_err!((strinre t r) = term)?;
+
+    let expanded = match r.as_ref() {
         Term::Op(Operator::ReConcat, _) => {
             let (tk, m) = re_unfold_pos_concat(pool, t.clone(), r.clone())?;
             let teq = build_term!(pool, (= {t.clone()} {tk.clone()}));
@@ -1233,10 +1238,7 @@ pub fn re_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
                 Ok(build_term!(pool, (and {teq.clone()} {m.clone()})))
             }
         }
-        _ => Err(CheckerError::TermOfWrongForm(
-            "(re.* ...) or (re.++ ...)",
-            r.clone(),
-        )),
+        _ => Err(CheckerError::TermOfWrongForm("(re.++ ...)", r.clone())),
     }?;
 
     assert_eq(&conclusion[0], &expanded)
