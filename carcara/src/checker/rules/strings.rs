@@ -380,12 +380,12 @@ fn re_unfold_pos_concat(
         pool: &mut dyn TermPool,
         t: Rc<Term>,
         i: usize,
-        previous_ks: Vec<Rc<Term>>,
-        previous_rs: Vec<Rc<Term>>,
+        previous_ks: &mut Vec<Rc<Term>>,
+        previous_rs: &mut Vec<Rc<Term>>,
     ) -> Result<Rc<Term>, CheckerError> {
         // TODO: fix later
         if previous_ks.len() != previous_rs.len() {
-            unreachable!("should not happen");
+            unreachable!("sanity check, should not happen");
         }
 
         let str_sort = pool.add(Term::Sort(Sort::String));
@@ -431,6 +431,9 @@ fn re_unfold_pos_concat(
             exists_binder,
         ));
 
+        previous_ks.insert(0, choice_binder.clone());
+        previous_rs.insert(0, r_i.clone());
+
         Ok(choice_binder)
     }
 
@@ -439,6 +442,8 @@ fn re_unfold_pos_concat(
         t: Rc<Term>,
         r: Rc<Term>,
         ro: Rc<Term>,
+        previous_ks: &mut Vec<Rc<Term>>,
+        previous_rs: &mut Vec<Rc<Term>>,
         n: usize,
     ) -> Result<(Rc<Term>, Rc<Term>), CheckerError> {
         match r.as_ref() {
@@ -454,6 +459,8 @@ fn re_unfold_pos_concat(
                         t.clone(),
                         re_conc,
                         ro.clone(),
+                        previous_ks,
+                        previous_rs,
                         n + 1,
                     )?;
                     match r_1.as_ref() {
@@ -462,7 +469,7 @@ fn re_unfold_pos_concat(
                             Ok((build_term!(pool, (strconcat {s.clone()} {c.clone()})), m))
                         }
                         _ => {
-                            let k = re_unfold_pos_component(pool, t, n)?;
+                            let k = re_unfold_pos_component(pool, t, n, previous_ks, previous_rs)?;
                             Ok((
                                 build_term!(pool, (strconcat {k.clone()} {c.clone()})),
                                 build_term!(
@@ -480,7 +487,15 @@ fn re_unfold_pos_concat(
         }
     }
 
-    re_unfold_pos_concat_recursive(pool, t.clone(), r.clone(), r.clone(), 0)
+    re_unfold_pos_concat_recursive(
+        pool,
+        t.clone(),
+        r.clone(),
+        r.clone(),
+        &mut Vec::new(),
+        &mut Vec::new(),
+        0,
+    )
 }
 
 /// A function to calculate the fixed length of a regular expression `r` (size of strings that
@@ -2914,6 +2929,32 @@ mod tests {
                    (step t1 (cl (or (not (str.in_re (str.substr x (- (str.len x) 2) 2) (re.union (str.to_re "xy") re.none))) (not (str.in_re (str.substr x 0 (- (str.len x) 2)) d)))) :rule re_unfold_neg_concat_fixed_suffix :premises (h1))"#: false,
                 r#"(assume h1 (not (str.in_re x (re.++ d (re.inter re.all (str.to_re "xy") (str.to_re "xyz"))))))
                    (step t1 (cl (or (not (str.in_re (str.substr x (- (str.len x) 2) 2) (re.union (str.to_re "xy") re.none))) (not (str.in_re (str.substr x 0 (- (str.len x) 2)) d)))) :rule re_unfold_neg_concat_fixed_suffix :premises (h1))"#: false,
+            }
+        }
+    }
+
+    #[test]
+    fn re_kleene_star_unfold_pos() {
+        test_cases! {
+            definitions = "
+                (declare-fun a () String)
+                (declare-fun b () String)
+                (declare-fun c () String)
+            ",
+            "Simple working examples" {
+            }
+        }
+    }
+
+    #[test]
+    fn re_concat_unfold_pos() {
+        test_cases! {
+            definitions = "
+                (declare-fun a () String)
+                (declare-fun b () String)
+                (declare-fun c () String)
+            ",
+            "Simple working examples" {
             }
         }
     }
