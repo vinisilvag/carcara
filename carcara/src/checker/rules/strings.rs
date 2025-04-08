@@ -353,6 +353,24 @@ fn singleton_elim(pool: &mut dyn TermPool, r_list: Vec<Rc<Term>>) -> Rc<Term> {
     }
 }
 
+fn and_simplification(pool: &mut dyn TermPool, t: Rc<Term>, m: Rc<Term>) -> Rc<Term> {
+    if t.is_bool_true() {
+        return m;
+    }
+    if m.is_bool_true() {
+        return pool.add(Term::Op(Operator::And, vec![t]));
+    }
+    match m.as_ref() {
+        Term::Op(Operator::And, args) => {
+            let mut new_args: Vec<Rc<Term>> = Vec::new();
+            new_args.push(t);
+            new_args.extend(args.clone());
+            return pool.add(Term::Op(Operator::And, new_args));
+        }
+        _ => t,
+    }
+}
+
 fn re_unfold_pos_concat(
     pool: &mut dyn TermPool,
     t: Rc<Term>,
@@ -361,39 +379,59 @@ fn re_unfold_pos_concat(
     fn re_unfold_pos_component(
         pool: &mut dyn TermPool,
         t: Rc<Term>,
-        r: Rc<Term>,
         i: usize,
-        prev_ks: Vec<Rc<Term>>,
-        prev_rs: Vec<Rc<Term>>,
+        previous_ks: Vec<Rc<Term>>,
+        previous_rs: Vec<Rc<Term>>,
     ) -> Result<Rc<Term>, CheckerError> {
-        let str_sort = pool.add(Term::Sort(Sort::String));
-
-        let mut concat_args: Vec<Rc<Term>> = Vec::new();
-        for j in 0..i {
-            concat_args.push(pool.add(Term::new_var(format!("k_{j}"), str_sort.clone())));
+        // TODO: fix later
+        if previous_ks.len() != previous_rs.len() {
+            unreachable!("should not happen");
         }
-        let x = pool.add(Term::new_var("x", str_sort.clone()));
-        concat_args.push(x);
-        concat_args.extend(prev_ks);
 
-        let concat = pool.add(Term::Op(Operator::StrConcat, concat_args));
-        let constructed_t = build_term!(pool, (= {t.clone()} {concat.clone()}));
+        let str_sort = pool.add(Term::Sort(Sort::String));
+        let reglan_sort = pool.add(Term::Sort(Sort::RegLan));
+        let x = pool.add(Term::new_var("x", str_sort.clone()));
 
         let mut and_args: Vec<Rc<Term>> = Vec::new();
-        for j in 0..i {
-            let k = pool.add(Term::new_var(format!("k_{j}"), str_sort.clone()));
-            and_args.push(build_term!(pool, (strinre {k.clone()} {})))
-        }
-        let x = pool.add(Term::new_var("x", str_sort.clone()));
-        and_args.push(x);
-        and_args.extend(prev_ks);
+        let mut concat_args: Vec<Rc<Term>> = Vec::new();
+        let mut exists_binding_list: Vec<(String, Rc<Term>)> = Vec::new();
 
-        // let conjunction = pool.add(Term::Op(Operator::And, args));
-        // Ok(pool.add(Term::Binder(
-        //     Binder::Choice,
-        //     BindingList(vec![("x".into(), str_sort.clone())]),
-        //     conjunction,
-        // )))
+        for j in 0..i {
+            let k_j = pool.add(Term::new_var(format!("k_{j}"), str_sort.clone()));
+            let r_j = pool.add(Term::new_var(format!("R_{j}"), reglan_sort.clone()));
+            concat_args.push(k_j.clone());
+            and_args.push(build_term!(pool, (strinre {k_j.clone()} {r_j.clone()})));
+            exists_binding_list.push((format!("k_{j}"), str_sort.clone()));
+        }
+
+        concat_args.push(x.clone());
+        concat_args.extend(previous_ks.clone());
+        let ks_concat = pool.add(Term::Op(Operator::StrConcat, concat_args));
+
+        let r_i = pool.add(Term::new_var(format!("R_{i}"), reglan_sort.clone()));
+        and_args.push(build_term!(pool, (strinre {x.clone()} {r_i.clone()})));
+        for (i, _) in previous_rs.iter().enumerate() {
+            and_args.push(
+                build_term!(pool, (strinre {previous_ks[i].clone()} {previous_rs[i].clone()})),
+            )
+        }
+
+        let equality = build_term!(pool, (= {t.clone()} {ks_concat.clone()}));
+        and_args.insert(0, equality);
+
+        let conjunction = pool.add(Term::Op(Operator::And, and_args));
+        let exists_binder = pool.add(Term::Binder(
+            Binder::Exists,
+            BindingList(exists_binding_list),
+            conjunction,
+        ));
+        let choice_binder = pool.add(Term::Binder(
+            Binder::Choice,
+            BindingList(vec![("x".into(), str_sort.clone())]),
+            exists_binder,
+        ));
+
+        Ok(choice_binder)
     }
 
     fn re_unfold_pos_concat_recursive(
@@ -424,7 +462,7 @@ fn re_unfold_pos_concat(
                             Ok((build_term!(pool, (strconcat {s.clone()} {c.clone()})), m))
                         }
                         _ => {
-                            let k = re_unfold_pos_component(pool, t, ro, n)?;
+                            let k = re_unfold_pos_component(pool, t, n)?;
                             Ok((
                                 build_term!(pool, (strconcat {k.clone()} {c.clone()})),
                                 build_term!(
@@ -1182,22 +1220,14 @@ pub fn re_kleene_star_unfold_pos(
                         [k_1, k_2, k_3] => {
                             let eq = build_term!(pool, (= {t.clone()} (strconcat {k_1.clone()} {k_2.clone()} {k_3.clone()})));
                             let empty = pool.add(Term::new_string(""));
-
-                            // TODO: arrumar essa parte aqui
-                            let conjunction: Rc<Term> = if m.is_bool_true() {
-                                build_term!(pool, (and {eq.clone()}))
-                            } else {
-                                build_term!(pool, (and {eq} {m}))
-                            };
-                            // Ate aqui
-
+                            let simplified = and_simplification(pool, eq.clone(), m.clone());
                             Ok(build_term!(
                                 pool,
                                 (or
                                     (= {t.clone()} {empty.clone()})
                                     (strinre {t.clone()} {r_1.clone()})
                                     (and
-                                        {conjunction.clone()}
+                                        {simplified}
                                         (not (= {k_1.clone()} {empty.clone()}))
                                         (not (= {k_3.clone()} {empty}))
                                     )
