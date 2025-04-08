@@ -38,25 +38,6 @@ fn string_concat_flatten(pool: &mut dyn TermPool, term: Rc<Term>) -> Vec<Rc<Term
     flattened
 }
 
-fn flatten_concatenation(pool: &mut dyn TermPool, term: Rc<Term>, op: Operator) -> Vec<Rc<Term>> {
-    let mut flattened = Vec::new();
-    match term.as_ref() {
-        Term::Op(t_op, args) => {
-            if *t_op == op {
-                for arg in args {
-                    flattened.extend(string_concat_flatten(pool, arg.clone()));
-                }
-            } else {
-                flattened.push(term.clone())
-            }
-        }
-        _ => {
-            flattened.push(term.clone());
-        }
-    }
-    flattened
-}
-
 fn is_compatible(s: Vec<Rc<Term>>, t: Vec<Rc<Term>>) -> bool {
     match (&s[..], &t[..]) {
         (_, []) => true,
@@ -365,7 +346,7 @@ fn and_simplification(pool: &mut dyn TermPool, t: Rc<Term>, m: Rc<Term>) -> Rc<T
             let mut new_args: Vec<Rc<Term>> = Vec::new();
             new_args.push(t);
             new_args.extend(args.clone());
-            return pool.add(Term::Op(Operator::And, new_args));
+            pool.add(Term::Op(Operator::And, new_args))
         }
         _ => t,
     }
@@ -382,7 +363,7 @@ fn re_unfold_pos_concat(
         i: usize,
         previous_ks: &mut Vec<Rc<Term>>,
         previous_rs: &mut Vec<Rc<Term>>,
-    ) -> Result<Rc<Term>, CheckerError> {
+    ) -> Rc<Term> {
         // TODO: fix later
         if previous_ks.len() != previous_rs.len() {
             unreachable!("sanity check, should not happen");
@@ -413,7 +394,7 @@ fn re_unfold_pos_concat(
         for (i, _) in previous_rs.iter().enumerate() {
             and_args.push(
                 build_term!(pool, (strinre {previous_ks[i].clone()} {previous_rs[i].clone()})),
-            )
+            );
         }
 
         let equality = build_term!(pool, (= {t.clone()} {ks_concat.clone()}));
@@ -434,7 +415,7 @@ fn re_unfold_pos_concat(
         previous_ks.insert(0, choice_binder.clone());
         previous_rs.insert(0, r_i.clone());
 
-        Ok(choice_binder)
+        choice_binder
     }
 
     fn re_unfold_pos_concat_recursive(
@@ -469,7 +450,7 @@ fn re_unfold_pos_concat(
                             Ok((build_term!(pool, (strconcat {s.clone()} {c.clone()})), m))
                         }
                         _ => {
-                            let k = re_unfold_pos_component(pool, t, n, previous_ks, previous_rs)?;
+                            let k = re_unfold_pos_component(pool, t, n, previous_ks, previous_rs);
                             Ok((
                                 build_term!(pool, (strconcat {k.clone()} {c.clone()})),
                                 build_term!(
