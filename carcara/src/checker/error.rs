@@ -79,7 +79,7 @@ pub enum CheckerError {
 
     #[error("No {0}-th child in term {1}")]
     NoIthChildInTerm(usize, Rc<Term>),
-    
+
     #[error("cannot apply the re_unfold_pos rule to the regular expression term '{0}'")]
     CannotApplyReUnfoldPos(Rc<Term>),
 
