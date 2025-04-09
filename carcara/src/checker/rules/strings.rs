@@ -428,10 +428,6 @@ fn re_unfold_pos_concat(
         n: usize,
     ) -> Result<(Rc<Term>, Rc<Term>), CheckerError> {
         match r.as_ref() {
-            Term::Op(Operator::ReNone, _) => Ok((
-                pool.add(Term::new_string("")),
-                pool.add(Term::new_bool(true)),
-            )),
             Term::Op(Operator::ReConcat, args) => {
                 if let [r_1, r_2 @ ..] = &args[..] {
                     let re_conc = pool.add(Term::Op(Operator::ReConcat, r_2.to_vec()));
@@ -461,7 +457,10 @@ fn re_unfold_pos_concat(
                         }
                     }
                 } else {
-                    unreachable!()
+                    Ok((
+                        pool.add(Term::new_string("")),
+                        pool.add(Term::new_bool(true)),
+                    ))
                 }
             }
             _ => Err(CheckerError::CannotApplyReUnfoldPos(r.clone())),
@@ -1230,10 +1229,13 @@ pub fn re_kleene_star_unfold_pos(
                                 )
                             ))
                         }
-                        _ => Err(CheckerError::TermOfWrongForm(
-                            "(str.++ k1 k2 k3)",
-                            k.clone(),
-                        )),
+                        _ => {
+                            println!("size of return {:?}", concat_args.len());
+                            Err(CheckerError::TermOfWrongForm(
+                                "(str.++ k1 k2 k3)",
+                                k.clone(),
+                            ))
+                        }
                     },
                     _ => Err(CheckerError::TermOfWrongForm("(str.++ ...)", k.clone())),
                 }
@@ -1243,6 +1245,9 @@ pub fn re_kleene_star_unfold_pos(
         }
         _ => Err(CheckerError::TermOfWrongForm("(re.* ...)", r.clone())),
     }?;
+
+    println!("concluded: {}", &conclusion[0]);
+    println!("epxanded: {}", &expanded);
 
     assert_eq(&conclusion[0], &expanded)
 }
@@ -2918,11 +2923,16 @@ mod tests {
     fn re_kleene_star_unfold_pos() {
         test_cases! {
             definitions = "
-                (declare-fun a () String)
-                (declare-fun b () String)
-                (declare-fun c () String)
+                (declare-fun x () String)
+                (declare-fun y () String)
+                (declare-fun z () String)
+                (declare-fun a () RegLan)
+                (declare-fun b () RegLan)
+                (declare-fun c () RegLan)
             ",
             "Simple working examples" {
+                r#"(assume h1 (str.in_re x (re.* (str.to_re "a"))))
+                   (step t1 (cl false) :rule re_kleene_star_unfold_pos :premises (h1))"#: true,
             }
         }
     }
