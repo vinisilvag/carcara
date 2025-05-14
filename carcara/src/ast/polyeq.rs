@@ -874,7 +874,8 @@ fn nary_case(op: Operator) -> Option<NaryCase> {
         | Operator::ReComplement
         | Operator::ReKleeneCross
         | Operator::ReOption
-        | Operator::ReRange => None,
+        | Operator::ReRange
+        | Operator::ReFromAutomaton => None,
 
         // Bitvectors
         Operator::BvAnd | Operator::BvOr | Operator::BvAdd | Operator::BvMul => {

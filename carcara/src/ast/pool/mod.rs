@@ -205,7 +205,8 @@ impl PrimitivePool {
                 | Operator::ReDiff
                 | Operator::ReKleeneCross
                 | Operator::ReOption
-                | Operator::ReRange => Sort::RegLan,
+                | Operator::ReRange
+                | Operator::ReFromAutomaton => Sort::RegLan,
                 Operator::RareList => Sort::RareList,
             },
             Term::App(f, args) => {

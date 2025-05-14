@@ -1503,3 +1503,15 @@ pub fn re_unfold_neg_concat_fixed_suffix(
 
     assert_eq(&conclusion[0], &expanded)
 }
+
+pub fn re_convert(
+    RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
+) -> RuleResult {
+    Ok(())
+}
+
+pub fn re_empty_intersection(
+    RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
+) -> RuleResult {
+    Ok(())
+}

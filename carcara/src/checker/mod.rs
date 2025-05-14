@@ -462,18 +462,6 @@ impl<'c> ProofChecker<'c> {
             "bitblast_bvadd" => bitvectors::add,
             "bitblast_ult" => bitvectors::ult,
 
-            "concat_eq" => strings::concat_eq,
-            "concat_unify" => strings::concat_unify,
-            "concat_conflict" => strings::concat_conflict,
-            "concat_csplit_prefix" => strings::concat_csplit_prefix,
-            "concat_csplit_suffix" => strings::concat_csplit_suffix,
-            "concat_split_prefix" => strings::concat_split_prefix,
-            "concat_split_suffix" => strings::concat_split_suffix,
-            "concat_lprop_prefix" => strings::concat_lprop_prefix,
-            "concat_lprop_suffix" => strings::concat_lprop_suffix,
-            "concat_cprop_prefix" => strings::concat_cprop_prefix,
-            "concat_cprop_suffix" => strings::concat_cprop_suffix,
-
             // pseudo-boolean bitblasting
             "pbblast_bveq" => pb_blasting::pbblast_bveq,
             "pbblast_bvult" => pb_blasting::pbblast_bvult,
@@ -494,17 +482,35 @@ impl<'c> ProofChecker<'c> {
             "cp_multiplication" => cutting_planes::cp_multiplication,
             "cp_division" => cutting_planes::cp_division,
             "cp_saturation" => cutting_planes::cp_saturation,
-
+            
+            // String rules
+            "concat_eq" => strings::concat_eq,
+            "concat_unify" => strings::concat_unify,
+            "concat_conflict" => strings::concat_conflict,
+            "concat_csplit_prefix" => strings::concat_csplit_prefix,
+            "concat_csplit_suffix" => strings::concat_csplit_suffix,
+            "concat_split_prefix" => strings::concat_split_prefix,
+            "concat_split_suffix" => strings::concat_split_suffix,
+            "concat_lprop_prefix" => strings::concat_lprop_prefix,
+            "concat_lprop_suffix" => strings::concat_lprop_suffix,
+            "concat_cprop_prefix" => strings::concat_cprop_prefix,
+            "concat_cprop_suffix" => strings::concat_cprop_suffix,
             "string_decompose" => strings::string_decompose,
             "string_length_pos" => strings::string_length_pos,
             "string_length_non_empty" => strings::string_length_non_empty,
 
+            // Regular Expression rules
             "re_inter" => strings::re_inter,
             "re_kleene_star_unfold_pos" => strings::re_kleene_star_unfold_pos,
             "re_concat_unfold_pos" => strings::re_concat_unfold_pos,
             "re_unfold_neg" => strings::re_unfold_neg,
             "re_unfold_neg_concat_fixed_prefix" => strings::re_unfold_neg_concat_fixed_prefix,
             "re_unfold_neg_concat_fixed_suffix" => strings::re_unfold_neg_concat_fixed_suffix,
+
+            // Regular Constraint Propagation rules
+            "re_convert" => strings::re_convert,
+            "re_empty_intersection" => strings::re_empty_intersection,
+
             // Drup format rules
             "drup" => |x| drup::drup(false, x),
             // Drup format rules

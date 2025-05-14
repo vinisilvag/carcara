@@ -348,6 +348,10 @@ impl<'a, R: BufRead> Parser<'a, R> {
                 assert_num_args(&args, 1)?;
                 SortError::assert_eq(&Sort::String, sorts[0])?;
             }
+            Operator::ReFromAutomaton => {
+                assert_num_args(&args, 1)?;
+                SortError::assert_eq(&Sort::String, sorts[0])?;
+            },
             Operator::StrLessThan
             | Operator::StrLessEq
             | Operator::PrefixOf

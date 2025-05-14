@@ -326,6 +326,9 @@ pub enum Operator {
     /// The `re.range` operator.
     ReRange,
 
+    /// The `re.from_automaton` operator.
+    ReFromAutomaton,
+
     // BV operators (unary)
     BvNot,
     BvNeg,
@@ -465,6 +468,9 @@ impl_str_conversion_traits!(Operator {
     ReKleeneCross: "re.+",
     ReOption: "re.opt",
     ReRange: "re.range",
+
+    ReFromAutomaton: "re.from_automaton",
+
     BvNot: "bvnot",
     BvNeg: "bvneg",
     BvAnd: "bvand",
