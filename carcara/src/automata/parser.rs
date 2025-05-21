@@ -1,6 +1,8 @@
+// TODO: resolver depois
+#![allow(deprecated)]
 use nom::{
     bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1, char, digit1, multispace0, multispace1},
+    character::complete::{alpha1, char, digit1, multispace0, multispace1},
     combinator::{map, map_res, recognize},
     multi::many0,
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
@@ -8,28 +10,7 @@ use nom::{
 };
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
-pub enum Ast {
-    Automaton {
-        name: String,
-        // states: Vec<StateDecl>,
-        // transitions: Vec<Transition>,
-        // accepting: Vec<String>,
-    },
-}
-
-#[derive(Debug, PartialEq)]
-pub struct StateDecl {
-    pub name: String,
-    pub initial: bool,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Transition {
-    pub from: String,
-    pub to: String,
-    pub range: (char, char),
-}
+use super::Automata;
 
 fn identifier(input: &str) -> IResult<&str, &str> {
     recognize(pair(
@@ -84,8 +65,8 @@ fn transition(input: &str) -> IResult<&str, (&str, &str, (u32, u32))> {
     .parse(input)
 }
 
-pub fn automaton(input: &str) -> IResult<&str, ()> {
-    let (input, _) = map(
+pub fn parse_automata(input: &str) -> IResult<&str, Automata> {
+    map(
         terminated(
             tuple((
                 preceded(
@@ -104,8 +85,14 @@ pub fn automaton(input: &str) -> IResult<&str, ()> {
             )),
             char(';'),
         ),
-        |test| println!("{:?}", test),
+        |(name, (initial_state, transitions, accepting_states))| {
+            Automata::new(
+                name.to_owned(),
+                initial_state,
+                transitions,
+                accepting_states,
+            )
+        },
     )
-    .parse(input)?;
-    Ok((input, ()))
+    .parse(input)
 }

@@ -1,6 +1,5 @@
 //! A parser for the Alethe proof format.
 
-mod automata;
 mod error;
 mod lexer;
 pub(crate) mod tests;
@@ -10,7 +9,7 @@ use std::iter::Iterator;
 pub use error::{ParserError, SortError};
 pub use lexer::{Lexer, Position, Reserved, Token};
 
-use automata::automaton;
+use crate::automata::parser::parse_automata;
 
 use crate::{
     ast::*,
@@ -228,13 +227,18 @@ impl<'a, R: BufRead> Parser<'a, R> {
     }
 
     fn make_automata(&mut self, automaton_repr: String) {
-        match automaton(automaton_repr.trim()) {
+        match parse_automata(automaton_repr.trim()) {
             Ok((remaining, ast)) => {
-                println!("remaining {:?}", remaining);
+                if !remaining.is_empty() {
+                    println!("remaining {:?}", remaining);
+                    // retornar erro de parsing
+                }
                 println!("ast {:?}", ast);
+                // retornar o automato
             }
             Err(err) => {
-                println!("Parse error: {:?}", err);
+                println!("Parser error: {:?}", err);
+                // retornar erro de parsing
             }
         }
     }
