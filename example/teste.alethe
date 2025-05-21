@@ -1,0 +1,6 @@
+(assume input1 (str.in_re w (re.+ (str.to_re "a"))))
+(assume input2 (or (str.in_re w (re.+ (str.to_re "b")))
+                   (str.in_re w (re.+ (str.to_re "c")))))
+
+(define-fun t () RegLan (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [98, 98]; s1 -> s1 [98, 98]; accepting s1;};"))

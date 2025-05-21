@@ -1,5 +1,6 @@
 //! A parser for the Alethe proof format.
 
+mod automata;
 mod error;
 mod lexer;
 pub(crate) mod tests;
@@ -8,6 +9,8 @@ use std::iter::Iterator;
 
 pub use error::{ParserError, SortError};
 pub use lexer::{Lexer, Position, Reserved, Token};
+
+use automata::automaton;
 
 use crate::{
     ast::*,
@@ -224,6 +227,18 @@ impl<'a, R: BufRead> Parser<'a, R> {
         self.is_real_only_logic && self.problem.is_some()
     }
 
+    fn make_automata(&mut self, automaton_repr: String) {
+        match automaton(automaton_repr.trim()) {
+            Ok((remaining, ast)) => {
+                println!("remaining {:?}", remaining);
+                println!("ast {:?}", ast);
+            }
+            Err(err) => {
+                println!("Parse error: {:?}", err);
+            }
+        }
+    }
+
     /// Constructs and sort checks an operation term.
     fn make_op(&mut self, op: Operator, args: Vec<Rc<Term>>) -> Result<Rc<Term>, ParserError> {
         let sorts: Vec<_> = args.iter().map(|t| self.pool.sort(t)).collect();
@@ -282,6 +297,7 @@ impl<'a, R: BufRead> Parser<'a, R> {
                 SortError::assert_eq(&Sort::Int, sorts[0])?;
                 SortError::assert_all_eq(&sorts)?;
             }
+            // OLHAR DE EXEMPLO
             Operator::RealDiv => {
                 assert_num_args(&args, 2..)?;
 
@@ -351,7 +367,19 @@ impl<'a, R: BufRead> Parser<'a, R> {
             Operator::ReFromAutomaton => {
                 assert_num_args(&args, 1)?;
                 SortError::assert_eq(&Sort::String, sorts[0])?;
-            },
+                // fazer o parsing da sintaxe em args[0]
+                if let Term::Const(Constant::String(s)) = args[0].as_ref() {
+                    println!("syntax {:?}", s);
+                    self.make_automata(s.to_owned());
+                } else {
+                    unreachable!();
+                }
+
+                // let automata;
+                // return Ok(self.pool.add(Term::))
+
+                // retornar eager aqui o novo termo
+            }
             Operator::StrLessThan
             | Operator::StrLessEq
             | Operator::PrefixOf

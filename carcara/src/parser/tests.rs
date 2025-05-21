@@ -784,3 +784,15 @@ fn test_qualified_operators() {
         Error::Parser(ParserError::InvalidQualifiedOp(_), _),
     ));
 }
+
+#[test]
+fn test_automata() {
+    let mut p = PrimitivePool::new();
+    let term = parse_term(
+        &mut p,
+        r#"(re.from_automaton "automaton value_0 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1; accepting s2; };")"#,
+    );
+    println!("{:?}", term);
+
+    panic!()
+}

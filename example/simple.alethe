@@ -1,0 +1,55 @@
+(assume input1 (str.in_re w (re.+ (str.to_re "a"))))
+(assume input2 (or (str.in_re w (re.+ (str.to_re "b")))
+                   (str.in_re w (re.+ (str.to_re "c")))))
+
+(step t1 (cl (not (str.in_re w (re.+ (str.to_re "a"))))
+             (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1;};")))
+    :rule re_convert)
+(step t1.a (cl (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1;};")))
+    :rule resolution :premises (input1 t1))
+
+(step t2 (cl (str.in_re w (re.+ (str.to_re "b")))
+             (str.in_re w (re.+ (str.to_re "c"))))
+    :rule or :premises (input2))
+
+; start proof branch that spans until t3
+(anchor :step t3)
+(assume t3.input (str.in_re w (re.+ (str.to_re "b"))))
+
+(step t3.s1 (cl (not (str.in_re w (re.+ (str.to_re "b"))))
+                (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [98, 98]; s1 -> s1 [98, 98]; accepting s1;};")))
+    :rule re_convert)
+(step t3.s2 (cl (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [98, 98]; s1 -> s1 [98, 98]; accepting s1;};")))
+    :rule resolution :premises (t3.input t3.s1))
+
+(step t3.s3 (cl (not (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [98, 98]; s1 -> s1 [98, 98]; accepting s1;};")))
+    (not (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1;};"))))
+                         :rule re_empty_intersection)
+(step t3.s4 (cl) :rule resolution :premises (t1.a t3.s2 t3.s3))
+
+(subproof t3 (cl (str.in_re w (re.+ (str.to_re "b"))))
+
+(step t4 (cl (str.in_re w (re.+ (str.to_re "c"))))
+      :rule resolution :premises (t2 t3))
+
+(step t5 (cl (not (str.in_re w (re.+ (str.to_re "c"))))
+                (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [99, 99]; s1 -> s1 [99, 99]; accepting s1;};")))
+    :rule re_convert)
+(step t6 (cl (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [99, 99]; s1 -> s1 [99, 99]; accepting s1;};")))
+    :rule resolution :premises (t4 t5))
+
+(step t7 (cl (not (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [99, 99]; s1 -> s1 [99, 99]; accepting s1;};")))
+ (not (str.in_re w (re.from_automaton
+"automaton value_0 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1;};"))))
+                         :rule re_empty_intersection)
+
+(step t6 (cl) :rule resolution :premises (t1.a t6 t7))
