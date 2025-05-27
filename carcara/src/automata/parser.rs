@@ -8,7 +8,7 @@ use nom::{
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     IResult, Parser,
 };
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 
 use super::Automata;
 
@@ -86,12 +86,7 @@ pub fn parse_automata(input: &str) -> IResult<&str, Automata> {
             char(';'),
         ),
         |(name, (initial_state, transitions, accepting_states))| {
-            Automata::new(
-                name.to_owned(),
-                initial_state,
-                transitions,
-                accepting_states,
-            )
+            Automata::new(name, initial_state, transitions, accepting_states)
         },
     )
     .parse(input)

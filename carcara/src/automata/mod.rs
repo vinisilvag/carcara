@@ -1,8 +1,10 @@
-use std::collections::HashSet;
+use std::{collections::HashMap, collections::HashSet};
 
 pub mod parser;
 
-#[derive(Debug)]
+pub type StateId = usize;
+
+#[derive(Debug, Clone)]
 pub struct State {
     id: String,
     accept: bool,
@@ -10,34 +12,86 @@ pub struct State {
 }
 
 impl State {
-    pub fn set_accepting(&mut self) {
-        self.accept = true;
+    fn new(id: &str, accept: bool) -> State {
+        State {
+            id: id.to_owned(),
+            accept,
+            transitions: HashSet::new(),
+        }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Transition {
-    to: State,
+    to: StateId,
     range: (u32, u32),
+}
+
+impl Transition {
+    fn new(state_id: StateId, range: (u32, u32)) -> Transition {
+        Transition { to: state_id, range }
+    }
 }
 
 #[derive(Debug)]
 pub struct Automata {
     name: String,
-    initial_state: State,
+    all_states: Vec<State>,
+    initial_state: StateId,
 }
 
 impl Automata {
     fn new(
-        name: String,
-        initial_state: State,
-        transitions: Vec<Transition>,
-        accepting_states: Vec<State>,
+        automata_name: &str,
+        initial_state_id: &str,
+        transitions: Vec<(&str, &str, (u32, u32))>,
+        accepting_states: Vec<&str>,
     ) -> Automata {
-        println!("initial state {:?}", initial_state);
-        println!("transitions {:?}", transitions);
-        println!("accepting states {:?}", accepting_states);
+        let mut accepting_states_map = HashSet::new();
+        for state in accepting_states.clone() {
+            accepting_states_map.insert(state);
+        }
 
-        Automata { name, initial_state }
+        let mut initial_state: StateId = 0;
+        let mut all_states: Vec<State> = Vec::new();
+        all_states.push(State::new(
+            initial_state_id,
+            accepting_states_map.contains(initial_state_id),
+        ));
+
+        for (from, to, range) in transitions.clone() {
+            println!("{from} {to} {:?}", range);
+            let mut transition_ids: Vec<StateId> = Vec::new();
+
+            // Cria o estado caso não existir
+            for id in [from, to] {
+                let mut found: Option<StateId> = None;
+                for (index, state) in all_states.iter().enumerate() {
+                    if state.id == id.to_string() {
+                        found = Some(index);
+                        transition_ids.push(index);
+                    }
+                }
+                if found.is_none() {
+                    all_states.push(State::new(id, accepting_states_map.contains(id)));
+                    transition_ids.push(all_states.len() - 1);
+                }
+            }
+
+            // Lida com a transição
+            for state in &mut all_states {
+                if state.id == from {
+                    state
+                        .transitions
+                        .insert(Transition::new(transition_ids[1], range));
+                }
+            }
+        }
+
+        Automata {
+            name: automata_name.to_string(),
+            initial_state,
+            all_states,
+        }
     }
 }
