@@ -1,5 +1,5 @@
 use super::{PrimitivePool, Rc, TermPool};
-use crate::CheckerError;
+use crate::{automata::Automata, CheckerError};
 use indexmap::{map::Entry, IndexMap};
 use rug::{Integer, Rational};
 use std::{collections::HashSet, hash::Hash, ops::Deref};
@@ -115,6 +115,9 @@ pub enum Constant {
 
     /// A bitvector literal term.
     BitVec(Integer, Integer),
+
+    /// A regular expression term.
+    RegLan(Automata),
 }
 
 /// A binder, either a quantifier (`forall` or `exists`), `choice`, or `lambda`.
@@ -989,6 +992,7 @@ impl Constant {
             Constant::Real(_) => Sort::Real,
             Constant::String(_) => Sort::String,
             Constant::BitVec(_, width) => Sort::BitVec(width.clone()),
+            Constant::RegLan(_) => Sort::RegLan,
         }
     }
 

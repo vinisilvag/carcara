@@ -1,10 +1,10 @@
-use std::{collections::HashMap, collections::HashSet};
+use std::collections::HashSet;
 
 pub mod parser;
 
 pub type StateId = usize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct State {
     id: String,
     accept: bool,
@@ -33,7 +33,7 @@ impl Transition {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Automata {
     name: String,
     all_states: Vec<State>,
@@ -52,7 +52,7 @@ impl Automata {
             accepting_states_map.insert(state);
         }
 
-        let mut initial_state: StateId = 0;
+        let initial_state: StateId = 0;
         let mut all_states: Vec<State> = Vec::new();
         all_states.push(State::new(
             initial_state_id,
@@ -60,10 +60,9 @@ impl Automata {
         ));
 
         for (from, to, range) in transitions.clone() {
-            println!("{from} {to} {:?}", range);
             let mut transition_ids: Vec<StateId> = Vec::new();
 
-            // Cria o estado caso não existir
+            // Create the state if it does not exists
             for id in [from, to] {
                 let mut found: Option<StateId> = None;
                 for (index, state) in all_states.iter().enumerate() {
@@ -78,7 +77,7 @@ impl Automata {
                 }
             }
 
-            // Lida com a transição
+            // Handle transitions
             for state in &mut all_states {
                 if state.id == from {
                     state

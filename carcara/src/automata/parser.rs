@@ -8,7 +8,7 @@ use nom::{
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     IResult, Parser,
 };
-use std::{collections::HashSet, str::FromStr};
+use std::str::FromStr;
 
 use super::Automata;
 

@@ -11,6 +11,7 @@ pub use lexer::{Lexer, Position, Reserved, Token};
 
 use crate::automata::parser::parse_automata;
 
+use crate::automata::Automata;
 use crate::{
     ast::*,
     utils::{HashCache, HashMapStack},
@@ -226,19 +227,20 @@ impl<'a, R: BufRead> Parser<'a, R> {
         self.is_real_only_logic && self.problem.is_some()
     }
 
-    fn make_automata(&mut self, automaton_repr: String) {
+    fn make_automata(&mut self, automaton_repr: String) -> Result<Automata, ParserError> {
         match parse_automata(automaton_repr.trim()) {
-            Ok((remaining, ast)) => {
+            Ok((remaining, automata)) => {
                 if !remaining.is_empty() {
+                    // Change later
                     println!("remaining {:?}", remaining);
-                    // retornar erro de parsing
+                    return Err(ParserError::InvalidAutomataDeclaration(automaton_repr));
                 }
-                println!("ast {:?}", ast);
-                // retornar o automato
+                return Ok(automata);
             }
             Err(err) => {
+                // Change later
                 println!("Parser error: {:?}", err);
-                // retornar erro de parsing
+                return Err(ParserError::InvalidAutomataDeclaration(automaton_repr));
             }
         }
     }
@@ -301,7 +303,6 @@ impl<'a, R: BufRead> Parser<'a, R> {
                 SortError::assert_eq(&Sort::Int, sorts[0])?;
                 SortError::assert_all_eq(&sorts)?;
             }
-            // OLHAR DE EXEMPLO
             Operator::RealDiv => {
                 assert_num_args(&args, 2..)?;
 
@@ -371,18 +372,13 @@ impl<'a, R: BufRead> Parser<'a, R> {
             Operator::ReFromAutomaton => {
                 assert_num_args(&args, 1)?;
                 SortError::assert_eq(&Sort::String, sorts[0])?;
-                // fazer o parsing da sintaxe em args[0]
                 if let Term::Const(Constant::String(s)) = args[0].as_ref() {
                     println!("syntax {:?}", s);
-                    self.make_automata(s.to_owned());
+                    let automata = self.make_automata(s.to_owned())?;
+                    return Ok(self.pool.add(Term::Const(Constant::RegLan(automata))));
                 } else {
-                    unreachable!();
+                    ParserError::ExpectedAnAutomataDeclaration;
                 }
-
-                // let automata;
-                // return Ok(self.pool.add(Term::))
-
-                // retornar eager aqui o novo termo
             }
             Operator::StrLessThan
             | Operator::StrLessEq
