@@ -82,6 +82,7 @@ impl PrimitivePool {
                 Constant::Real(_) => Sort::Real,
                 Constant::String(_) => Sort::String,
                 Constant::BitVec(_, w) => Sort::BitVec(w.clone()),
+                Constant::RegLan(_) => Sort::RegLan,
             },
             Term::Var(_, sort) => sort.as_sort().unwrap().clone(),
             Term::Op(op, args) => match op {

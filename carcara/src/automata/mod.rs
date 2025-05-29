@@ -1,10 +1,11 @@
 use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 
 pub mod parser;
 
 pub type StateId = usize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     id: String,
     accept: bool,
@@ -17,6 +18,17 @@ impl State {
             id: id.to_owned(),
             accept,
             transitions: HashSet::new(),
+        }
+    }
+}
+
+// TODO: check later
+impl Hash for State {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let mut transitions_vec: Vec<_> = self.transitions.iter().collect();
+        transitions_vec.sort_by(|a, b| a.to.cmp(&b.to).then_with(|| a.range.cmp(&b.range)));
+        for transition in transitions_vec {
+            transition.hash(state);
         }
     }
 }
@@ -92,5 +104,10 @@ impl Automata {
             initial_state,
             all_states,
         }
+    }
+
+    pub fn get_state(&self, state_id: StateId) -> &State {
+        let state = &self.all_states[state_id];
+        return state;
     }
 }
