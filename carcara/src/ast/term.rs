@@ -117,7 +117,7 @@ pub enum Constant {
     BitVec(Integer, Integer),
 
     /// A regular expression term.
-    RegLan(Automata),
+    RegLan(String, Automata),
 }
 
 /// A binder, either a quantifier (`forall` or `exists`), `choice`, or `lambda`.
@@ -992,7 +992,7 @@ impl Constant {
             Constant::Real(_) => Sort::Real,
             Constant::String(_) => Sort::String,
             Constant::BitVec(_, width) => Sort::BitVec(width.clone()),
-            Constant::RegLan(_) => Sort::RegLan,
+            Constant::RegLan(_, _) => Sort::RegLan,
         }
     }
 

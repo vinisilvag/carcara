@@ -373,9 +373,10 @@ impl<'a, R: BufRead> Parser<'a, R> {
                 assert_num_args(&args, 1)?;
                 SortError::assert_eq(&Sort::String, sorts[0])?;
                 if let Term::Const(Constant::String(s)) = args[0].as_ref() {
-                    println!("syntax {:?}", s);
                     let automata = self.make_automata(s.to_owned())?;
-                    return Ok(self.pool.add(Term::Const(Constant::RegLan(automata))));
+                    return Ok(self
+                        .pool
+                        .add(Term::Const(Constant::RegLan(s.to_owned(), automata))));
                 } else {
                     ParserError::ExpectedAnAutomataDeclaration;
                 }

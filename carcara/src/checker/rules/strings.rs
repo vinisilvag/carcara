@@ -1323,9 +1323,6 @@ pub fn re_concat_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArg
         _ => Err(CheckerError::TermOfWrongForm("(re.++ ...)", r.clone())),
     }?;
 
-    println!("concluded: {}", &conclusion[0]);
-    println!("epxanded: {}", &expanded);
-
     assert_eq(&conclusion[0], &expanded)
 }
 
@@ -1504,14 +1501,31 @@ pub fn re_unfold_neg_concat_fixed_suffix(
     assert_eq(&conclusion[0], &expanded)
 }
 
-pub fn re_convert(
-    RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
-) -> RuleResult {
+pub fn re_convert(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    println!("checking re_convert");
+
+    println!("premises:");
+    println!("{:?}", premises);
+
+    println!("conclusion:");
+    println!("{:?}", conclusion);
+
+    println!("");
+
     Ok(())
 }
 
-pub fn re_empty_intersection(
-    RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
-) -> RuleResult {
+pub fn re_empty_intersection(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    println!("checking re_empty_intersection");
+
+    println!("premises:");
+    println!("{:?}", premises);
+
+    println!("conclusion:");
+    println!("{:?}", conclusion);
+
+    println!("");
+
     Ok(())
 }
+

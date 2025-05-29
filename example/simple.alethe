@@ -52,4 +52,4 @@
 "automaton value_0 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1;};"))))
                          :rule re_empty_intersection)
 
-(step t6 (cl) :rule resolution :premises (t1.a t6 t7))
+(step t8 (cl) :rule resolution :premises (t1.a t6 t7))
