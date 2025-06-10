@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
+pub mod operations;
 pub mod parser;
+pub mod utils;
 
 pub type StateId = usize;
 
@@ -109,5 +111,13 @@ impl Automata {
     pub fn get_state(&self, state_id: StateId) -> &State {
         let state = &self.all_states[state_id];
         return state;
+    }
+
+    pub fn get_transitions(&self) -> Vec<Transition> {
+        let mut transitions: Vec<Transition> = Vec::new();
+        for state in &self.all_states {
+            transitions.extend(state.transitions.clone());
+        }
+        return transitions;
     }
 }
