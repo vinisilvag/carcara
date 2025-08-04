@@ -56,20 +56,20 @@ pub fn intersection(a1: Automata, a2: Automata) {
 }
 
 pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
-    let states = HashSet::new();
-    let transitions = HashSet::new();
-    let accepting_states = HashSet::new();
-
-    let mut stack = VecDeque::new();
-    // stack.push_front();
-
-    while let Some((s1, s2)) = stack.pop_front() {
-        if accepting_states.contains(s1) != accepting_states.contains(s2) {
-            return false;
-        }
-
-        //
-    }
+    // let states = HashSet::new();
+    // let transitions = HashSet::new();
+    // let accepting_states = HashSet::new();
+    //
+    // let mut stack = VecDeque::new();
+    // // stack.push_front();
+    //
+    // while let Some((s1, s2)) = stack.pop_front() {
+    //     if accepting_states.contains(s1) != accepting_states.contains(s2) {
+    //         return false;
+    //     }
+    //
+    //     //
+    // }
 
     return true;
 }
