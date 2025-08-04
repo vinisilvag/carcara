@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::automata::{State, Transition};
 
-use super::{utils::intersect_ranges, Automata, StateId};
+use super::{dsu::DSU, utils::intersect_ranges, Automata, StateId};
 
 pub fn intersection(a1: Automata, a2: Automata) {
     let mut new_states = Vec::new();
@@ -53,4 +53,23 @@ pub fn intersection(a1: Automata, a2: Automata) {
     //     all_states: new_states,
     //     initial_state: 0,
     // }
+}
+
+pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
+    let states = HashSet::new();
+    let transitions = HashSet::new();
+    let accepting_states = HashSet::new();
+
+    let mut stack = VecDeque::new();
+    // stack.push_front();
+
+    while let Some((s1, s2)) = stack.pop_front() {
+        if accepting_states.contains(s1) != accepting_states.contains(s2) {
+            return false;
+        }
+
+        //
+    }
+
+    return true;
 }

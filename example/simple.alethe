@@ -33,10 +33,12 @@
                          :rule re_empty_intersection)
 (step t3.s4 (cl) :rule resolution :premises (t1.a t3.s2 t3.s3))
 
-(step t3 (cl (not (str.in_re w (re.+ (str.to_re "b"))))) :rule subproof :discharge (t3.input))
+(step t3 (cl (not (str.in_re w (re.+ (str.to_re "b")))) false) :rule subproof :discharge (t3.input))
+(step t3.tmp0 (cl (not false)) :rule false)
+(step t3.tmp1 (cl (not (str.in_re w (re.+ (str.to_re "b"))))) :rule resolution :premises (t3 t3.tmp0))
 
 (step t4 (cl (str.in_re w (re.+ (str.to_re "c"))))
-      :rule resolution :premises (t2 t3))
+      :rule resolution :premises (t2 t3.tmp1))
 
 (step t5 (cl (not (str.in_re w (re.+ (str.to_re "c"))))
                 (str.in_re w (re.from_automaton

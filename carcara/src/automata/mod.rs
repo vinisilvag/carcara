@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
+pub mod dsu;
 pub mod operations;
 pub mod parser;
 pub mod utils;
