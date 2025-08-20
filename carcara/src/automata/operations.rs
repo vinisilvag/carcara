@@ -49,7 +49,7 @@ pub fn intersection(a1: Automata, a2: Automata) {
     println!("state_map {:?}", state_map);
 
     // Automata {
-    //     name: format!("({} intersection {})", a1.name, a2.name),
+    //     name: format!("({} intersection with {})", a1.name, a2.name),
     //     all_states: new_states,
     //     initial_state: 0,
     // }
@@ -115,6 +115,7 @@ pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
                 return false;
             }
 
+            // TODO: check error here
             let s1_from_dsu_class = dsu.find(s1_from.unwrap());
             let s2_from_dsu_class = dsu.find(s2_from.unwrap() + offset);
             if s1_from_dsu_class != s2_from_dsu_class {
@@ -125,4 +126,48 @@ pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
     }
 
     return true;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_automata_intersection() {}
+
+    #[test]
+    fn test_automata_equivalence() {
+        // <a1> -'a'-> a2 -'a'-> [a3] -'a'-> a4 -'a'-> a5 -'a'-> [a6] -\
+        //                                 |                           |
+        //                                 \------------'a'------------/
+        let a1 = Automata::new(
+            "a1",
+            "a1",
+            vec![
+                ("a1", "a2", (97, 97)),
+                ("a2", "a3", (97, 97)),
+                ("a3", "a4", (97, 97)),
+                ("a4", "a5", (97, 97)),
+                ("a5", "a6", (97, 97)),
+                ("a6", "a4", (97, 97)),
+            ],
+            vec!["a3", "a6"],
+        );
+
+        // > <b1> -'a'-> b2 -'a'-> [b3] -\
+        // |                             |
+        // \-------------'a'-------------/
+        let a2 = Automata::new(
+            "a2",
+            "b1",
+            vec![
+                ("b1", "b2", (97, 97)),
+                ("b2", "b3", (97, 97)),
+                ("b3", "b1", (97, 97)),
+            ],
+            vec!["b3"],
+        );
+
+        assert!(is_equivalent(a1, a2));
+    }
 }
