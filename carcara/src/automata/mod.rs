@@ -114,6 +114,11 @@ impl Automata {
         return state;
     }
 
+    pub fn get_state_transitions(&self, state_id: StateId) -> HashSet<Transition> {
+        let state = &self.all_states[state_id];
+        return state.transitions.clone();
+    }
+
     pub fn get_transitions(&self) -> Vec<Transition> {
         let mut transitions: Vec<Transition> = Vec::new();
         for state in &self.all_states {
