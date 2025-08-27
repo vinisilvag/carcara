@@ -1,5 +1,6 @@
 use crate::{
     ast::*,
+    automata::Automata,
     checker::rules::linear_arithmetic::LinearComb,
     utils::{Range, TypeName},
 };
@@ -165,6 +166,9 @@ pub enum CheckerError {
 
     #[error("expected term {0} to not be empty")]
     ExpectedToNotBeEmpty(Rc<Term>),
+
+    #[error("expected automata {0} to be the empty intersection of {1} and {2}")]
+    ExpectedAutomataEmptyIntersection(Automata, Automata, Automata),
 
     #[error("this rule can only be used in the last step of a subproof")]
     MustBeLastStepInSubproof,

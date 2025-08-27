@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 
 pub mod dsu;
@@ -125,5 +126,12 @@ impl Automata {
             transitions.extend(state.transitions.clone());
         }
         return transitions;
+    }
+}
+
+// TODO: improve automata display later
+impl fmt::Display for Automata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
     }
 }

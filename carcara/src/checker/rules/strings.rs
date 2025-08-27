@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     ast::*,
-    automata::operations,
+    automata::operations::{self, has_reachable_accepting_state},
     checker::{error::CheckerError, rules::assert_polyeq},
 };
 use std::{cmp, time::Duration};
@@ -1503,27 +1503,25 @@ pub fn re_unfold_neg_concat_fixed_suffix(
 }
 
 pub fn re_convert(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
-    println!("skipping re_convert check");
+    println!("skipping re_convert check\n");
     Ok(())
 }
 
 pub fn re_empty_intersection(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
-    println!("checking re_empty_intersection");
-
     let (_, a1) = match_term_err!((not (strinre w a1)) = &conclusion[0])?;
     let (_, a2) = match_term_err!((not (strinre w a2)) = &conclusion[1])?;
 
-    println!("start checking here");
-
     let a1 = a1.as_automata_err()?;
     let a2 = a2.as_automata_err()?;
-    println!("a1:\n{:?}", a1);
-    println!("a2:\n{:?}", a2);
+    let intersection = operations::intersection(a1.clone(), a2.clone());
 
-    println!("getting intersection");
-    let intersection = operations::intersection(a1, a2);
-    println!("intersection:\n{:?}", intersection);
-    println!("");
+    if has_reachable_accepting_state(intersection.clone()) {
+        return Err(CheckerError::ExpectedAutomataEmptyIntersection(
+            intersection,
+            a1,
+            a2,
+        ));
+    }
 
     Ok(())
 }

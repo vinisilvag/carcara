@@ -4,7 +4,52 @@ use crate::automata::{State, Transition};
 
 use super::{dsu::DSU, utils::intersect_ranges, Automata, StateId};
 
-pub fn intersection(a1: Automata, a2: Automata) {
+// TODO: do not clone the graph every recursion step
+pub fn recursive_dfs(graph: Vec<Vec<StateId>>, visited: &mut Vec<bool>, state: StateId) {
+    visited[state] = true;
+    for edge in graph[state].clone() {
+        if !visited[edge] {
+            recursive_dfs(graph.clone(), visited, edge);
+        }
+    }
+}
+
+pub fn has_reachable_accepting_state(a: Automata) -> bool {
+    let accepting_states: Vec<_> = a
+        .all_states
+        .iter()
+        .enumerate()
+        .filter(|(index, state)| state.accept == true)
+        .collect();
+    // Has accepting states? If no, the intersection is empty
+    if accepting_states.len() == 0 {
+        return false;
+    }
+
+    // Creating an adjacency list based on the automata structure
+    let mut graph: Vec<Vec<StateId>> = vec![Vec::new(); a.all_states.len()];
+    for (state_id, state) in a.all_states.iter().enumerate() {
+        for transition in &state.transitions {
+            if transition.to == state_id {
+                continue;
+            }
+            graph[state_id].push(transition.to);
+        }
+    }
+
+    // Checking reachability with DFS
+    let mut visited: Vec<bool> = vec![false; a.all_states.len()];
+    recursive_dfs(graph, &mut visited, a.initial_state);
+    for (state_id, state) in accepting_states {
+        if visited[state_id] {
+            return true;
+        }
+    }
+
+    false
+}
+
+pub fn intersection(a1: Automata, a2: Automata) -> Automata {
     let mut new_states = Vec::new();
     let mut state_map = HashMap::new();
     let mut queue = VecDeque::new();
@@ -48,11 +93,11 @@ pub fn intersection(a1: Automata, a2: Automata) {
     println!("new states {:?}", new_states);
     println!("state_map {:?}", state_map);
 
-    // Automata {
-    //     name: format!("({} intersection with {})", a1.name, a2.name),
-    //     all_states: new_states,
-    //     initial_state: 0,
-    // }
+    Automata {
+        name: format!("({} ∩ {})", a1.name, a2.name),
+        all_states: new_states,
+        initial_state: 0,
+    }
 }
 
 // Implementation of automata equivalence checking based on the Hopcroft-Karp algorithm,
@@ -172,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_unequiv_automatas() {
-        // Language: b*a(a∪b)*
+        // Language: b*a(a ∪ b)*
         let a1 = Automata::new(
             "a1",
             "q0",
@@ -185,7 +230,7 @@ mod tests {
             vec!["q1"],
         );
 
-        // Language: (a∪b)*a(a∪b)*
+        // Language: (a ∪ b)*a(a ∪ b)*
         let a2 = Automata::new(
             "a2",
             "p0",
