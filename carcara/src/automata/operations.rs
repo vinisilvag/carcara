@@ -101,26 +101,25 @@ pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
                 .collect::<Vec<_>>(),
         );
         for range in ranges.iter() {
-            let s1_from: Option<StateId> = s1_transitions
+            let s1_to: Option<StateId> = s1_transitions
                 .iter()
                 .find(|t| t.range == *range)
                 .map(|t| t.to);
-            let s2_from: Option<StateId> = s2_transitions
+            let s2_to: Option<StateId> = s2_transitions
                 .iter()
                 .find(|t| t.range == *range)
                 .map(|t| t.to);
 
             // Both states have transitions for this range
-            if !(s1_from.is_some() && s2_from.is_some()) {
+            if !(s1_to.is_some() && s2_to.is_some()) {
                 return false;
             }
 
-            // TODO: check error here
-            let s1_from_dsu_class = dsu.find(s1_from.unwrap());
-            let s2_from_dsu_class = dsu.find(s2_from.unwrap() + offset);
-            if s1_from_dsu_class != s2_from_dsu_class {
-                dsu.union(s1_from_dsu_class, s2_from_dsu_class);
-                stack.push_front((s1_from_dsu_class, s2_from_dsu_class));
+            let s1_to_dsu_class = dsu.find(s1_to.unwrap());
+            let s2_to_dsu_class = dsu.find(s2_to.unwrap() + offset);
+            if s1_to_dsu_class != s2_to_dsu_class {
+                dsu.union(s1_to_dsu_class, s2_to_dsu_class);
+                stack.push_front((s1_to.unwrap(), s2_to.unwrap() + offset));
             }
         }
     }
@@ -136,7 +135,7 @@ mod tests {
     fn test_automata_intersection() {}
 
     #[test]
-    fn test_automata_equivalence() {
+    fn test_equiv_automatas() {
         // <a1> -'a'-> a2 -'a'-> [a3] -'a'-> a4 -'a'-> a5 -'a'-> [a6] -\
         //                                 |                           |
         //                                 \------------'a'------------/
@@ -169,5 +168,36 @@ mod tests {
         );
 
         assert!(is_equivalent(a1, a2));
+    }
+
+    #[test]
+    fn test_unequiv_automatas() {
+        // Language: b*a(a∪b)*
+        let a1 = Automata::new(
+            "a1",
+            "q0",
+            vec![
+                ("q0", "q1", (97, 97)),
+                ("q0", "q0", (98, 98)),
+                ("q1", "q1", (97, 97)),
+                ("q1", "q1", (98, 98)),
+            ],
+            vec!["q1"],
+        );
+
+        // Language: (a∪b)*a(a∪b)*
+        let a2 = Automata::new(
+            "a2",
+            "p0",
+            vec![
+                ("p0", "p1", (97, 97)),
+                ("p0", "p0", (98, 98)),
+                ("p1", "p1", (97, 97)),
+                ("p1", "p0", (98, 98)),
+            ],
+            vec!["p1"],
+        );
+
+        assert!(!is_equivalent(a1, a2));
     }
 }
