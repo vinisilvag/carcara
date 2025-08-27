@@ -859,6 +859,13 @@ impl Term {
         }
     }
 
+    pub fn as_automata(&self) -> Option<Automata> {
+        match self {
+            Term::Const(Constant::RegLan(s, a)) => Some(a.clone()),
+            _ => None,
+        }
+    }
+
     /// Returns `true` if the term is the boolean constant `true`.
     pub fn is_bool_true(&self) -> bool {
         *self == Term::Op(Operator::True, Vec::new())
@@ -981,6 +988,11 @@ impl Rc<Term> {
     pub fn as_let_err(&self) -> Result<(&BindingList, &Rc<Term>), CheckerError> {
         self.as_let()
             .ok_or_else(|| CheckerError::ExpectedLetTerm(self.clone()))
+    }
+
+    pub fn as_automata_err(&self) -> Result<Automata, CheckerError> {
+        self.as_automata()
+            .ok_or_else(|| CheckerError::ExpectedAutomataTerm(self.clone()))
     }
 }
 

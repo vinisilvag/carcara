@@ -154,6 +154,9 @@ pub enum CheckerError {
     #[error("expected 'let' term, got '{0}'")]
     ExpectedLetTerm(Rc<Term>),
 
+    #[error("expected 'automata' term, got '{0}'")]
+    ExpectedAutomataTerm(Rc<Term>),
+
     #[error("expected term {0} to be a prefix of {1}")]
     ExpectedToBePrefix(Rc<Term>, Rc<Term>),
 

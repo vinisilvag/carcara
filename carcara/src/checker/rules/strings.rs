@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{
     ast::*,
+    automata::operations,
     checker::{error::CheckerError, rules::assert_polyeq},
 };
 use std::{cmp, time::Duration};
@@ -1502,30 +1503,27 @@ pub fn re_unfold_neg_concat_fixed_suffix(
 }
 
 pub fn re_convert(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
-    println!("checking re_convert");
-
-    println!("premises:");
-    println!("{:?}", premises);
-
-    println!("conclusion:");
-    println!("{:?}", conclusion);
-
-    println!("");
-
+    println!("skipping re_convert check");
     Ok(())
 }
 
 pub fn re_empty_intersection(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
     println!("checking re_empty_intersection");
 
-    println!("premises:");
-    println!("{:?}", premises);
+    let (_, a1) = match_term_err!((not (strinre w a1)) = &conclusion[0])?;
+    let (_, a2) = match_term_err!((not (strinre w a2)) = &conclusion[1])?;
 
-    println!("conclusion:");
-    println!("{:?}", conclusion);
+    println!("start checking here");
 
+    let a1 = a1.as_automata_err()?;
+    let a2 = a2.as_automata_err()?;
+    println!("a1:\n{:?}", a1);
+    println!("a2:\n{:?}", a2);
+
+    println!("getting intersection");
+    let intersection = operations::intersection(a1, a2);
+    println!("intersection:\n{:?}", intersection);
     println!("");
 
     Ok(())
 }
-
