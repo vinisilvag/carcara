@@ -90,9 +90,6 @@ pub fn intersection(a1: Automata, a2: Automata) -> Automata {
         }
     }
 
-    println!("new states {:?}", new_states);
-    println!("state_map {:?}", state_map);
-
     Automata {
         name: format!("({} ∩ {})", a1.name, a2.name),
         all_states: new_states,
