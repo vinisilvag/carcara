@@ -4,17 +4,17 @@ use crate::automata::{State, Transition};
 
 use super::{dsu::DSU, utils::intersect_ranges, Automata, StateId};
 
-// TODO: do not clone the graph every recursion step
-pub fn recursive_dfs(graph: Vec<Vec<StateId>>, visited: &mut Vec<bool>, state: StateId) {
-    visited[state] = true;
-    for edge in graph[state].clone() {
-        if !visited[edge] {
-            recursive_dfs(graph.clone(), visited, edge);
+pub fn has_reachable_accepting_state(a: Automata) -> bool {
+    fn dfs(states: &Vec<State>, visited: &mut Vec<bool>, state: StateId) {
+        visited[state] = true;
+        for transition in &states[state].transitions {
+            let next = transition.to;
+            if !visited[next] {
+                dfs(states, visited, next);
+            }
         }
     }
-}
 
-pub fn has_reachable_accepting_state(a: Automata) -> bool {
     let accepting_states: Vec<_> = a
         .all_states
         .iter()
@@ -26,21 +26,10 @@ pub fn has_reachable_accepting_state(a: Automata) -> bool {
         return false;
     }
 
-    // Creating an adjacency list based on the automata structure
-    let mut graph: Vec<Vec<StateId>> = vec![Vec::new(); a.all_states.len()];
-    for (state_id, state) in a.all_states.iter().enumerate() {
-        for transition in &state.transitions {
-            if transition.to == state_id {
-                continue;
-            }
-            graph[state_id].push(transition.to);
-        }
-    }
-
     // Checking reachability with DFS
     let mut visited: Vec<bool> = vec![false; a.all_states.len()];
-    recursive_dfs(graph, &mut visited, a.initial_state);
-    for (state_id, state) in accepting_states {
+    dfs(&a.all_states, &mut visited, a.initial_state);
+    for (state_id, _) in accepting_states {
         if visited[state_id] {
             return true;
         }
