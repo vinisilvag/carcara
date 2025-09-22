@@ -18,7 +18,7 @@ pub enum Term {
     /// An application of a function to one or more terms.
     App(Rc<Term>, Vec<Rc<Term>>),
 
-    /// An application of a bulit-in operator to one or more terms.
+    /// An application of a built-in operator to one or more terms.
     Op(Operator, Vec<Rc<Term>>),
 
     /// A sort.
@@ -593,7 +593,7 @@ impl Sort {
     pub fn match_with(&self, target: &Sort, map: &mut IndexMap<String, Sort>) -> bool {
         match (self, target) {
             (Sort::Var(a), _) => {
-                match map.entry(a.to_string()) {
+                match map.entry(a.clone()) {
                     Entry::Vacant(e) => {
                         e.insert(target.clone());
                     }

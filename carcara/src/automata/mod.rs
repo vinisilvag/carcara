@@ -131,33 +131,33 @@ impl Automata {
 
     // (re.inter (str.to_re "abc") (re.++ ...))
 
-    pub fn empty() -> Self { /* re.none */
-    }
+    // pub fn empty() -> Self { /* re.none */
+    // }
 
-    pub fn all() -> Self { /* re.all */
-    }
+    // pub fn all() -> Self { /* re.all */
+    // }
 
-    pub fn allchar() -> Self { /* re.allchar */
-    }
+    // pub fn allchar() -> Self { /* re.allchar */
+    // }
 
-    pub fn from_literal(s: &str) -> Self { /* str.to_re */
-    }
+    // pub fn from_literal(s: &str) -> Self { /* str.to_re */
+    // }
 
-    pub fn concat(a: &Self, b: &Self) -> Self { /* re.++ */
-    }
+    // pub fn concat(a: &Self, b: &Self) -> Self { /* re.++ */
+    // }
 
-    pub fn union(a: &Self, b: &Self) -> Self { /* re.union */
-    }
+    // pub fn union(a: &Self, b: &Self) -> Self { /* re.union */
+    // }
 
-    // fazer assim, recebendo, criando a referencia mutavel internamente e retornando depois
-    fn intersection(self, other: Self) -> Self {
-        // ver se é isso mesmo depois
-        let mut other = other;
-        // ...
-    }
+    // // fazer assim, recebendo, criando a referencia mutavel internamente e retornando depois
+    // fn intersection(self, other: Self) -> Self {
+    //     // ver se é isso mesmo depois
+    //     let mut other = other;
+    //     // ...
+    // }
 
-    pub fn star(a: &Self) -> Self { /* re.* */
-    }
+    // pub fn star(a: &Self) -> Self { /* re.* */
+    // }
 }
 
 // TODO: improve automata display later

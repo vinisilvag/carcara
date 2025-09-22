@@ -34,7 +34,7 @@ pub struct Config {
     pub apply_function_defs: bool,
 
     /// If `true`, the parser will eliminate `let` bindings from terms during parsing. This is done
-    /// by replacing any occurence of a variable bound in the `let` binding with its corresponding
+    /// by replacing any occurrence of a variable bound in the `let` binding with its corresponding
     /// value.
     pub expand_lets: bool,
 
@@ -540,7 +540,7 @@ impl<'a, R: BufRead> Parser<'a, R> {
     fn interpret_div_as_real_lit(&mut self, a: &Rc<Term>, b: &Rc<Term>) -> Option<Rc<Term>> {
         // If the term is a division between two positive integer constants, and their GCD is 1,
         // then it should be interpreted as a rational literal. The only exception to this is the
-        // term '(/ 1 1)', which is still interpreted as a divison term.
+        // term '(/ 1 1)', which is still interpreted as a division term.
 
         let [a, b] = [a, b].map(|t| match t.as_ref() {
             Term::Const(Constant::Integer(i)) => Some(i),
@@ -840,16 +840,20 @@ impl<'a, R: BufRead> Parser<'a, R> {
         // To avoid stack overflows in proofs with many nested subproofs, we parse the subproofs
         // iteratively, instead of recursively. Therefore, we need to manually keep a stack.
         //
-        // Each frame of the stack stores the subproof that is being constructed, and the id of the
-        // step that will end it. The first frame of the stack represents the root proof, so every
+        // Each frame of the stack stores the subproof that is being constructed, the id of the
+        // step that will end it, and a bool representing whether a `step` has been issued yet.
+        // The first frame of the stack represents the root proof, so every
         // field except for the subproof commands is irrelevant.
-        let mut stack: Vec<(Subproof, String)> = vec![(Subproof::default(), String::new())];
+        let mut stack: Vec<(Subproof, String, bool)> =
+            vec![(Subproof::default(), String::new(), false)];
 
         let mut next_subproof_context_id = 0;
 
-        let mut finished_assumes = false;
-
         let mut constant_definitions = Vec::new();
+
+        // Some proofs may include an extra set of surrounding parentheses around the whole proof
+        let mut has_extra_surrounding_parens = false;
+        let mut read_first_token = false;
 
         // Some solvers print the satisfiability result (unsat) together with the proof. To save the
         // user from having to remove this, we consume this first "unsat" token if it exists
@@ -857,19 +861,43 @@ impl<'a, R: BufRead> Parser<'a, R> {
             self.next_token()?;
         }
 
-        while self.current_token != Token::Eof {
+        while self.current_token != Token::Eof && self.current_token != Token::CloseParen {
             self.expect_token(Token::OpenParen)?;
+
+            if !read_first_token && self.current_token == Token::OpenParen
+                || self.current_token == Token::CloseParen
+            {
+                has_extra_surrounding_parens = true;
+                read_first_token = true;
+                continue;
+            }
+            read_first_token = true;
+
             let (token, position) = self.next_token()?;
+
             let (id, command) = match token {
                 Token::ReservedWord(Reserved::Assume) => {
                     let (id, term) = self.parse_assume_command()?;
-                    if stack.len() == 1 && finished_assumes {
-                        log::warn!("`assume` command '{}' appears after `step` commands", &id);
+
+                    // Check whether the assume appears after a step.
+                    if stack.last().unwrap().2 {
+                        // It is permissible but weird if it happens at the top level.
+                        if stack.len() == 1 {
+                            log::warn!("`assume` command '{}' appears after `step` commands", &id);
+                        }
+                        // It is disallowed within subproofs.
+                        else {
+                            return Err(Error::Parser(
+                                ParserError::AssumeAfterStepInSubproof(id),
+                                position,
+                            ));
+                        }
                     }
+
                     (id.clone(), ProofCommand::Assume { id, term })
                 }
                 Token::ReservedWord(Reserved::Step) => {
-                    finished_assumes = true;
+                    stack.last_mut().unwrap().2 = true;
                     let step = self.parse_step_command()?;
                     (step.id.clone(), ProofCommand::Step(step))
                 }
@@ -896,7 +924,7 @@ impl<'a, R: BufRead> Parser<'a, R> {
                         args,
                         context_id: next_subproof_context_id,
                     };
-                    stack.push((subproof, end_step_id));
+                    stack.push((subproof, end_step_id, false));
                     next_subproof_context_id += 1;
                     continue;
                 }
@@ -912,14 +940,14 @@ impl<'a, R: BufRead> Parser<'a, R> {
                 ));
             }
 
-            let (top_subproof, top_end_step) = stack.last_mut().unwrap();
+            let (top_subproof, top_end_step, _) = stack.last_mut().unwrap();
             top_subproof.commands.push(command);
             if top_end_step == id.as_ref() {
                 // If this is the last step in a subproof, we need to pop all the subproof data off
                 // of the stacks and build the subproof command with it
                 self.state.symbol_table.pop_scope();
                 self.state.step_ids.pop_scope();
-                let (subproof, _) = stack.pop().unwrap();
+                let (subproof, _, _) = stack.pop().unwrap();
 
                 // The subproof must contain at least two commands: the end step and the previous
                 // command it implicitly references
@@ -938,12 +966,18 @@ impl<'a, R: BufRead> Parser<'a, R> {
                     ));
                 }
 
-                let (outer, _) = stack.last_mut().unwrap();
+                let (outer, _, _) = stack.last_mut().unwrap();
                 outer.commands.push(ProofCommand::Subproof(subproof));
             }
             let index = stack.last().unwrap().0.commands.len() - 1;
             self.state.step_ids.insert(id, index);
         }
+
+        if has_extra_surrounding_parens {
+            self.expect_token(Token::CloseParen)?;
+        }
+        self.expect_token(Token::Eof)?;
+
         let commands = match stack.len() {
             0 => unreachable!(),
             1 => stack.pop().unwrap().0.commands,

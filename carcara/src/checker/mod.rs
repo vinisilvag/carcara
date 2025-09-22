@@ -17,6 +17,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+// The elaborator needs to use this function to elaborate `bfun_elim` steps
+pub(crate) use rules::clausification::apply_bfun_elim;
+
 #[derive(Clone)]
 pub struct CheckerStatistics<'s, CR: CollectResults + Send + Default> {
     pub file_name: &'s str,
@@ -151,7 +154,10 @@ impl<'c> ProofChecker<'c> {
                         self.context.pop();
                     }
 
-                    if step.clause.is_empty() {
+                    // Note that for the purpose of whether the proof of the input assumptions
+                    // concludes the empty clause this test must be made only when the context is
+                    // empty, i.e., when we are not in a subproof
+                    if step.clause.is_empty() && self.context.is_empty() {
                         self.reached_empty_clause = true;
                     }
                 }
@@ -476,12 +482,17 @@ impl<'c> ProofChecker<'c> {
             "pbblast_pbbconst" => pb_blasting::pbblast_pbbconst,
             "pbblast_bvxor" => pb_blasting::pbblast_bvxor,
             "pbblast_bvand" => pb_blasting::pbblast_bvand,
+            "pbblast_bvxor_ith_bit" => pb_blasting::pbblast_bvxor_ith_bit,
+            "pbblast_bvand_ith_bit" => pb_blasting::pbblast_bvand_ith_bit,
 
             // cutting planes rules
             "cp_addition" => cutting_planes::cp_addition,
             "cp_multiplication" => cutting_planes::cp_multiplication,
             "cp_division" => cutting_planes::cp_division,
             "cp_saturation" => cutting_planes::cp_saturation,
+            "cp_literal" => cutting_planes::cp_literal,
+            "cp_normalize" => cutting_planes::cp_normalize,
+
             
             // String rules
             "concat_eq" => strings::concat_eq,
