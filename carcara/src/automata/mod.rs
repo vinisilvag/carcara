@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 pub mod dsu;
 pub mod operations;
 pub mod parser;
+pub mod regex;
 pub mod utils;
 
 pub type StateId = usize;
@@ -126,6 +127,36 @@ impl Automata {
             transitions.extend(state.transitions.clone());
         }
         return transitions;
+    }
+
+    // (re.inter (str.to_re "abc") (re.++ ...))
+
+    pub fn empty() -> Self { /* re.none */
+    }
+
+    pub fn all() -> Self { /* re.all */
+    }
+
+    pub fn allchar() -> Self { /* re.allchar */
+    }
+
+    pub fn from_literal(s: &str) -> Self { /* str.to_re */
+    }
+
+    pub fn concat(a: &Self, b: &Self) -> Self { /* re.++ */
+    }
+
+    pub fn union(a: &Self, b: &Self) -> Self { /* re.union */
+    }
+
+    // fazer assim, recebendo, criando a referencia mutavel internamente e retornando depois
+    fn intersection(self, other: Self) -> Self {
+        // ver se é isso mesmo depois
+        let mut other = other;
+        // ...
+    }
+
+    pub fn star(a: &Self) -> Self { /* re.* */
     }
 }
 

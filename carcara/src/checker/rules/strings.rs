@@ -1502,14 +1502,57 @@ pub fn re_unfold_neg_concat_fixed_suffix(
     assert_eq(&conclusion[0], &expanded)
 }
 
+fn rec_create_automata(t: Rc<Term>) -> Result<Automata, CheckerError> {
+    match t.as_ref() {
+        Term::Op(Operator::ReKleeneClosure, r) => {
+            // r está na AST do Carcara, como recuperar o que eu já construí do Autômato?
+            // representação intermediária?
+
+            // cria um novo estado inicial que também é de aceitação
+            // cria uma transição desse estado para o que temos de restante do autômato
+            // retorna o autômato
+        }
+        Term::Op(Operator::StrToRe, s) => {
+            // se for constante de String, cria um estado para cada caractere e retorna um autômato
+            // assim com o estado de aceitação no último caractere
+            // se não, ?
+        }
+
+        // TODO: change later
+        _ => CheckerError::Unspecified,
+    }
+}
+
 pub fn re_convert(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
-    println!("skipping re_convert check\n");
+    // ¬(w∈R) ∨ (w∈Ra)
+    // (w∈R) -> (w∈Ra)
+    // R é uma expressão de tipo RegLan construída com os operadores de String da SMT-LIB
+    // Ra é a representação dessa RegEx em forma de autômato (re.from_automaton ...)
+    let (w1, a1) = match_term_err!((not (strinre w a1)) = &conclusion[0])?;
+    let (w2, a2) = match_term_err!((not (strinre w a2)) = &conclusion[1])?;
+
+    assert_eq(w1, w2)?;
+
+    // transformação de RegLan para Automata aqui
+    // parsing da AST para Automata diretamente? criar representação intermediária?
+    // limitações com (str.to_re ...) e poder receber qualquer operador de String como parâmetro,
+    // e não apenas constantes de String
+    // traduzir da AST interna para uma AST intermediária (regex.rs)?
+    let a1 = rec_create_automata(t);
+    let a2 = a2.as_automata_err()?;
+
+    if !operations::is_equivalent(a1, a2) {
+        return Err(CheckerError::ExpectedAutomatasToBeEquivalent(a1, a2));
+    }
+
     Ok(())
 }
 
 pub fn re_empty_intersection(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
-    let (_, a1) = match_term_err!((not (strinre w a1)) = &conclusion[0])?;
-    let (_, a2) = match_term_err!((not (strinre w a2)) = &conclusion[1])?;
+    let (w1, a1) = match_term_err!((not (strinre w a1)) = &conclusion[0])?;
+    let (w2, a2) = match_term_err!((not (strinre w a2)) = &conclusion[1])?;
+
+    assert_eq(w1, w2);
 
     let a1 = a1.as_automata_err()?;
     let a2 = a2.as_automata_err()?;

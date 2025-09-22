@@ -5,6 +5,7 @@ use crate::automata::{State, Transition};
 use super::{dsu::DSU, utils::intersect_ranges, Automata, StateId};
 
 pub fn has_reachable_accepting_state(a: Automata) -> bool {
+    // TODO: change to a interactive BFS
     fn dfs(states: &Vec<State>, visited: &mut Vec<bool>, state: StateId) {
         visited[state] = true;
         for transition in &states[state].transitions {

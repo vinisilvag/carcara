@@ -170,6 +170,9 @@ pub enum CheckerError {
     #[error("expected automata {0} to be the empty intersection of {1} and {2}")]
     ExpectedAutomataEmptyIntersection(Automata, Automata, Automata),
 
+    #[error("expected automata {0} to be equivalent to {1}")]
+    ExpectedAutomatasToBeEquivalent(Automata, Automata),
+
     #[error("this rule can only be used in the last step of a subproof")]
     MustBeLastStepInSubproof,
 
