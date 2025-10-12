@@ -5,17 +5,6 @@ use crate::automata::{State, Transition};
 use super::{dsu::DSU, utils::intersect_ranges, Automata, StateId};
 
 pub fn has_reachable_accepting_state(a: Automata) -> bool {
-    // TODO: change to a interactive BFS
-    fn dfs(states: &Vec<State>, visited: &mut Vec<bool>, state: StateId) {
-        visited[state] = true;
-        for transition in &states[state].transitions {
-            let next = transition.to;
-            if !visited[next] {
-                dfs(states, visited, next);
-            }
-        }
-    }
-
     let accepting_states: Vec<_> = a
         .all_states
         .iter()
@@ -27,9 +16,23 @@ pub fn has_reachable_accepting_state(a: Automata) -> bool {
         return false;
     }
 
-    // Checking reachability with DFS
+    // Checking reachability with a BFS
     let mut visited: Vec<bool> = vec![false; a.all_states.len()];
-    dfs(&a.all_states, &mut visited, a.initial_state);
+    let mut queue: VecDeque<StateId> = VecDeque::new();
+
+    queue.push_back(a.initial_state);
+
+    while !queue.is_empty() {
+        let state = queue.pop_front().unwrap();
+        visited[state] = true;
+        for transition in &a.all_states[state].transitions {
+            let next = transition.to;
+            if !visited[next] {
+                queue.push_back(next);
+            }
+        }
+    }
+
     for (state_id, _) in accepting_states {
         if visited[state_id] {
             return true;
