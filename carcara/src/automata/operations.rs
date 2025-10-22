@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::automata::{State, Transition};
+use crate::automata::{State, Transition, TransitionType};
 
 use super::{dsu::DSU, utils::intersect_ranges, Automata, StateId};
 
@@ -9,7 +9,7 @@ pub fn has_reachable_accepting_state(a: Automata) -> bool {
         .all_states
         .iter()
         .enumerate()
-        .filter(|(index, state)| state.accept == true)
+        .filter(|(_, state)| state.accept == true)
         .collect();
     // Has accepting states? If no, the intersection is empty
     if accepting_states.len() == 0 {
@@ -62,7 +62,7 @@ pub fn intersection(a1: Automata, a2: Automata) -> Automata {
 
         for t1 in &a1.get_state(s1).transitions {
             for t2 in &a2.get_state(s2).transitions {
-                if let Some(range) = intersect_ranges(t1.range, t2.range) {
+                if let Some(range) = intersect_ranges(t1.range.clone(), t2.range.clone()) {
                     let dest = (t1.to, t2.to);
                     let next_id = *state_map.entry(dest).or_insert_with(|| {
                         let id = new_states.len();
@@ -77,7 +77,7 @@ pub fn intersection(a1: Automata, a2: Automata) -> Automata {
 
                     new_states[curr_id]
                         .transitions
-                        .insert(Transition::new(next_id, range));
+                        .insert(Transition::new(next_id, TransitionType::Range(range)));
                 }
             }
         }
@@ -95,9 +95,6 @@ pub fn intersection(a1: Automata, a2: Automata) -> Automata {
 // in the paper "A Linear Algorithm for Testing Equivalence of Finite Automata".
 pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
     let offset = a1.all_states.len();
-
-    // Work with StateId's
-    let states: Vec<StateId> = (0..(a1.all_states.len() + a2.all_states.len())).collect();
 
     let accepting_states: Vec<StateId> = a1
         .all_states
@@ -131,8 +128,8 @@ pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
         let ranges: HashSet<_> = HashSet::from_iter(
             s1_transitions
                 .iter()
-                .map(|t| t.range)
-                .chain(s2_transitions.iter().map(|t| t.range))
+                .map(|t| t.range.clone())
+                .chain(s2_transitions.iter().map(|t| t.range.clone()))
                 .collect::<Vec<_>>(),
         );
         for range in ranges.iter() {
