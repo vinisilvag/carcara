@@ -3,6 +3,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use crate::ast::{Constant, Operator, Rc, Term, TermPool};
+use crate::automata::operations::nfa_to_dfa;
 use crate::checker::error::CheckerError;
 
 pub mod dsu;
@@ -13,7 +14,7 @@ pub mod utils;
 pub type StateId = usize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum TransitionType {
+pub enum Trigger {
     Epsilon,
     Range((u32, u32)),
 }
@@ -39,7 +40,7 @@ impl State {
 impl Hash for State {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let mut transitions_vec: Vec<_> = self.transitions.iter().collect();
-        transitions_vec.sort_by(|a, b| a.to.cmp(&b.to).then_with(|| a.range.cmp(&b.range)));
+        transitions_vec.sort_by(|a, b| a.to.cmp(&b.to).then_with(|| a.trigger.cmp(&b.trigger)));
         for transition in transitions_vec {
             transition.hash(state);
         }
@@ -49,12 +50,12 @@ impl Hash for State {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Transition {
     to: StateId,
-    range: TransitionType,
+    trigger: Trigger,
 }
 
 impl Transition {
-    fn new(state_id: StateId, range: TransitionType) -> Transition {
-        Transition { to: state_id, range }
+    fn new(state_id: StateId, trigger: Trigger) -> Transition {
+        Transition { to: state_id, trigger }
     }
 }
 
@@ -84,7 +85,7 @@ impl Automata {
             accepting_states_map.contains(initial_state_id),
         ));
 
-        for (from, to, range) in transitions.clone() {
+        for (from, to, trigger) in transitions.clone() {
             let mut transition_ids: Vec<StateId> = Vec::new();
 
             // Create the state if it does not exists
@@ -105,10 +106,9 @@ impl Automata {
             // Handle transitions
             for state in &mut all_states {
                 if state.id == from {
-                    state.transitions.insert(Transition::new(
-                        transition_ids[1],
-                        TransitionType::Range(range),
-                    ));
+                    state
+                        .transitions
+                        .insert(Transition::new(transition_ids[1], Trigger::Range(trigger)));
                 }
             }
         }
@@ -123,7 +123,7 @@ impl Automata {
     pub fn is_nfa(&self) -> bool {
         for state in &self.all_states {
             for transition in &state.transitions {
-                if transition.range == TransitionType::Epsilon {
+                if transition.trigger == Trigger::Epsilon {
                     return true;
                 }
             }
@@ -171,7 +171,7 @@ impl Automata {
                         accept: true,
                         transitions: HashSet::from([Transition {
                             to: a.initial_state,
-                            range: TransitionType::Epsilon,
+                            trigger: Trigger::Epsilon,
                         }]),
                     });
 
@@ -180,7 +180,7 @@ impl Automata {
                         if states[i].accept {
                             states[i].transitions.insert(Transition {
                                 to: a.initial_state,
-                                range: TransitionType::Epsilon,
+                                trigger: Trigger::Epsilon,
                             });
                         }
                     }
@@ -193,8 +193,12 @@ impl Automata {
                 }
                 Term::Op(Operator::ReKleeneCross, r) => {
                     let r = r.first().unwrap();
-                    let closure = pool.add(Term::Op(Operator::ReKleeneClosure, vec![r.clone()]));
-                    let equiv = pool.add(Term::Op(Operator::ReConcat, vec![r.clone(), closure]));
+                    let kleene_closure =
+                        pool.add(Term::Op(Operator::ReKleeneClosure, vec![r.clone()]));
+                    let equiv = pool.add(Term::Op(
+                        Operator::ReConcat,
+                        vec![r.clone(), kleene_closure],
+                    ));
                     Ok(rec_create_from_operators(pool, &equiv)?)
                 }
                 Term::Op(Operator::ReConcat, r) => {
@@ -202,9 +206,40 @@ impl Automata {
                     for regex in r {
                         automatons.push(rec_create_from_operators(pool, regex)?)
                     }
-                    // let mut states = automatons.first().unwrap().all_states;
-                    // for index in 1..automatons.len() {}
-                    Err(CheckerError::Unspecified)
+
+                    let mut states: Vec<State> = automatons.first().unwrap().all_states.clone();
+                    let new_initial_state = automatons.first().unwrap().initial_state;
+                    let offset = states.len();
+
+                    for state in states.iter_mut() {
+                        if state.accept {
+                            state.transitions.insert(Transition {
+                                to: automatons[1].initial_state + offset,
+                                trigger: Trigger::Epsilon,
+                            });
+                        }
+                        state.accept = false;
+                    }
+
+                    let mut concat_states = automatons[1].all_states.clone();
+                    for state in concat_states.iter_mut() {
+                        for transition in state.transitions.clone() {
+                            let new_transition = transition.clone();
+                            state.transitions.remove(&transition);
+                            state.transitions.insert(Transition {
+                                to: new_transition.to + offset,
+                                trigger: new_transition.trigger,
+                            });
+                        }
+                    }
+
+                    states.extend(concat_states);
+
+                    Ok(Automata {
+                        name: "re_concat".to_owned(),
+                        all_states: states,
+                        initial_state: new_initial_state,
+                    })
                 }
                 Term::Op(Operator::StrToRe, s) => {
                     let s = s.first().unwrap();
@@ -223,7 +258,7 @@ impl Automata {
                         accept: false,
                         transitions: HashSet::from([Transition {
                             to: 1,
-                            range: TransitionType::Range((
+                            trigger: Trigger::Range((
                                 first_char.clone() as u32,
                                 first_char.clone() as u32,
                             )),
@@ -235,7 +270,7 @@ impl Automata {
                         if index != characters.len() - 1 {
                             transitions.insert(Transition {
                                 to: index + offset + 1,
-                                range: TransitionType::Range((c.clone() as u32, c.clone() as u32)),
+                                trigger: Trigger::Range((c.clone() as u32, c.clone() as u32)),
                             });
                         }
                         states.push(State {
@@ -255,7 +290,7 @@ impl Automata {
             }
         }
 
-        rec_create_from_operators(pool, t)
+        Ok(nfa_to_dfa(rec_create_from_operators(pool, t)?))
     }
 
     // (re.inter (str.to_re "abc") (re.++ ...))

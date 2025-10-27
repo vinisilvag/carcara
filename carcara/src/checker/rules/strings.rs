@@ -1522,11 +1522,12 @@ pub fn re_convert(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> Rule
     // traduzir da AST interna para uma AST intermediária (regex.rs)?
     println!("{:?}", a1);
     let a1 = Automata::create_from_operators(pool, a1)?;
-    // let a2 = a2.as_automata_err()?;
-    //
-    // if !operations::is_equivalent(a1.clone(), a2.clone()) {
-    //     return Err(CheckerError::ExpectedAutomatasToBeEquivalent(a1, a2));
-    // }
+    println!("{:?}", a1);
+    let a2 = a2.as_automata_err()?;
+
+    if !operations::is_equivalent(a1.clone(), a2.clone()) {
+        return Err(CheckerError::ExpectedAutomatasToBeEquivalent(a1, a2));
+    }
 
     Ok(())
 }

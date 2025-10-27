@@ -1,7 +1,7 @@
-use crate::automata::TransitionType;
+use crate::automata::Trigger;
 
-pub fn intersect_ranges(r1: TransitionType, r2: TransitionType) -> Option<(u32, u32)> {
-    if let (TransitionType::Range(r1), TransitionType::Range(r2)) = (r1, r2) {
+pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Option<(u32, u32)> {
+    if let (Trigger::Range(r1), Trigger::Range(r2)) = (r1, r2) {
         let start = r1.0.max(r2.0);
         let end = r1.1.min(r2.1);
         if start <= end {

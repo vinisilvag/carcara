@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::automata::{State, Transition, TransitionType};
+use crate::automata::{State, Transition, Trigger};
 
 use super::{dsu::DSU, utils::intersect_ranges, Automata, StateId};
 
@@ -62,7 +62,7 @@ pub fn intersection(a1: Automata, a2: Automata) -> Automata {
 
         for t1 in &a1.get_state(s1).transitions {
             for t2 in &a2.get_state(s2).transitions {
-                if let Some(range) = intersect_ranges(t1.range.clone(), t2.range.clone()) {
+                if let Some(range) = intersect_ranges(t1.trigger.clone(), t2.trigger.clone()) {
                     let dest = (t1.to, t2.to);
                     let next_id = *state_map.entry(dest).or_insert_with(|| {
                         let id = new_states.len();
@@ -74,10 +74,9 @@ pub fn intersection(a1: Automata, a2: Automata) -> Automata {
                         queue.push_back(dest);
                         id
                     });
-
                     new_states[curr_id]
                         .transitions
-                        .insert(Transition::new(next_id, TransitionType::Range(range)));
+                        .insert(Transition::new(next_id, Trigger::Range(range)));
                 }
             }
         }
@@ -128,18 +127,18 @@ pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
         let ranges: HashSet<_> = HashSet::from_iter(
             s1_transitions
                 .iter()
-                .map(|t| t.range.clone())
-                .chain(s2_transitions.iter().map(|t| t.range.clone()))
+                .map(|t| t.trigger.clone())
+                .chain(s2_transitions.iter().map(|t| t.trigger.clone()))
                 .collect::<Vec<_>>(),
         );
         for range in ranges.iter() {
             let s1_to: Option<StateId> = s1_transitions
                 .iter()
-                .find(|t| t.range == *range)
+                .find(|t| t.trigger == *range)
                 .map(|t| t.to);
             let s2_to: Option<StateId> = s2_transitions
                 .iter()
-                .find(|t| t.range == *range)
+                .find(|t| t.trigger == *range)
                 .map(|t| t.to);
 
             // Both states have transitions for this range
@@ -157,6 +156,12 @@ pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
     }
 
     return true;
+}
+
+fn epsilon_closure() {}
+
+pub fn nfa_to_dfa(a: Automata) -> Automata {
+    a
 }
 
 #[cfg(test)]
