@@ -158,12 +158,6 @@ pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
     return true;
 }
 
-fn epsilon_closure() {}
-
-pub fn nfa_to_dfa(a: Automata) -> Automata {
-    a
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,9 +1,8 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use crate::ast::{Constant, Operator, Rc, Term, TermPool};
-use crate::automata::operations::nfa_to_dfa;
 use crate::checker::error::CheckerError;
 
 pub mod dsu;
@@ -149,6 +148,107 @@ impl Automata {
         return transitions;
     }
 
+    fn epsilon_closure(&self, states: &HashSet<StateId>) -> HashSet<StateId> {
+        let mut closure = states.clone();
+        let mut stack: Vec<StateId> = states.iter().copied().collect();
+
+        while let Some(current) = stack.pop() {
+            let state = self.get_state(current);
+            for t in &state.transitions {
+                if t.trigger == Trigger::Epsilon && !closure.contains(&t.to) {
+                    closure.insert(t.to);
+                    stack.push(t.to);
+                }
+            }
+        }
+
+        closure
+    }
+
+    fn symbol_triggers(&self) -> HashSet<Trigger> {
+        self.all_states
+            .iter()
+            .flat_map(|s| s.transitions.iter())
+            .filter(|t| t.trigger != Trigger::Epsilon)
+            .map(|t| t.trigger.clone())
+            .collect()
+    }
+
+    pub fn nfa_to_dfa(&self) -> Automata {
+        let triggers = self.symbol_triggers();
+        let start_closure: BTreeSet<usize> = self
+            .epsilon_closure(&HashSet::from([self.initial_state]))
+            .into_iter()
+            .collect();
+
+        let mut new_states: Vec<State> = Vec::new();
+        let mut state_map: HashMap<BTreeSet<StateId>, StateId> = HashMap::new();
+        let mut queue: VecDeque<BTreeSet<StateId>> = VecDeque::new();
+
+        let mut next_id: StateId = 0;
+        state_map.insert(start_closure.clone(), next_id);
+        queue.push_back(start_closure.clone());
+        next_id += 1;
+
+        while let Some(current_set) = queue.pop_front() {
+            let current_id = state_map[&current_set];
+
+            // Estado de aceitação: se algum estado do conjunto for de aceitação
+            let accept = current_set.iter().any(|&sid| self.get_state(sid).accept);
+
+            let mut transitions = HashSet::new();
+
+            // Para cada símbolo (não-ε)
+            for trigger in &triggers {
+                let mut reachable = HashSet::new();
+
+                // Estados alcançáveis lendo esse símbolo
+                for &sid in &current_set {
+                    let state = self.get_state(sid);
+                    for t in &state.transitions {
+                        if &t.trigger == trigger {
+                            reachable.insert(t.to);
+                        }
+                    }
+                }
+
+                // Fecho-ε dos alcançáveis
+                let next_closure = self.epsilon_closure(&reachable);
+                if next_closure.is_empty() {
+                    continue;
+                }
+
+                // Verifica se já existe no DFA
+                let next_state_id = *state_map
+                    .entry(next_closure.clone().into_iter().collect())
+                    .or_insert_with(|| {
+                        let id = next_id;
+                        next_id += 1;
+                        queue.push_back(next_closure.clone().into_iter().collect());
+                        id
+                    });
+
+                // Adiciona a transição
+                transitions.insert(Transition {
+                    to: next_state_id,
+                    trigger: trigger.clone(),
+                });
+            }
+
+            new_states.push(State {
+                id: current_id.to_string(),
+                accept,
+                transitions,
+            });
+        }
+
+        Automata {
+            name: format!("{}_dfa", self.name),
+            all_states: new_states,
+            initial_state: 0,
+        }
+    }
+
     pub fn create_from_operators(
         pool: &mut dyn TermPool,
         t: &Rc<Term>,
@@ -290,38 +390,8 @@ impl Automata {
             }
         }
 
-        Ok(nfa_to_dfa(rec_create_from_operators(pool, t)?))
+        Ok(rec_create_from_operators(pool, t)?)
     }
-
-    // (re.inter (str.to_re "abc") (re.++ ...))
-
-    // pub fn empty() -> Self { /* re.none */
-    // }
-
-    // pub fn all() -> Self { /* re.all */
-    // }
-
-    // pub fn allchar() -> Self { /* re.allchar */
-    // }
-
-    // pub fn from_literal(s: &str) -> Self { /* str.to_re */
-    // }
-
-    // pub fn concat(a: &Self, b: &Self) -> Self { /* re.++ */
-    // }
-
-    // pub fn union(a: &Self, b: &Self) -> Self { /* re.union */
-    // }
-
-    // // fazer assim, recebendo, criando a referencia mutavel internamente e retornando depois
-    // fn intersection(self, other: Self) -> Self {
-    //     // ver se é isso mesmo depois
-    //     let mut other = other;
-    //     // ...
-    // }
-
-    // pub fn star(a: &Self) -> Self { /* re.* */
-    // }
 }
 
 // TODO: improve automata display later
@@ -329,4 +399,93 @@ impl fmt::Display for Automata {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    fn hs<I: IntoIterator<Item = StateId>>(iter: I) -> HashSet<StateId> {
+        iter.into_iter().collect()
+    }
+
+    fn make_state(id: StateId, transitions: &[(StateId, Trigger)]) -> State {
+        State {
+            id: id.to_string(),
+            accept: false,
+            transitions: transitions
+                .iter()
+                .cloned()
+                .map(|(to, trigger)| Transition { to, trigger })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn epsilon_closure_single_state_no_epsilon() {
+        // Estado 0 sem transições ε
+        let s0 = make_state(0, &[]);
+        let nfa = Automata {
+            name: "no_epsilon".into(),
+            all_states: vec![s0],
+            initial_state: 0,
+        };
+
+        let closure = nfa.epsilon_closure(&hs([0]));
+        assert_eq!(closure, hs([0]));
+    }
+
+    #[test]
+    fn epsilon_closure_simple_chain() {
+        // 0 --ε--> 1 --ε--> 2
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
+        let s1 = make_state(1, &[(2, Trigger::Epsilon)]);
+        let s2 = make_state(2, &[]);
+        let nfa = Automata {
+            name: "chain".into(),
+            all_states: vec![s0, s1, s2],
+            initial_state: 0,
+        };
+
+        let closure = nfa.epsilon_closure(&hs([0]));
+        assert_eq!(closure, hs([0, 1, 2]));
+    }
+
+    #[test]
+    fn epsilon_closure_with_cycle() {
+        // 0 --ε--> 1 --ε--> 2 --ε--> 0 (ciclo)
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
+        let s1 = make_state(1, &[(2, Trigger::Epsilon)]);
+        let s2 = make_state(2, &[(0, Trigger::Epsilon)]);
+        let nfa = Automata {
+            name: "cycle".into(),
+            all_states: vec![s0, s1, s2],
+            initial_state: 0,
+        };
+
+        let closure = nfa.epsilon_closure(&hs([0]));
+
+        // Deve incluir todos os estados e não entrar em loop
+        assert_eq!(closure, hs([0, 1, 2]));
+    }
+
+    fn epsilon_closure_multiple_start_states() {
+        // 0 --ε--> 1, 2 sem conexão
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
+        let s1 = make_state(1, &[]);
+        let s2 = make_state(2, &[]);
+        let nfa = Automata {
+            name: "multi_start".into(),
+            all_states: vec![s0, s1, s2],
+            initial_state: 0,
+        };
+
+        // Fecho-ε de {0,2} deve conter {0,1,2}
+        let closure = nfa.epsilon_closure(&hs([0, 2]));
+        assert_eq!(closure, hs([0, 1, 2]));
+    }
+
+    #[test]
+    fn test_nfa_to_dfa_conversion() {}
 }
