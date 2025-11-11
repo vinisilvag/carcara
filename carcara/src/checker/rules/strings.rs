@@ -1541,3 +1541,15 @@ pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResul
 
     Ok(())
 }
+
+pub fn re_intersection(RuleArgs { .. }: RuleArgs) -> RuleResult {
+    Ok(())
+}
+
+pub fn re_forward_prop(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    Ok(())
+}
+
+pub fn re_backward_prop(RuleArgs { .. }: RuleArgs) -> RuleResult {
+    Ok(())
+}

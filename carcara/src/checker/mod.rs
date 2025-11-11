@@ -493,7 +493,6 @@ impl<'c> ProofChecker<'c> {
             "cp_literal" => cutting_planes::cp_literal,
             "cp_normalize" => cutting_planes::cp_normalize,
 
-            
             // String rules
             "concat_eq" => strings::concat_eq,
             "concat_unify" => strings::concat_unify,
@@ -521,6 +520,9 @@ impl<'c> ProofChecker<'c> {
             // Regular Constraint Propagation rules
             "re_convert" => strings::re_convert,
             "re_empty_intersection" => strings::re_empty_intersection,
+            "re_intersection" => strings::re_intersection,
+            "re_forward_prop" => strings::re_forward_prop,
+            "re_backward_prop" => strings::re_backward_prop,
 
             // Drup format rules
             "drup" => |x| drup::drup(false, x),

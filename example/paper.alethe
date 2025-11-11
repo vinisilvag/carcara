@@ -1,0 +1,60 @@
+(assume input1 (= y (str.++ z u)))
+(assume input2 (= y (str.++ x x)))
+(assume input3 (str.in_re z (str.to_re "b")))
+(assume input4 (str.in_re u (str.to_re "a")))
+
+(step t1 (cl (not (str.in_re z (str.to_re "b"))) (str.in_re z (re.from_automaton "automaton automaton_0 { init s0; s0 -> s1 [98, 98]; accepting s1;};"))) :rule re_convert)
+    
+(step t1.a (cl (str.in_re z (re.from_automaton "automaton automaton_0 { init s0; s0 -> s1 [98, 98]; accepting s1;};"))) :rule resolution :premises (input3 t1))
+    
+(step t2 (cl (not (str.in_re u (str.to_re "a"))) (str.in_re u (re.from_automaton "automaton automaton_1 { init s0; s0 -> s1 [97, 97]; accepting s1;};"))) :rule re_convert)
+    
+(step t2.a (cl (str.in_re u (re.from_automaton "automaton automaton_1 { init s0; s0 -> s1 [97, 97]; accepting s1;};"))) :rule resolution :premises (input4 t2))
+
+
+(step t3 (cl (str.in_re y (re.++ (str.to_re "b") (str.to_re "a")))) :rule re_forward_prop :premises (input1 t1.a t2.a)) ?
+
+
+(step t4 (cl (not (str.in_re y (re.++ (str.to_re "b") (str.to_re "a")))) (str.in_re y (re.from_automaton "automaton automaton_2 { init s0; s0 -> s1 [98, 98]; s1 -> s2 [97, 97]; accepting s2;};"))) :rule re_convert)
+
+(step t4.a (cl (str.in_re y (re.from_automaton "automaton automaton_2 { init s0; s0 -> s1 [98, 98]; s1 -> s2 [97, 97]; accepting s2;};"))) :rule resolution :premises (t3 t4))
+
+
+(step t5 (cl (and (str.in_re x (str.to_re "b")) (str.in_re x (str.to_re "a"))) (and (str.in_re x re.none) (str.in_re x (re.++ (str.to_re "b") (str.to_re "a"))))) :rule re_backward_prop :premises (input2 t4.a)) ?
+
+
+(step t6 (cl (str.in_re x (str.to_re "b"))) :rule and :premises (t5))
+
+(step t6.a (cl (not (str.in_re x (str.to_re "b"))) (str.in_re x (re.from_automaton "automaton automaton_3 { init s0; s0 -> s1 [98, 98]; accepting s1;};"))) :rule re_convert)
+    
+(step t6.b (cl (str.in_re x (re.from_automaton "automaton automaton_3 { init s0; s0 -> s1 [98, 98]; accepting s1;};"))) :rule resolution :premises (t6 t6.a))
+
+
+(step t7 (cl (str.in_re x (str.to_re "a"))) :rule and :premises (t5))
+
+(step t7.a (cl (not (str.in_re x (str.to_re "a"))) (str.in_re x (re.from_automaton "automaton automaton_4 { init s0; s0 -> s1 [97, 97]; accepting s1;};"))) :rule re_convert)
+    
+(step t7.b (cl (str.in_re x (re.from_automaton "automaton automaton_4 { init s0; s0 -> s1 [97, 97]; accepting s1;};"))) :rule resolution :premises (t7 t7.a))
+
+
+(step t8 (cl (not (str.in_re x (re.from_automaton "automaton automaton_3 { init s0; s0 -> s1 [98, 98]; accepting s1;};"))) (not (str.in_re x (re.from_automaton "automaton automaton_4 { init s0; s0 -> s1 [97, 97]; accepting s1;};")))) :rule re_empty_intersection)
+
+
+(step t9 (cl (str.in_re x re.none)) :rule and :premises (t5))
+
+(step t9.a (cl (not (str.in_re x re.none)) (str.in_re x (re.from_automaton "automaton automaton_5 { init s0; };"))) :rule re_convert)
+    
+(step t9.b (cl (str.in_re x (re.from_automaton "automaton automaton_5 { init s0; };"))) :rule resolution :premises (t9 t9.a))
+
+
+(step t10 (cl (str.in_re x (re.++ (str.to_re "b") (str.to_re "a")))) :rule and :premises (t5))
+
+(step t10.a (cl (not (str.in_re x (re.++ (str.to_re "b") (str.to_re "a")))) (str.in_re x (re.from_automaton "automaton automaton_6 { init s0; s0 -> s1 [98, 98]; s1 -> s2 [97, 97]; accepting s2;};"))) :rule re_convert)
+    
+(step t10.b (cl (str.in_re x (re.from_automaton "automaton automaton_6 { init s0; s0 -> s1 [98, 98]; s1 -> s2 [97, 97]; accepting s2;};"))) :rule resolution :premises (t10 t10.a))
+
+
+(step t11 (cl (not (str.in_re x (re.from_automaton "automaton automaton_5 { init s0; };"))) (not (str.in_re x (re.from_automaton "automaton automaton_6 { init s0; s0 -> s1 [98, 98]; s1 -> s2 [97, 97]; accepting s2;};")))) :rule re_empty_intersection)
+
+
+resolucao com o que pra terminar
