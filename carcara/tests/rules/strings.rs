@@ -1560,3 +1560,17 @@ fn re_concat_unfold_pos() {
         }
     }
 }
+
+#[test]
+fn re_intersection() {
+    test_cases! {
+        definitions = "
+            (declare-fun w () String)
+        ",
+        "Simple working example" {
+            r#"(assume h1 (str.in_re w (re.from_automaton "automaton value_0 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1;};")))
+               (assume h2 (str.in_re w (re.from_automaton "automaton value_1 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1;};")))
+               (step t1 (cl (str.in_re w (re.from_automaton "automaton conc { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1;};"))) :rule re_intersection :premises (h1 h2))"#: true,
+        }
+    }
+}

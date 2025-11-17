@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::automata::{State, Transition, Trigger};
+use crate::automata::{utils::totalize, State, Transition, Trigger};
 
 use super::{dsu::DSU, utils::intersect_ranges, Automata, StateId};
 
@@ -156,6 +156,20 @@ pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
     }
 
     return true;
+}
+
+pub fn complement(a: Automata) -> Automata {
+    let mut totalized_states = totalize(a.all_states);
+
+    for state in &mut totalized_states {
+        state.accept = !state.accept;
+    }
+
+    Automata {
+        name: format!("{}_complement", a.name),
+        all_states: totalized_states,
+        initial_state: a.initial_state,
+    }
 }
 
 #[cfg(test)]

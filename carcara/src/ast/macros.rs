@@ -221,6 +221,8 @@ macro_rules! match_term {
     (@GET_VARIANT strsubstr) => { $crate::ast::Operator::Substring };
     (@GET_VARIANT strlen)    => { $crate::ast::Operator::StrLen };
 
+    (@GET_VARIANT refromautomaton) => { $crate::ast::Operator::ReFromAutomaton };
+
     (@GET_VARIANT strinre)    => { $crate::ast::Operator::StrInRe };
     (@GET_VARIANT reinter)    => { $crate::ast::Operator::ReIntersection };
 

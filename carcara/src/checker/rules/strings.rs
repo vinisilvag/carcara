@@ -1542,11 +1542,65 @@ pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResul
     Ok(())
 }
 
-pub fn re_intersection(RuleArgs { .. }: RuleArgs) -> RuleResult {
+pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2..)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let mut ws: Vec<Rc<Term>> = Vec::new();
+    let mut premise_automatas: Vec<Automata> = Vec::new();
+
+    for premise in premises {
+        let term = get_premise_term(premise)?;
+        let (w, a) = match_term_err!((strinre w a1) = term)?;
+        ws.push(w.clone());
+        premise_automatas.push(a.as_automata_err()?.clone());
+    }
+
+    let (w_conc, conc_automaton) = match_term_err!(
+        (strinre w a) = &conclusion[0]
+    )?;
+
+    // Assert that every w in the premises is equal
+    let mut r = 1;
+    for l in 0..(ws.len() - 1) {
+        assert_eq(&ws[l], &ws[r])?;
+        r += 1;
+    }
+    // Assert that the last w is equal to the w on the conclusion
+    // Equality by transition
+    assert_eq(&ws[r - 1], w_conc)?;
+
+    // Create the intersection automaton from the premises
+    let mut expected =
+        operations::intersection(premise_automatas[0].clone(), premise_automatas[1].clone());
+    for index in 2..premise_automatas.len() {
+        expected = operations::intersection(expected, premise_automatas[index].clone());
+    }
+
+    // Check equivalence with the automaton in the conclusion
+    let conc_automaton = conc_automaton.as_automata_err()?;
+    if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
+        return Err(CheckerError::ExpectedAutomatasToBeEquivalent(
+            expected,
+            conc_automaton,
+        ));
+    }
+
     Ok(())
 }
 
 pub fn re_forward_prop(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    // recupera a funcao que define o formato de y
+    // recupera o primeiro automato da premissa
+    // recupera o segundo automato da premissa
+
+    // computa o automato referente a funcao de y -> pode ser concatenacao, length, preffixo ou
+    // sufixo
+
+    // provar que esse automato computado está contido ou é igual ao autômato da conclusão
+    // isso é o mesmo que mostrar que a interseção entre o autômato computado e o autômato da
+    // conclusão é vazia
+
     Ok(())
 }
 

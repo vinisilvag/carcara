@@ -249,6 +249,49 @@ impl Automata {
         }
     }
 
+    pub fn complement(&self) -> Automata {
+        let alphabet: HashSet<Trigger> = self.symbol_triggers();
+        let mut new_states = self.all_states.clone();
+
+        // Create sink state
+        let sink_id = new_states.len();
+        let sink = State {
+            id: format!("sink"),
+            accept: false,
+            transitions: alphabet
+                .iter()
+                .map(|tr| Transition::new(sink_id, tr.clone()))
+                .collect(),
+        };
+        new_states.push(sink);
+
+        for state in &mut new_states {
+            let seen: HashSet<Trigger> = state
+                .transitions
+                .iter()
+                .map(|t| t.trigger.clone())
+                .collect();
+
+            for tr in &alphabet {
+                if !seen.contains(tr) {
+                    state
+                        .transitions
+                        .insert(Transition::new(sink_id, tr.clone()));
+                }
+            }
+        }
+
+        for state in &mut new_states {
+            state.accept = !state.accept;
+        }
+
+        Automata {
+            name: format!("{}_complement", self.name),
+            all_states: new_states,
+            initial_state: self.initial_state,
+        }
+    }
+
     pub fn create_from_operators(
         pool: &mut dyn TermPool,
         t: &Rc<Term>,
