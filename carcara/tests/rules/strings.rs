@@ -1574,3 +1574,19 @@ fn re_intersection() {
         }
     }
 }
+
+#[test]
+fn re_forward_prop() {
+    test_cases! {
+        definitions = "
+            (declare-fun z () String)
+            (declare-fun u () String)
+            (declare-fun y () String)
+        ",
+        "Simple working example" {
+            r#"(assume h1 (str.in_re z (re.from_automaton "automaton automaton_0 { init s0; s0 -> s1 [98, 98]; accepting s1;};")))
+               (assume h2 (str.in_re u (re.from_automaton "automaton automaton_1 { init s0; s0 -> s1 [97, 97]; accepting s1;};")))
+               (step t1 (cl (str.in_re (str.++ z u) (re.from_automaton "automaton automaton_2 { init s0; s0 -> s1 [98, 98]; s1 -> s2 [97, 97]; accepting s2;};"))) :rule re_forward_prop :premises (h1 h2))"#: true,
+        }
+    }
+}

@@ -5,8 +5,8 @@ use super::{
 use crate::{
     ast::*,
     automata::{
-        operations::{self, has_reachable_accepting_state},
-        Automata,
+        operations::{self, complement, has_reachable_accepting_state},
+        Automata, State,
     },
     checker::{error::CheckerError, rules::assert_polyeq},
 };
@@ -568,6 +568,41 @@ fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> Result<usize, Check
         }
         _ => Err(CheckerError::LengthCannotBeEvaluated(r.clone())),
     }
+}
+
+fn make_automaton_from_string(
+    pool: &mut dyn TermPool,
+    t: &Rc<Term>,
+    premise_automatas: Vec<(Rc<Term>, Rc<Term>)>,
+) -> Result<Automata, CheckerError> {
+    fn rec_make_automaton_from_string(
+        pool: &mut dyn TermPool,
+        t: &Rc<Term>,
+        premise_automatas: Vec<(Rc<Term>, Rc<Term>)>,
+    ) -> Result<Automata, CheckerError> {
+        match t.as_ref() {
+            Term::Op(Operator::StrConcat, ss) => {
+                if ss.len() != premise_automatas.len() {
+                    // TODO: change later
+                    return Err(CheckerError::Unspecified);
+                }
+
+                let mut components: Vec<Rc<Term>> = Vec::new();
+                for (index, w) in ss.iter().enumerate() {
+                    let premise_a = premise_automatas[index].clone();
+                    assert_eq(w, &premise_a.0)?;
+                    components.push(premise_a.1.clone());
+                }
+
+                let regex_a = pool.add(Term::Op(Operator::ReConcat, components));
+                let expanded = Automata::create_from_regex_operators(pool, &regex_a)?.nfa_to_dfa();
+                Ok(expanded)
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    Ok(rec_make_automaton_from_string(pool, t, premise_automatas)?)
 }
 
 pub fn concat_eq(
@@ -1511,7 +1546,7 @@ pub fn re_convert(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
 
     assert_eq(w1, w2)?;
 
-    let a1 = Automata::create_from_operators(pool, a1)?.nfa_to_dfa();
+    let a1 = Automata::create_from_regex_operators(pool, a1)?.nfa_to_dfa();
     let a2 = a2.as_automata_err()?;
 
     if !operations::is_equivalent(a1.clone(), a2.clone()) {
@@ -1589,17 +1624,30 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
     Ok(())
 }
 
-pub fn re_forward_prop(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
-    // recupera a funcao que define o formato de y
-    // recupera o primeiro automato da premissa
-    // recupera o segundo automato da premissa
+pub fn re_forward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2..)?;
+    assert_clause_len(conclusion, 1)?;
 
-    // computa o automato referente a funcao de y -> pode ser concatenacao, length, preffixo ou
-    // sufixo
+    let (s, conc_automaton) = match_term_err!(
+        (strinre s a) = &conclusion[0]
+    )?;
 
-    // provar que esse automato computado está contido ou é igual ao autômato da conclusão
-    // isso é o mesmo que mostrar que a interseção entre o autômato computado e o autômato da
-    // conclusão é vazia
+    let mut premise_automatas: Vec<(Rc<Term>, Rc<Term>)> = Vec::new();
+    for premise in premises {
+        let term = get_premise_term(premise)?;
+        let (w, a) = match_term_err!((strinre w a) = term)?;
+        premise_automatas.push((w.clone(), a.clone()));
+    }
+
+    let expected = make_automaton_from_string(pool, s, premise_automatas)?;
+    let conc_automaton = conc_automaton.as_automata_err()?;
+
+    if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
+        return Err(CheckerError::ExpectedAutomatasToBeEquivalent(
+            expected,
+            conc_automaton,
+        ));
+    }
 
     Ok(())
 }

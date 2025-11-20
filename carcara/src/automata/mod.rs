@@ -292,18 +292,18 @@ impl Automata {
         }
     }
 
-    pub fn create_from_operators(
+    pub fn create_from_regex_operators(
         pool: &mut dyn TermPool,
         t: &Rc<Term>,
     ) -> Result<Automata, CheckerError> {
-        fn rec_create_from_operators(
+        fn rec_create_from_regex_operators(
             pool: &mut dyn TermPool,
             t: &Rc<Term>,
         ) -> Result<Automata, CheckerError> {
             match t.as_ref() {
                 Term::Op(Operator::ReKleeneClosure, r) => {
                     let r = r.first().unwrap();
-                    let a = rec_create_from_operators(pool, r)?;
+                    let a = rec_create_from_regex_operators(pool, r)?;
                     let mut states = a.clone().all_states;
 
                     let new_init_id = states.len();
@@ -342,12 +342,12 @@ impl Automata {
                         Operator::ReConcat,
                         vec![r.clone(), kleene_closure],
                     ));
-                    Ok(rec_create_from_operators(pool, &equiv)?)
+                    Ok(rec_create_from_regex_operators(pool, &equiv)?)
                 }
                 Term::Op(Operator::ReConcat, r) => {
                     let mut automatons: Vec<Automata> = Vec::new();
                     for regex in r {
-                        automatons.push(rec_create_from_operators(pool, regex)?)
+                        automatons.push(rec_create_from_regex_operators(pool, regex)?)
                     }
 
                     let mut states: Vec<State> = automatons.first().unwrap().all_states.clone();
@@ -428,13 +428,38 @@ impl Automata {
                         initial_state: 0,
                     })
                 }
+                Term::Const(Constant::RegLan(_, a)) => Ok(a.clone()),
                 // TODO: change later
-                _ => Err(CheckerError::Unspecified),
+                _ => {
+                    println!("sera");
+                    Err(CheckerError::Unspecified)
+                }
             }
         }
 
-        Ok(rec_create_from_operators(pool, t)?)
+        Ok(rec_create_from_regex_operators(pool, t)?)
     }
+
+    // pub fn create_from_string_operators(
+    //     pool: &mut dyn TermPool,
+    //     t: &Rc<Term>,
+    // ) -> Result<Automata, CheckerError> {
+    //     fn rec_create_from_string_operators(
+    //         pool: &mut dyn TermPool,
+    //         t: &Rc<Term>,
+    //     ) -> Result<Rc<Term>, CheckerError> {
+    //         match t.as_ref() {
+    //             Term::Op(Operator::StrConcat, s) => {}
+    //             _ => Ok(t.clone()),
+    //         }
+    //     }
+    //
+    //     let equivalent_regex_term = rec_create_from_string_operators(pool, t)?;
+    //     Ok(Automata::create_from_regex_operators(
+    //         pool,
+    //         &equivalent_regex_term,
+    //     )?)
+    // }
 }
 
 // TODO: improve automata display later
