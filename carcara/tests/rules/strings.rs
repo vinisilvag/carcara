@@ -1590,3 +1590,27 @@ fn re_forward_prop() {
         }
     }
 }
+
+#[test]
+fn re_backward_prop() {
+    test_cases! {
+        definitions = "
+            (declare-fun x () String)
+            (declare-fun y () String)
+        ",
+        "Simple working example" {
+            r#"(assume h1 (str.in_re (str.++ x x) (re.from_automaton "automaton premise { init s0; s0 -> s1 [98, 98]; s1 -> s2 [97, 97]; accepting s2;};")))
+               (step t1
+                (cl
+                 (and
+                  (str.in_re x (re.from_automaton "automaton automaton_0 { init s0;};"))
+                  (str.in_re x (re.from_automaton "automaton automaton_1 { init s0; s0 -> s1 [98, 98]; s1 -> s2 [97, 97]; accepting s2;};")))
+                 (and
+                  (str.in_re x (re.from_automaton "automaton automaton_2 { init s0; s0 -> s1 [98, 98]; accepting s1;};"))
+                  (str.in_re x (re.from_automaton "automaton automaton_3 { init s0; s0 -> s1 [97, 97]; accepting s1;};"))))
+                :rule re_backward_prop :premises (h1))"#: true,
+            // r#"(assume h1 (str.in_re (str.++ x y) (re.from_automaton "automaton automaton_0 { init s0; s0 -> s1 [98, 98]; accepting s1;};")))
+            //    (step t1 (cl () ()) :rule re_backward_prop :premises (h1))"#: true,
+        }
+    }
+}

@@ -1652,6 +1652,43 @@ pub fn re_forward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) ->
     Ok(())
 }
 
-pub fn re_backward_prop(RuleArgs { .. }: RuleArgs) -> RuleResult {
+pub fn re_backward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 1)?;
+    assert_clause_len(conclusion, 2..)?;
+
+    let premise = get_premise_term(&premises[0])?;
+    let (w, a) = match_term_err!((strinre w a) = premise)?;
+
+    let a = a.as_automata_err()?;
+
+    // compute cross product from a
+    // compare with conclusion
+
+    // or
+    // computa o automato da concatenação de cada termo (and ..)
+    // checa se a interseção com a linguagem de y é vazia
+    // se for -> and impossivel verificação falha
+    // se não for -> show
+    // testa para todos e se não falhar temos soundness da regra verificado
+    //
+    // para verificar completeness é complicado, exige o produto cruzado
+
+    // verificando soundness
+    for conc in conclusion {
+        let and_terms = match_term_err!((and ...) = conc)?;
+
+        let mut automatas: Vec<(Rc<Term>, Rc<Term>)> = Vec::new();
+        for and_term in and_terms {
+            let (x, automata) = match_term_err!((strinre x a) = and_term)?;
+            automatas.push((x.clone(), automata.clone()));
+        }
+
+        let computed = make_automaton_from_string(pool, w, automatas)?;
+        let intersection = operations::intersection(a.clone(), computed.clone());
+        if !operations::has_reachable_accepting_state(intersection) {
+            unimplemented!("error not implemented yet but should fail");
+        }
+    }
+
     Ok(())
 }

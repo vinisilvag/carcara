@@ -347,7 +347,14 @@ impl Automata {
                 Term::Op(Operator::ReConcat, r) => {
                     let mut automatons: Vec<Automata> = Vec::new();
                     for regex in r {
-                        automatons.push(rec_create_from_regex_operators(pool, regex)?)
+                        let a = rec_create_from_regex_operators(pool, regex)?;
+                        if operations::has_reachable_accepting_state(a.clone()) {
+                            automatons.push(a);
+                        }
+                    }
+
+                    if automatons.len() == 1 {
+                        return Ok(automatons.first().unwrap().clone());
                     }
 
                     let mut states: Vec<State> = automatons.first().unwrap().all_states.clone();
@@ -365,6 +372,7 @@ impl Automata {
                     }
 
                     let mut concat_states = automatons[1].all_states.clone();
+
                     for state in concat_states.iter_mut() {
                         for transition in state.transitions.clone() {
                             let new_transition = transition.clone();
@@ -430,10 +438,7 @@ impl Automata {
                 }
                 Term::Const(Constant::RegLan(_, a)) => Ok(a.clone()),
                 // TODO: change later
-                _ => {
-                    println!("sera");
-                    Err(CheckerError::Unspecified)
-                }
+                _ => Err(CheckerError::Unspecified),
             }
         }
 
