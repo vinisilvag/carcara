@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::automata::{utils::totalize, State, Transition, Trigger};
 
-use super::{dsu::DSU, utils::intersect_ranges, Automata, StateId};
+use super::{dsu::DSU, utils::intersect_ranges, Automaton, StateId};
 
-pub fn has_reachable_accepting_state(a: Automata) -> bool {
+pub fn has_reachable_accepting_state(a: Automaton) -> bool {
     let accepting_states: Vec<_> = a
         .all_states
         .iter()
@@ -42,7 +42,7 @@ pub fn has_reachable_accepting_state(a: Automata) -> bool {
     false
 }
 
-pub fn intersection(a1: Automata, a2: Automata) -> Automata {
+pub fn intersection(a1: Automaton, a2: Automaton) -> Automaton {
     let mut new_states = Vec::new();
     let mut state_map = HashMap::new();
     let mut queue = VecDeque::new();
@@ -82,7 +82,7 @@ pub fn intersection(a1: Automata, a2: Automata) -> Automata {
         }
     }
 
-    Automata {
+    Automaton {
         name: format!("({} ∩ {})", a1.name, a2.name),
         all_states: new_states,
         initial_state: 0,
@@ -92,7 +92,7 @@ pub fn intersection(a1: Automata, a2: Automata) -> Automata {
 // Implementation of automata equivalence checking based on the Hopcroft-Karp algorithm,
 // adapted for testing the equivalence of deterministic finite automata (DFAs), as described
 // in the paper "A Linear Algorithm for Testing Equivalence of Finite Automata".
-pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
+pub fn is_equivalent(a1: Automaton, a2: Automaton) -> bool {
     let offset = a1.all_states.len();
 
     let accepting_states: Vec<StateId> = a1
@@ -158,14 +158,14 @@ pub fn is_equivalent(a1: Automata, a2: Automata) -> bool {
     return true;
 }
 
-pub fn complement(a: Automata) -> Automata {
+pub fn complement(a: Automaton) -> Automaton {
     let mut totalized_states = totalize(a.all_states);
 
     for state in &mut totalized_states {
         state.accept = !state.accept;
     }
 
-    Automata {
+    Automaton {
         name: format!("{}_complement", a.name),
         all_states: totalized_states,
         initial_state: a.initial_state,
@@ -184,7 +184,7 @@ mod tests {
         // <a1> -'a'-> a2 -'a'-> [a3] -'a'-> a4 -'a'-> a5 -'a'-> [a6] -\
         //                                 |                           |
         //                                 \------------'a'------------/
-        let a1 = Automata::new(
+        let a1 = Automaton::new(
             "a1",
             "a1",
             vec![
@@ -201,7 +201,7 @@ mod tests {
         // > <b1> -'a'-> b2 -'a'-> [b3] -\
         // |                             |
         // \-------------'a'-------------/
-        let a2 = Automata::new(
+        let a2 = Automaton::new(
             "a2",
             "b1",
             vec![
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn test_unequiv_automatas() {
         // Language: b*a(a ∪ b)*
-        let a1 = Automata::new(
+        let a1 = Automaton::new(
             "a1",
             "q0",
             vec![
@@ -231,7 +231,7 @@ mod tests {
         );
 
         // Language: (a ∪ b)*a(a ∪ b)*
-        let a2 = Automata::new(
+        let a2 = Automaton::new(
             "a2",
             "p0",
             vec![

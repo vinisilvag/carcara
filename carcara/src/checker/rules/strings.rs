@@ -5,8 +5,8 @@ use super::{
 use crate::{
     ast::*,
     automata::{
-        operations::{self, complement, has_reachable_accepting_state},
-        Automata, State,
+        operations::{self, has_reachable_accepting_state},
+        Automaton,
     },
     checker::{error::CheckerError, rules::assert_polyeq},
 };
@@ -574,12 +574,12 @@ fn make_automaton_from_string(
     pool: &mut dyn TermPool,
     t: &Rc<Term>,
     premise_automatas: Vec<(Rc<Term>, Rc<Term>)>,
-) -> Result<Automata, CheckerError> {
+) -> Result<Automaton, CheckerError> {
     fn rec_make_automaton_from_string(
         pool: &mut dyn TermPool,
         t: &Rc<Term>,
         premise_automatas: Vec<(Rc<Term>, Rc<Term>)>,
-    ) -> Result<Automata, CheckerError> {
+    ) -> Result<Automaton, CheckerError> {
         match t.as_ref() {
             Term::Op(Operator::StrConcat, ss) => {
                 if ss.len() != premise_automatas.len() {
@@ -595,7 +595,7 @@ fn make_automaton_from_string(
                 }
 
                 let regex_a = pool.add(Term::Op(Operator::ReConcat, components));
-                let expanded = Automata::create_from_regex_operators(pool, &regex_a)?.nfa_to_dfa();
+                let expanded = Automaton::create_from_regex_operators(pool, &regex_a)?.nfa_to_dfa();
                 Ok(expanded)
             }
             _ => unimplemented!(),
@@ -1546,11 +1546,11 @@ pub fn re_convert(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
 
     assert_eq(w1, w2)?;
 
-    let a1 = Automata::create_from_regex_operators(pool, a1)?.nfa_to_dfa();
+    let a1 = Automaton::create_from_regex_operators(pool, a1)?.nfa_to_dfa();
     let a2 = a2.as_automata_err()?;
 
     if !operations::is_equivalent(a1.clone(), a2.clone()) {
-        return Err(CheckerError::ExpectedAutomatasToBeEquivalent(a1, a2));
+        return Err(CheckerError::ExpectedAutomataToBeEquivalent(a1, a2));
     }
 
     Ok(())
@@ -1582,7 +1582,7 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
     assert_clause_len(conclusion, 1)?;
 
     let mut ws: Vec<Rc<Term>> = Vec::new();
-    let mut premise_automatas: Vec<Automata> = Vec::new();
+    let mut premise_automatas: Vec<Automaton> = Vec::new();
 
     for premise in premises {
         let term = get_premise_term(premise)?;
@@ -1615,7 +1615,7 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
     // Check equivalence with the automaton in the conclusion
     let conc_automaton = conc_automaton.as_automata_err()?;
     if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
-        return Err(CheckerError::ExpectedAutomatasToBeEquivalent(
+        return Err(CheckerError::ExpectedAutomataToBeEquivalent(
             expected,
             conc_automaton,
         ));
@@ -1643,7 +1643,7 @@ pub fn re_forward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) ->
     let conc_automaton = conc_automaton.as_automata_err()?;
 
     if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
-        return Err(CheckerError::ExpectedAutomatasToBeEquivalent(
+        return Err(CheckerError::ExpectedAutomataToBeEquivalent(
             expected,
             conc_automaton,
         ));
@@ -1661,19 +1661,7 @@ pub fn re_backward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -
 
     let a = a.as_automata_err()?;
 
-    // compute cross product from a
-    // compare with conclusion
-
-    // or
-    // computa o automato da concatenação de cada termo (and ..)
-    // checa se a interseção com a linguagem de y é vazia
-    // se for -> and impossivel verificação falha
-    // se não for -> show
-    // testa para todos e se não falhar temos soundness da regra verificado
-    //
-    // para verificar completeness é complicado, exige o produto cruzado
-
-    // verificando soundness
+    // Soundness check
     for conc in conclusion {
         let and_terms = match_term_err!((and ...) = conc)?;
 
@@ -1689,6 +1677,8 @@ pub fn re_backward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -
             unimplemented!("error not implemented yet but should fail");
         }
     }
+
+    // Completeness check
 
     Ok(())
 }

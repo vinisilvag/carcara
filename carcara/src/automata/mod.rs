@@ -3,6 +3,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use crate::ast::{Constant, Operator, Rc, Term, TermPool};
+use crate::automata::utils::{has_missing_ranges, has_overlapping_ranges};
 use crate::checker::error::CheckerError;
 
 pub mod dsu;
@@ -10,18 +11,35 @@ pub mod operations;
 pub mod parser;
 pub mod utils;
 
+/// Type alias for state representation.
 pub type StateId = usize;
 
+/// Condition under which a transition is enabled.
+///
+/// A trigger may either consume no input (epsilon transition) or
+/// consume a single input symbol whose value lies within a given range.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Trigger {
+    /// Epsilon transition (does not consume input).
     Epsilon,
+
+    /// Transition enabled by any input symbol in the inclusive range [l, r].
     Range((u32, u32)),
 }
 
+/// Represents a state in the automaton.
+///
+/// A state is identified by a symbolic identifier, may be marked as accepting,
+/// and defines a set of outgoing transitions labeled by triggers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
+    /// State symbolic name.
     id: String,
+
+    /// Accepting state or not.
     accept: bool,
+
+    /// Set of outgoing transitions.
     transitions: HashSet<Transition>,
 }
 
@@ -35,7 +53,6 @@ impl State {
     }
 }
 
-// TODO: check later
 impl Hash for State {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let mut transitions_vec: Vec<_> = self.transitions.iter().collect();
@@ -46,9 +63,16 @@ impl Hash for State {
     }
 }
 
+/// Represents a transition between automaton states.
+///
+/// A transition leads from the enclosing source state to a destination state
+/// and is labeled by a trigger describing which input symbols enable it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Transition {
+    /// Identifier of the destination state.
     to: StateId,
+
+    /// Label of the transition, describing the consumed input.
     trigger: Trigger,
 }
 
@@ -58,20 +82,38 @@ impl Transition {
     }
 }
 
+/// Represents a finite automaton.
+///
+/// An `Automaton` value defines the structure of a (possibly nondeterministic)
+/// finite automaton with epsilon transitions. It consists of:
+///
+///  - a symbolic name identifying the automaton;
+///  - a finite set of states, stored in `all_states`;
+///  - a distinguished initial state, identified by `initial_state`.
+///
+/// States are indexed by their position in `all_states`. Transitions refer to
+/// destination states via these indices (`StateId`), forming a directed graph.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Automata {
+pub struct Automaton {
+    /// Automaton symbolic name.
     name: String,
+
+    /// Finite collection of states forming the automaton.
     all_states: Vec<State>,
+
+    /// Identifier of the initial state.
     initial_state: StateId,
 }
 
-impl Automata {
+impl Automaton {
+    // Construct an automaton based on the automaton name, initial state id, the complete set of
+    // transitions (from, to, range), and the set of accepting states
     fn new(
-        automata_name: &str,
+        automaton_name: &str,
         initial_state_id: &str,
         transitions: Vec<(&str, &str, (u32, u32))>,
         accepting_states: Vec<&str>,
-    ) -> Automata {
+    ) -> Automaton {
         let mut accepting_states_map = HashSet::new();
         for state in accepting_states.clone() {
             accepting_states_map.insert(state);
@@ -112,8 +154,8 @@ impl Automata {
             }
         }
 
-        Automata {
-            name: automata_name.to_string(),
+        Automaton {
+            name: automaton_name.to_string(),
             initial_state,
             all_states,
         }
@@ -121,10 +163,26 @@ impl Automata {
 
     pub fn is_nfa(&self) -> bool {
         for state in &self.all_states {
+            let mut ranges = Vec::new();
             for transition in &state.transitions {
-                if transition.trigger == Trigger::Epsilon {
-                    return true;
-                }
+                match transition.trigger {
+                    // NFA if the automaton has an Epsilon transition
+                    Trigger::Epsilon => {
+                        return true;
+                    }
+                    Trigger::Range(range) => {
+                        ranges.push(range);
+                    }
+                };
+            }
+            // NFA if the automaton has overlapping ranges on transitions outgoing the same state
+            // (non-determinism)
+            if has_overlapping_ranges(ranges.clone()) {
+                return true;
+            }
+            // NFA if the automaton does not have transitions for every range from 0 to 255
+            if has_missing_ranges(ranges, 0, 255) {
+                return true;
             }
         }
         false
@@ -148,6 +206,8 @@ impl Automata {
         return transitions;
     }
 
+    // Returns the set of states the can be reached by every state in the automaton following any
+    // number of Epsilon transitions
     fn epsilon_closure(&self, states: &HashSet<StateId>) -> HashSet<StateId> {
         let mut closure = states.clone();
         let mut stack: Vec<StateId> = states.iter().copied().collect();
@@ -165,6 +225,8 @@ impl Automata {
         closure
     }
 
+    // Set of all triggers in the automaton
+    // Used to get the effective alphabet of the automaton
     fn symbol_triggers(&self) -> HashSet<Trigger> {
         self.all_states
             .iter()
@@ -174,7 +236,7 @@ impl Automata {
             .collect()
     }
 
-    pub fn nfa_to_dfa(&self) -> Automata {
+    pub fn nfa_to_dfa(&self) -> Automaton {
         let triggers = self.symbol_triggers();
         let start_closure: BTreeSet<usize> = self
             .epsilon_closure(&HashSet::from([self.initial_state]))
@@ -242,14 +304,14 @@ impl Automata {
             });
         }
 
-        Automata {
+        Automaton {
             name: format!("{}_dfa", self.name),
             all_states: new_states,
             initial_state: 0,
         }
     }
 
-    pub fn complement(&self) -> Automata {
+    pub fn complement(&self) -> Automaton {
         let alphabet: HashSet<Trigger> = self.symbol_triggers();
         let mut new_states = self.all_states.clone();
 
@@ -285,7 +347,7 @@ impl Automata {
             state.accept = !state.accept;
         }
 
-        Automata {
+        Automaton {
             name: format!("{}_complement", self.name),
             all_states: new_states,
             initial_state: self.initial_state,
@@ -295,11 +357,11 @@ impl Automata {
     pub fn create_from_regex_operators(
         pool: &mut dyn TermPool,
         t: &Rc<Term>,
-    ) -> Result<Automata, CheckerError> {
+    ) -> Result<Automaton, CheckerError> {
         fn rec_create_from_regex_operators(
             pool: &mut dyn TermPool,
             t: &Rc<Term>,
-        ) -> Result<Automata, CheckerError> {
+        ) -> Result<Automaton, CheckerError> {
             match t.as_ref() {
                 Term::Op(Operator::ReKleeneClosure, r) => {
                     let r = r.first().unwrap();
@@ -328,7 +390,7 @@ impl Automata {
                         }
                     }
 
-                    Ok(Automata {
+                    Ok(Automaton {
                         name: "re_kleene_closure".to_string(),
                         all_states: states,
                         initial_state: new_init_id,
@@ -345,7 +407,7 @@ impl Automata {
                     Ok(rec_create_from_regex_operators(pool, &equiv)?)
                 }
                 Term::Op(Operator::ReConcat, r) => {
-                    let mut automatons: Vec<Automata> = Vec::new();
+                    let mut automatons: Vec<Automaton> = Vec::new();
                     for regex in r {
                         let a = rec_create_from_regex_operators(pool, regex)?;
                         if operations::has_reachable_accepting_state(a.clone()) {
@@ -386,7 +448,7 @@ impl Automata {
 
                     states.extend(concat_states);
 
-                    Ok(Automata {
+                    Ok(Automaton {
                         name: "re_concat".to_owned(),
                         all_states: states,
                         initial_state: new_initial_state,
@@ -395,8 +457,7 @@ impl Automata {
                 Term::Op(Operator::StrToRe, s) => {
                     let s = s.first().unwrap();
                     let Term::Const(Constant::String(s)) = s.as_ref() else {
-                        // TODO: change later
-                        return Err(CheckerError::Unspecified);
+                        return Err(CheckerError::ExpectedStringConstantInsideStrToRe(s.clone()));
                     };
 
                     let characters: Vec<char> = s.chars().collect();
@@ -430,15 +491,15 @@ impl Automata {
                             transitions,
                         });
                     }
-                    Ok(Automata {
+
+                    Ok(Automaton {
                         name: "str_to_re".to_owned(),
                         all_states: states,
                         initial_state: 0,
                     })
                 }
                 Term::Const(Constant::RegLan(_, a)) => Ok(a.clone()),
-                // TODO: change later
-                _ => Err(CheckerError::Unspecified),
+                _ => Err(CheckerError::UnexpectedTermOnAutomataConversion(t.clone())),
             }
         }
 
@@ -467,8 +528,8 @@ impl Automata {
     // }
 }
 
-// TODO: improve automata display later
-impl fmt::Display for Automata {
+// TODO: improve automaton display later
+impl fmt::Display for Automaton {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
@@ -496,10 +557,22 @@ mod tests {
     }
 
     #[test]
-    fn epsilon_closure_single_state_no_epsilon() {
+    fn test_is_nfa_by_epsilon_transition() {}
+
+    #[test]
+    fn test_is_nfa_by_incomplete_transition_table() {}
+
+    #[test]
+    fn test_is_nfa_by_overlapping_transitions() {}
+
+    #[test]
+    fn test_is_not_nfa() {}
+
+    #[test]
+    fn test_epsilon_closure_single_state_no_epsilon() {
         // Estado 0 sem transições ε
         let s0 = make_state(0, &[]);
-        let nfa = Automata {
+        let nfa = Automaton {
             name: "no_epsilon".into(),
             all_states: vec![s0],
             initial_state: 0,
@@ -510,12 +583,12 @@ mod tests {
     }
 
     #[test]
-    fn epsilon_closure_simple_chain() {
+    fn test_epsilon_closure_simple_chain() {
         // 0 --ε--> 1 --ε--> 2
         let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
         let s1 = make_state(1, &[(2, Trigger::Epsilon)]);
         let s2 = make_state(2, &[]);
-        let nfa = Automata {
+        let nfa = Automaton {
             name: "chain".into(),
             all_states: vec![s0, s1, s2],
             initial_state: 0,
@@ -526,12 +599,12 @@ mod tests {
     }
 
     #[test]
-    fn epsilon_closure_with_cycle() {
+    fn test_epsilon_closure_with_cycle() {
         // 0 --ε--> 1 --ε--> 2 --ε--> 0 (ciclo)
         let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
         let s1 = make_state(1, &[(2, Trigger::Epsilon)]);
         let s2 = make_state(2, &[(0, Trigger::Epsilon)]);
-        let nfa = Automata {
+        let nfa = Automaton {
             name: "cycle".into(),
             all_states: vec![s0, s1, s2],
             initial_state: 0,
@@ -543,12 +616,13 @@ mod tests {
         assert_eq!(closure, hs([0, 1, 2]));
     }
 
-    fn epsilon_closure_multiple_start_states() {
+    #[test]
+    fn test_epsilon_closure_multiple_start_states() {
         // 0 --ε--> 1, 2 sem conexão
         let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
         let s1 = make_state(1, &[]);
         let s2 = make_state(2, &[]);
-        let nfa = Automata {
+        let nfa = Automaton {
             name: "multi_start".into(),
             all_states: vec![s0, s1, s2],
             initial_state: 0,

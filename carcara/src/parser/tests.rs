@@ -4,7 +4,6 @@
 
 use super::*;
 use crate::ast::pool::PrimitivePool;
-use crate::automata::{operations, Automata};
 
 const ERROR_MESSAGE: &str = "parser error during test";
 
@@ -853,29 +852,4 @@ fn test_proofs_with_extra_parens() {
         parse_proof_err(&mut p, "(assume h1 true) )"),
         Error::Parser(ParserError::UnexpectedToken(Token::CloseParen), _)
     ));
-}
-
-#[test]
-fn test_automata() {
-    let mut p = PrimitivePool::new();
-    let t1 = parse_term(
-        &mut p,
-        r#"(re.from_automaton "automaton value_0 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1; accepting s2; };")"#,
-    );
-    let t2 = parse_term(
-        &mut p,
-        r#"(re.from_automaton "automaton value_0 { init s0; s0 -> s1 [97, 97]; s1 -> s1 [97, 97]; accepting s1; accepting s2; };")"#,
-    );
-
-    println!("before intersection\n");
-
-    if let (Term::Const(Constant::RegLan(_, a1)), Term::Const(Constant::RegLan(_, a2))) =
-        (t1.as_ref(), t2.as_ref())
-    {
-        operations::intersection(a1.clone(), a2.clone());
-    }
-
-    println!("\nafter intersection");
-
-    panic!()
 }

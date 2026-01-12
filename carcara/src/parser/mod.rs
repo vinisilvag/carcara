@@ -9,9 +9,9 @@ use std::iter::Iterator;
 pub use error::{ParserError, SortError};
 pub use lexer::{Lexer, Position, Reserved, Token};
 
-use crate::automata::parser::parse_automata;
+use crate::automata::parser::parse_automaton;
 
-use crate::automata::Automata;
+use crate::automata::Automaton;
 use crate::{
     ast::*,
     utils::{HashCache, HashMapStack},
@@ -227,19 +227,15 @@ impl<'a, R: BufRead> Parser<'a, R> {
         self.is_real_only_logic && self.problem.is_some()
     }
 
-    fn make_automata(&mut self, automaton_repr: String) -> Result<Automata, ParserError> {
-        match parse_automata(automaton_repr.trim()) {
+    fn make_automaton(&mut self, automaton_repr: String) -> Result<Automaton, ParserError> {
+        match parse_automaton(automaton_repr.trim()) {
             Ok((remaining, automata)) => {
                 if !remaining.is_empty() {
-                    // Change later
-                    println!("remaining {:?}", remaining);
                     return Err(ParserError::InvalidAutomataDeclaration(automaton_repr));
                 }
-                return Ok(automata);
+                return Ok(automata.nfa_to_dfa());
             }
-            Err(err) => {
-                // Change later
-                println!("Parser error: {:?}", err);
+            Err(_) => {
                 return Err(ParserError::InvalidAutomataDeclaration(automaton_repr));
             }
         }
@@ -373,7 +369,7 @@ impl<'a, R: BufRead> Parser<'a, R> {
                 assert_num_args(&args, 1)?;
                 SortError::assert_eq(&Sort::String, sorts[0])?;
                 if let Term::Const(Constant::String(s)) = args[0].as_ref() {
-                    let automata = self.make_automata(s.to_owned())?;
+                    let automata = self.make_automaton(s.to_owned())?;
                     return Ok(self
                         .pool
                         .add(Term::Const(Constant::RegLan(s.to_owned(), automata))));

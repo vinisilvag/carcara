@@ -1,6 +1,6 @@
 use crate::{
     ast::*,
-    automata::Automata,
+    automata::Automaton,
     checker::rules::linear_arithmetic::LinearComb,
     utils::{Range, TypeName},
 };
@@ -158,20 +158,26 @@ pub enum CheckerError {
     #[error("expected 'automata' term, got '{0}'")]
     ExpectedAutomataTerm(Rc<Term>),
 
-    #[error("expected term {0} to be a prefix of {1}")]
+    #[error("expected term '{0}' to be a prefix of '{1}'")]
     ExpectedToBePrefix(Rc<Term>, Rc<Term>),
 
-    #[error("expected term {0} to be a suffix of {1}")]
+    #[error("expected term '{0}' to be a suffix of '{1}'")]
     ExpectedToBeSuffix(Rc<Term>, Rc<Term>),
 
-    #[error("expected term {0} to not be empty")]
+    #[error("expected term '{0}' to not be empty")]
     ExpectedToNotBeEmpty(Rc<Term>),
 
-    #[error("expected automata {0} to be the empty intersection of {1} and {2}")]
-    ExpectedAutomataEmptyIntersection(Automata, Automata, Automata),
+    #[error("expected automata '{0}' to be the empty intersection of '{1}' and '{2}'")]
+    ExpectedAutomataEmptyIntersection(Automaton, Automaton, Automaton),
 
-    #[error("expected automata {0} to be equivalent to {1}")]
-    ExpectedAutomatasToBeEquivalent(Automata, Automata),
+    #[error("expected automata '{0}' to be equivalent to '{1}'")]
+    ExpectedAutomataToBeEquivalent(Automaton, Automaton),
+
+    #[error("unexpected term when converting '{0}' to his automata form")]
+    UnexpectedTermOnAutomataConversion(Rc<Term>),
+
+    #[error("expected a string constant inside the str.to_re operator, got '{0}'")]
+    ExpectedStringConstantInsideStrToRe(Rc<Term>),
 
     #[error("this rule can only be used in the last step of a subproof")]
     MustBeLastStepInSubproof,

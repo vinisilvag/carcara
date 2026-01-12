@@ -1,5 +1,5 @@
 use super::{PrimitivePool, Rc, TermPool};
-use crate::{automata::Automata, CheckerError};
+use crate::{automata::Automaton, CheckerError};
 use indexmap::{map::Entry, IndexMap};
 use rug::{Integer, Rational};
 use std::{collections::HashSet, hash::Hash, ops::Deref};
@@ -117,7 +117,7 @@ pub enum Constant {
     BitVec(Integer, Integer),
 
     /// A regular expression term.
-    RegLan(String, Automata),
+    RegLan(String, Automaton),
 }
 
 /// A binder, either a quantifier (`forall` or `exists`), `choice`, or `lambda`.
@@ -859,7 +859,7 @@ impl Term {
         }
     }
 
-    pub fn as_automata(&self) -> Option<Automata> {
+    pub fn as_automata(&self) -> Option<Automaton> {
         match self {
             Term::Const(Constant::RegLan(s, a)) => Some(a.clone()),
             _ => None,
@@ -990,7 +990,7 @@ impl Rc<Term> {
             .ok_or_else(|| CheckerError::ExpectedLetTerm(self.clone()))
     }
 
-    pub fn as_automata_err(&self) -> Result<Automata, CheckerError> {
+    pub fn as_automata_err(&self) -> Result<Automaton, CheckerError> {
         self.as_automata()
             .ok_or_else(|| CheckerError::ExpectedAutomataTerm(self.clone()))
     }
