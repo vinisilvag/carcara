@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::automata::{utils::totalize, State, Transition, Trigger};
+use crate::{
+    automata::{utils::totalize, State, Transition, Trigger},
+    checker::error::CheckerError,
+};
 
 use super::{dsu::DSU, utils::intersect_ranges, Automaton, StateId};
 
@@ -42,7 +45,7 @@ pub fn has_reachable_accepting_state(a: Automaton) -> bool {
     false
 }
 
-pub fn intersection(a1: Automaton, a2: Automaton) -> Automaton {
+pub fn intersection(a1: Automaton, a2: Automaton) -> Result<Automaton, CheckerError> {
     let mut new_states = Vec::new();
     let mut state_map = HashMap::new();
     let mut queue = VecDeque::new();
@@ -62,7 +65,7 @@ pub fn intersection(a1: Automaton, a2: Automaton) -> Automaton {
 
         for t1 in &a1.get_state(s1).transitions {
             for t2 in &a2.get_state(s2).transitions {
-                if let Some(range) = intersect_ranges(t1.trigger.clone(), t2.trigger.clone()) {
+                if let Some(range) = intersect_ranges(t1.trigger.clone(), t2.trigger.clone())? {
                     let dest = (t1.to, t2.to);
                     let next_id = *state_map.entry(dest).or_insert_with(|| {
                         let id = new_states.len();
@@ -82,11 +85,11 @@ pub fn intersection(a1: Automaton, a2: Automaton) -> Automaton {
         }
     }
 
-    Automaton {
+    Ok(Automaton {
         name: format!("({} ∩ {})", a1.name, a2.name),
         all_states: new_states,
         initial_state: 0,
-    }
+    })
 }
 
 // Implementation of automata equivalence checking based on the Hopcroft-Karp algorithm,

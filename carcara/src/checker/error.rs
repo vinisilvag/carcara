@@ -1,6 +1,6 @@
 use crate::{
     ast::*,
-    automata::Automaton,
+    automata::{Automaton, Trigger},
     checker::rules::linear_arithmetic::LinearComb,
     utils::{Range, TypeName},
 };
@@ -178,6 +178,9 @@ pub enum CheckerError {
 
     #[error("expected a string constant inside the str.to_re operator, got '{0}'")]
     ExpectedStringConstantInsideStrToRe(Rc<Term>),
+
+    #[error("expected two ranges to calculate the intersection between then, got '{0}' and '{1}'")]
+    ExpectedRangesToCalculateTheIntersection(Trigger, Trigger),
 
     #[error("this rule can only be used in the last step of a subproof")]
     MustBeLastStepInSubproof,

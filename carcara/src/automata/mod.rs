@@ -25,6 +25,25 @@ pub enum Trigger {
 
     /// Transition enabled by any input symbol in the inclusive range [l, r].
     Range((u32, u32)),
+
+    /// Separator (useful for some rule verification)
+    Separator,
+}
+
+impl fmt::Display for Trigger {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Epsilon => {
+                write!(f, "ε")
+            }
+            Self::Separator => {
+                write!(f, "#")
+            }
+            Self::Range((l, r)) => {
+                write!(f, "({}, {})", l, r)
+            }
+        }
+    }
 }
 
 /// Represents a state in the automaton.
@@ -166,12 +185,11 @@ impl Automaton {
             let mut ranges = Vec::new();
             for transition in &state.transitions {
                 match transition.trigger {
-                    // NFA if the automaton has an Epsilon transition
-                    Trigger::Epsilon => {
-                        return true;
-                    }
                     Trigger::Range(range) => {
                         ranges.push(range);
+                    }
+                    _ => {
+                        return true;
                     }
                 };
             }

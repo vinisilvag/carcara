@@ -12,6 +12,8 @@ use crate::{
 };
 use std::{cmp, time::Duration};
 
+// AUXILIAR METHODS
+
 /// A function that takes an `Rc<Term>` and returns a vector corresponding to
 /// the flat form of that term.
 ///
@@ -605,6 +607,7 @@ fn make_automaton_from_string(
     Ok(rec_make_automaton_from_string(pool, t, premise_automatas)?)
 }
 
+// RULES
 pub fn concat_eq(
     RuleArgs {
         premises,
@@ -1564,7 +1567,7 @@ pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResul
 
     let a1 = a1.as_automata_err()?;
     let a2 = a2.as_automata_err()?;
-    let intersection = operations::intersection(a1.clone(), a2.clone());
+    let intersection = operations::intersection(a1.clone(), a2.clone())?;
 
     if has_reachable_accepting_state(intersection.clone()) {
         return Err(CheckerError::ExpectedAutomataEmptyIntersection(
@@ -1607,9 +1610,9 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
 
     // Create the intersection automaton from the premises
     let mut expected =
-        operations::intersection(premise_automatas[0].clone(), premise_automatas[1].clone());
+        operations::intersection(premise_automatas[0].clone(), premise_automatas[1].clone())?;
     for index in 2..premise_automatas.len() {
-        expected = operations::intersection(expected, premise_automatas[index].clone());
+        expected = operations::intersection(expected, premise_automatas[index].clone())?;
     }
 
     // Check equivalence with the automaton in the conclusion
@@ -1672,13 +1675,34 @@ pub fn re_backward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -
         }
 
         let computed = make_automaton_from_string(pool, w, automatas)?;
-        let intersection = operations::intersection(a.clone(), computed.clone());
+        let intersection = operations::intersection(a.clone(), computed.clone())?;
         if !operations::has_reachable_accepting_state(intersection) {
             unimplemented!("error not implemented yet but should fail");
         }
     }
 
     // Completeness check
+    // Ideia:
+    // 1. Construir um autômato que reconheça todas as decomposições possíveis do termo de
+    //    interesse (a concatenação de interesse) - representa tudo que é possível
+    // 2. Construir um autômato para cada termo do and na conclusão e uní-los com um operador
+    //    específico para isso (um separador como #, etc) - representa tudo o que a regra diz ser
+    //    possível
+    // 3. Existe algo no primeiro que não está no segundo?
+    //    Faz o complemento do primeiro e gera a interseção com o segundo. Se for vazio, todas as
+    //    decomposições válidas foram enumeradas e a regra passa. Caso contrário, não passa.
+
+    // 1.
+    // let complete_automaton = ;
+
+    // 2.
+    // let conclusion_automaton = ;
+
+    // 3.
+    // let intersection = operations::intersection(complete_automaton.clone(), conclusion_automaton.clone())?;
+    // if !operations::has_reachable_accepting_state(intersection) {
+    //     unimplemented!("error not implemented yet but should fail");
+    // }
 
     Ok(())
 }

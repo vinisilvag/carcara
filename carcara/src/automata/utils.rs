@@ -1,20 +1,22 @@
-use crate::automata::{State, Transition, Trigger};
+use crate::{
+    automata::{State, Transition, Trigger},
+    checker::error::CheckerError,
+};
 
-pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Option<(u32, u32)> {
-    match (r1, r2) {
+pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u32, u32)>, CheckerError> {
+    match (r1.clone(), r2.clone()) {
         (Trigger::Range(r1), Trigger::Range(r2)) => {
             let start = r1.0.max(r2.0);
             let end = r1.1.min(r2.1);
             if start <= end {
-                Some((start, end))
+                Ok(Some((start, end)))
             } else {
-                None
+                Ok(None)
             }
         }
-        _ => {
-            // TODO: add error return and change to Result<Option<(u32, u32)>, Err>
-            unreachable!("should be only dfas and not nfas");
-        }
+        _ => Err(CheckerError::ExpectedRangesToCalculateTheIntersection(
+            r1, r2,
+        )),
     }
 }
 
@@ -177,21 +179,21 @@ mod tests {
     fn test_intersection_simple_overlap() {
         let r1 = Trigger::Range((0, 10));
         let r2 = Trigger::Range((5, 15));
-        assert_eq!(intersect_ranges(r1, r2), Some((5, 10)));
+        assert_eq!(intersect_ranges(r1, r2).unwrap(), Some((5, 10)));
     }
 
     #[test]
     fn test_intersection_identical_ranges() {
         let r1 = Trigger::Range((3, 7));
         let r2 = Trigger::Range((3, 7));
-        assert_eq!(intersect_ranges(r1, r2), Some((3, 7)));
+        assert_eq!(intersect_ranges(r1, r2).unwrap(), Some((3, 7)));
     }
 
     #[test]
     fn test_intersection_contained_range() {
         let r1 = Trigger::Range((0, 10));
         let r2 = Trigger::Range((3, 5));
-        assert_eq!(intersect_ranges(r1, r2), Some((3, 5)));
+        assert_eq!(intersect_ranges(r1, r2).unwrap(), Some((3, 5)));
     }
 
     #[test]
@@ -199,14 +201,14 @@ mod tests {
         // Closed intervals: [0,5] ∩ [5,10] = [5,5]
         let r1 = Trigger::Range((0, 5));
         let r2 = Trigger::Range((5, 10));
-        assert_eq!(intersect_ranges(r1, r2), Some((5, 5)));
+        assert_eq!(intersect_ranges(r1, r2).unwrap(), Some((5, 5)));
     }
 
     #[test]
     fn test_intersection_no_overlap() {
         let r1 = Trigger::Range((0, 4));
         let r2 = Trigger::Range((5, 10));
-        assert_eq!(intersect_ranges(r1, r2), None);
+        assert_eq!(intersect_ranges(r1, r2).unwrap(), None);
     }
 
     #[test]
@@ -214,30 +216,28 @@ mod tests {
         // Order of r1 and r2 should not matter
         let r1 = Trigger::Range((8, 12));
         let r2 = Trigger::Range((3, 10));
-        assert_eq!(intersect_ranges(r1, r2), Some((8, 10)));
+        assert_eq!(intersect_ranges(r1, r2).unwrap(), Some((8, 10)));
     }
 
     #[test]
     fn test_intersection_single_point_overlap() {
         let r1 = Trigger::Range((5, 5));
         let r2 = Trigger::Range((5, 5));
-        assert_eq!(intersect_ranges(r1, r2), Some((5, 5)));
+        assert_eq!(intersect_ranges(r1, r2).unwrap(), Some((5, 5)));
     }
 
     #[test]
     fn test_intersection_empty_unsorted_inputs() {
         let r1 = Trigger::Range((10, 20));
         let r2 = Trigger::Range((0, 9));
-        assert_eq!(intersect_ranges(r1, r2), None);
+        assert_eq!(intersect_ranges(r1, r2).unwrap(), None);
     }
 
-    // TODO: refactor when the function signature change
     #[test]
-    #[should_panic(expected = "should be only dfas and not nfas")]
     fn intersection_non_range_trigger_panics() {
         let r1 = Trigger::Range((0, 10));
         let r2 = Trigger::Epsilon;
-        intersect_ranges(r1, r2);
+        assert!(intersect_ranges(r1, r2).is_err());
     }
 
     // Normalize ranges
