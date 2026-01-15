@@ -585,8 +585,12 @@ fn make_automaton_from_string(
         match t.as_ref() {
             Term::Op(Operator::StrConcat, ss) => {
                 if ss.len() != premise_automatas.len() {
-                    // TODO: change later
-                    return Err(CheckerError::Unspecified);
+                    return Err(
+                        CheckerError::ConcatTermsNumberDiffersFromPremiseTermsNumber(
+                            ss.len(),
+                            premise_automatas.len(),
+                        ),
+                    );
                 }
 
                 let mut components: Vec<Rc<Term>> = Vec::new();
@@ -600,6 +604,9 @@ fn make_automaton_from_string(
                 let expanded = Automaton::create_from_regex_operators(pool, &regex_a)?.nfa_to_dfa();
                 Ok(expanded)
             }
+            // TODO: add other forwadable functions
+            // Term::Op(Operator::Replace, _) => {}
+            // Term::Op(Operator::ReplaceAll, _) => {}
             _ => unimplemented!(),
         }
     }

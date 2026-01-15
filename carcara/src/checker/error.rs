@@ -182,6 +182,9 @@ pub enum CheckerError {
     #[error("expected two ranges to calculate the intersection between then, got '{0}' and '{1}'")]
     ExpectedRangesToCalculateTheIntersection(Trigger, Trigger),
 
+    #[error("mismatched number of terms: concatenation has {0} terms, but premises have {1}")]
+    ConcatTermsNumberDiffersFromPremiseTermsNumber(usize, usize),
+
     #[error("this rule can only be used in the last step of a subproof")]
     MustBeLastStepInSubproof,
 

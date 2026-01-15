@@ -20,6 +20,14 @@
 (step t4.a (cl (str.in_re y (re.from_automaton "automaton automaton_2 { init s0; s0 -> s1 [98, 98]; s1 -> s2 [97, 97]; accepting s2;};"))) :rule resolution :premises (t3 t4))
 
 
+// premises
+// y = x . x
+// y in ba (em forma de automato)
+
+// conclusion
+// x in b && x in a
+// || x in eps && x in ba
+
 (step t5 (cl (and (str.in_re x (str.to_re "b")) (str.in_re x (str.to_re "a"))) (and (str.in_re x re.none) (str.in_re x (re.++ (str.to_re "b") (str.to_re "a"))))) :rule re_backward_prop :premises (input2 t4.a)) ?
 
 
