@@ -523,27 +523,6 @@ impl Automaton {
 
         Ok(rec_create_from_regex_operators(pool, t)?)
     }
-
-    // pub fn create_from_string_operators(
-    //     pool: &mut dyn TermPool,
-    //     t: &Rc<Term>,
-    // ) -> Result<Automata, CheckerError> {
-    //     fn rec_create_from_string_operators(
-    //         pool: &mut dyn TermPool,
-    //         t: &Rc<Term>,
-    //     ) -> Result<Rc<Term>, CheckerError> {
-    //         match t.as_ref() {
-    //             Term::Op(Operator::StrConcat, s) => {}
-    //             _ => Ok(t.clone()),
-    //         }
-    //     }
-    //
-    //     let equivalent_regex_term = rec_create_from_string_operators(pool, t)?;
-    //     Ok(Automata::create_from_regex_operators(
-    //         pool,
-    //         &equivalent_regex_term,
-    //     )?)
-    // }
 }
 
 // TODO: improve automaton display later
@@ -573,7 +552,7 @@ mod tests {
                 .collect(),
         }
     }
-
+    // TODO: complete all tests and the NFA to DFA algorithm
     #[test]
     fn test_is_nfa_by_epsilon_transition() {}
 

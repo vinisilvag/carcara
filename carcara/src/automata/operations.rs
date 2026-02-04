@@ -175,9 +175,110 @@ pub fn complement(a: Automaton) -> Automaton {
     }
 }
 
+fn reachable_from(a: &Automaton, start: StateId) -> HashSet<StateId> {
+    let mut visited = HashSet::new();
+    let mut stack = vec![start];
+
+    while let Some(s) = stack.pop() {
+        if !visited.insert(s) {
+            continue;
+        }
+        for tr in &a.all_states[s].transitions {
+            stack.push(tr.to);
+        }
+    }
+
+    visited
+}
+
+fn can_reach_accept(a: &Automaton, start: StateId) -> bool {
+    let reachable = reachable_from(a, start);
+    reachable.iter().any(|&q| a.all_states[q].accept)
+}
+
+fn possible_cuts(a: &Automaton) -> Vec<StateId> {
+    let reachable_init = reachable_from(a, a.initial_state);
+
+    a.all_states
+        .iter()
+        .enumerate()
+        .filter_map(|(id, _)| {
+            if reachable_init.contains(&id) && can_reach_accept(a, id) {
+                Some(id)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn sub_automaton(base: &Automaton, from: StateId, to: StateId, name: String) -> Automaton {
+    let mut new_states = Vec::new();
+
+    for (i, st) in base.all_states.iter().enumerate() {
+        let new_state = State {
+            id: st.id.clone(),
+            accept: i == to,
+            transitions: st.transitions.clone(),
+        };
+        new_states.push(new_state);
+    }
+
+    Automaton {
+        name,
+        all_states: new_states,
+        initial_state: from,
+    }
+}
+
+fn backward_concat_xx(a_y: &Automaton) -> Vec<(Automaton, Automaton)> {
+    let mut result = Vec::new();
+
+    for q in possible_cuts(a_y) {
+        let a1 = sub_automaton(
+            a_y,
+            a_y.initial_state,
+            q,
+            format!("{}_prefix_{}", a_y.name, q),
+        );
+
+        // um par por estado aceitante final
+        for (fid, st) in a_y.all_states.iter().enumerate() {
+            if st.accept && can_reach_accept(a_y, q) {
+                let a2 = sub_automaton(a_y, q, fid, format!("{}_suffix_{}", a_y.name, fid));
+                result.push((a1.clone(), a2));
+            }
+        }
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_backward_concatenation() {
+        let a_y = Automaton::new(
+            "a_y",
+            "q0",
+            vec![("q0", "q1", (98, 98)), ("q1", "q2", (97, 97))],
+            vec!["q2"],
+        );
+
+        let a_y_det = a_y.nfa_to_dfa();
+
+        println!("{:?}", a_y);
+        println!("\n{:?}", a_y_det);
+
+        println!("ans");
+
+        let result = backward_concat_xx(&a_y_det);
+        for t in result {
+            println!("{:?}", t);
+        }
+    }
 
     #[test]
     fn test_automata_intersection() {}
