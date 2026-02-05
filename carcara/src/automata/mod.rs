@@ -3,7 +3,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use crate::ast::{Constant, Operator, Rc, Term, TermPool};
-use crate::automata::utils::{has_missing_ranges, has_overlapping_ranges};
+use crate::automata::utils::{has_overlapping_ranges, missing_ranges};
 use crate::checker::error::CheckerError;
 
 pub mod dsu;
@@ -199,7 +199,7 @@ impl Automaton {
                 return true;
             }
             // NFA if the automaton does not have transitions for every range from 0 to 255
-            if has_missing_ranges(ranges, 0, 255) {
+            if !missing_ranges(&ranges, 0, 255).is_empty() {
                 return true;
             }
         }
@@ -552,18 +552,73 @@ mod tests {
                 .collect(),
         }
     }
-    // TODO: complete all tests and the NFA to DFA algorithm
-    #[test]
-    fn test_is_nfa_by_epsilon_transition() {}
 
     #[test]
-    fn test_is_nfa_by_incomplete_transition_table() {}
+    fn test_is_nfa_by_epsilon_transition() {
+        let s0 = make_state(0, &[(1, Trigger::Range((0, 255))), (2, Trigger::Epsilon)]);
+        let s1 = make_state(1, &[(3, Trigger::Range((0, 255)))]);
+        let s2 = make_state(2, &[(3, Trigger::Range((0, 255)))]);
+        let s3 = make_state(3, &[(3, Trigger::Range((0, 255)))]);
+        let a = Automaton {
+            name: "a".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+        assert!(a.is_nfa());
+    }
 
     #[test]
-    fn test_is_nfa_by_overlapping_transitions() {}
+    fn test_is_nfa_by_incomplete_transition_table() {
+        let a = Automaton::new(
+            "a",
+            "q0",
+            vec![
+                ("q0", "q1", (98, 98)),
+                ("q0", "q3", (0, 97)),
+                ("q0", "q3", (100, 255)),
+                ("q1", "q3", (0, 255)),
+                ("q3", "q3", (0, 255)),
+            ],
+            vec!["q1"],
+        );
+        assert!(a.is_nfa());
+    }
 
     #[test]
-    fn test_is_not_nfa() {}
+    fn test_is_nfa_by_overlapping_transitions() {
+        let a = Automaton::new(
+            "a",
+            "q0",
+            vec![
+                ("q0", "q1", (98, 98)),
+                ("q0", "q2", (99, 99)),
+                ("q0", "q3", (0, 97)),
+                ("q0", "q3", (99, 255)),
+                ("q1", "q3", (0, 255)),
+                ("q2", "q3", (0, 255)),
+                ("q3", "q3", (0, 255)),
+            ],
+            vec!["q1"],
+        );
+        assert!(a.is_nfa());
+    }
+
+    #[test]
+    fn test_is_dfa() {
+        let a = Automaton::new(
+            "a",
+            "q0",
+            vec![
+                ("q0", "q1", (98, 98)),
+                ("q0", "q3", (0, 97)),
+                ("q0", "q3", (99, 255)),
+                ("q1", "q3", (0, 255)),
+                ("q3", "q3", (0, 255)),
+            ],
+            vec!["q1"],
+        );
+        assert!(!a.is_nfa());
+    }
 
     #[test]
     fn test_epsilon_closure_single_state_no_epsilon() {
@@ -631,5 +686,64 @@ mod tests {
     }
 
     #[test]
-    fn test_nfa_to_dfa_conversion() {}
+    fn test_nfa_to_dfa_remove_epsilon_transitions() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
+        let s1 = make_state(1, &[(2, Trigger::Range((97, 98)))]);
+        let s2 = make_state(
+            2,
+            &[(3, Trigger::Range((97, 98))), (1, Trigger::Range((98, 99)))],
+        );
+        let s3 = make_state(3, &[]);
+        let nfa = Automaton {
+            name: "nfa".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+        println!("{:?}", nfa);
+        let dfa = nfa.nfa_to_dfa();
+        println!("\n{:?}", dfa);
+        assert!(!dfa.is_nfa());
+    }
+
+    #[test]
+    fn test_nfa_to_dfa_add_sink_state_for_missing_ranges() {
+        let s0 = make_state(0, &[(1, Trigger::Range((97, 97)))]);
+        let s1 = make_state(1, &[(2, Trigger::Range((98, 98)))]);
+        let s2 = make_state(2, &[(3, Trigger::Range((99, 99)))]);
+        let s3 = make_state(3, &[]);
+        let nfa = Automaton {
+            name: "nfa".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+        println!("{:?}", nfa);
+        let dfa = nfa.nfa_to_dfa();
+        println!("\n{:?}", dfa);
+        assert!(!dfa.is_nfa());
+    }
+
+    #[test]
+    fn test_nfa_to_dfa_handle_overlapping_ranges() {
+        let s0 = make_state(
+            0,
+            &[
+                (3, Trigger::Range((0, 96))),
+                (1, Trigger::Range((97, 98))),
+                (2, Trigger::Range((98, 99))),
+                (3, Trigger::Range((100, 255))),
+            ],
+        );
+        let s1 = make_state(1, &[(3, Trigger::Range((0, 255)))]);
+        let s2 = make_state(2, &[(3, Trigger::Range((0, 255)))]);
+        let s3 = make_state(3, &[(3, Trigger::Range((0, 255)))]);
+        let nfa = Automaton {
+            name: "nfa".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+        println!("{:?}", nfa);
+        let dfa = nfa.nfa_to_dfa();
+        println!("\n{:?}", dfa);
+        assert!(!dfa.is_nfa());
+    }
 }

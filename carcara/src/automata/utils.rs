@@ -40,7 +40,11 @@ fn normalize_ranges(mut ranges: Vec<(u32, u32)>) -> Vec<(u32, u32)> {
     result
 }
 
-fn missing_ranges(existing: &[(u32, u32)], min_symbol: u32, max_symbol: u32) -> Vec<(u32, u32)> {
+pub fn missing_ranges(
+    existing: &[(u32, u32)],
+    min_symbol: u32,
+    max_symbol: u32,
+) -> Vec<(u32, u32)> {
     let normalized = normalize_ranges(existing.to_vec());
     let mut holes = Vec::new();
 
@@ -77,30 +81,6 @@ pub fn has_overlapping_ranges(ranges: Vec<(u32, u32)>) -> bool {
         }
 
         // Update the highest end until now
-        prev_end = prev_end.max(end);
-    }
-
-    false
-}
-
-pub fn has_missing_ranges(ranges: Vec<(u32, u32)>, min_symbol: u32, max_symbol: u32) -> bool {
-    if ranges.len() == 0 {
-        return true;
-    }
-
-    if ranges.len() == 1 {
-        return ranges.first().unwrap() == &(min_symbol, max_symbol);
-    }
-
-    // Sort by the start of the range
-    let mut sorted_ranges = ranges.clone();
-    sorted_ranges.sort_unstable_by_key(|(start, _)| *start);
-
-    let mut prev_end = sorted_ranges[0].1;
-    for &(start, end) in &sorted_ranges[1..] {
-        if start > prev_end {
-            return true;
-        }
         prev_end = prev_end.max(end);
     }
 
@@ -464,59 +444,6 @@ mod tests {
         assert!(has_overlapping_ranges(ranges));
     }
 
-    // Missing range function
-    #[test]
-    fn test_missing_range_empty_vector() {
-        let ranges = vec![];
-        assert!(has_missing_ranges(ranges, 0, 10));
-    }
-
-    #[test]
-    fn test_missing_single_exact_cover() {
-        let ranges = vec![(0, 10)];
-        assert!(has_missing_ranges(ranges, 0, 10));
-    }
-
-    #[test]
-    fn test_missing_single_range_not_covering_all() {
-        let r1 = vec![(1, 10)];
-        let r2 = vec![(0, 9)];
-        let r3 = vec![(1, 9)];
-        assert!(!has_missing_ranges(r1, 0, 10));
-        assert!(!has_missing_ranges(r2, 0, 10));
-        assert!(!has_missing_ranges(r3, 0, 10));
-    }
-
-    #[test]
-    fn test_missing_contiguous_ranges_no_gap() {
-        let ranges = vec![(0, 3), (3, 6), (6, 10)];
-        assert!(!has_missing_ranges(ranges, 0, 10));
-    }
-
-    #[test]
-    fn test_missing_simple_gap() {
-        let ranges = vec![(0, 3), (5, 10)];
-        assert!(has_missing_ranges(ranges, 0, 10));
-    }
-
-    #[test]
-    fn test_unsorted_input_with_gap() {
-        let ranges = vec![(5, 10), (0, 3)];
-        assert!(has_missing_ranges(ranges, 0, 10));
-    }
-
-    #[test]
-    fn test_overlapping_ranges_gapless() {
-        let ranges = vec![(0, 5), (4, 10)];
-        assert!(!has_missing_ranges(ranges, 0, 10));
-    }
-
-    #[test]
-    fn test_missing_gap_after_merging_overlaps() {
-        let ranges = vec![(0, 4), (2, 6), (8, 10)];
-        assert!(has_missing_ranges(ranges, 0, 10));
-    }
-
     // Totalize ranges
     #[test]
     fn test_totalize_adds_sink_state() {
@@ -540,7 +467,7 @@ mod tests {
         let sink = &totalized[1];
         let ranges = all_ranges(sink);
 
-        assert!(has_missing_ranges(ranges, 0, 255));
+        assert!(missing_ranges(&ranges, 0, 255).is_empty());
     }
 
     #[test]

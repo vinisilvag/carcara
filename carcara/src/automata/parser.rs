@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(automaton.name, "value_0");
         assert_eq!(automaton.all_states.len(), 2);
         assert_eq!(automaton.initial_state, 0);
-        assert!(!automaton.is_nfa());
+        assert!(automaton.is_nfa());
     }
 
     #[test]

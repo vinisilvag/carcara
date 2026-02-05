@@ -231,6 +231,7 @@ fn sub_automaton(base: &Automaton, from: StateId, to: StateId, name: String) -> 
     }
 }
 
+// PROTOTIPO
 fn backward_concat_xx(a_y: &Automaton) -> Vec<(Automaton, Automaton)> {
     let mut result = Vec::new();
 

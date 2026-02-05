@@ -1572,8 +1572,8 @@ pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResul
 
     assert_eq(w1, w2)?;
 
-    let a1 = a1.as_automata_err()?;
-    let a2 = a2.as_automata_err()?;
+    let a1 = a1.as_automata_err()?.nfa_to_dfa();
+    let a2 = a2.as_automata_err()?.nfa_to_dfa();
     let intersection = operations::intersection(a1.clone(), a2.clone())?;
 
     if has_reachable_accepting_state(intersection.clone()) {
@@ -1598,7 +1598,7 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
         let term = get_premise_term(premise)?;
         let (w, a) = match_term_err!((strinre w a1) = term)?;
         ws.push(w.clone());
-        premise_automatas.push(a.as_automata_err()?.clone());
+        premise_automatas.push(a.as_automata_err()?.nfa_to_dfa().clone());
     }
 
     let (w_conc, conc_automaton) = match_term_err!(
@@ -1623,7 +1623,7 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
     }
 
     // Check equivalence with the automaton in the conclusion
-    let conc_automaton = conc_automaton.as_automata_err()?;
+    let conc_automaton = conc_automaton.as_automata_err()?.nfa_to_dfa();
     if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
         return Err(CheckerError::ExpectedAutomataToBeEquivalent(
             expected,
@@ -1650,7 +1650,7 @@ pub fn re_forward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) ->
     }
 
     let expected = make_automaton_from_string(pool, s, premise_automatas)?;
-    let conc_automaton = conc_automaton.as_automata_err()?;
+    let conc_automaton = conc_automaton.as_automata_err()?.nfa_to_dfa();
 
     if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
         return Err(CheckerError::ExpectedAutomataToBeEquivalent(
