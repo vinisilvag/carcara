@@ -226,21 +226,56 @@ impl Automaton {
 
     // Returns the set of states the can be reached by every state in the automaton following any
     // number of Epsilon transitions
-    fn epsilon_closure(&self, states: &HashSet<StateId>) -> HashSet<StateId> {
-        let mut closure = states.clone();
-        let mut stack: Vec<StateId> = states.iter().copied().collect();
+    fn epsilon_closure(start: &HashSet<StateId>, a: &Automaton) -> HashSet<StateId> {
+        let mut stack: Vec<StateId> = start.iter().cloned().collect();
+        let mut closure = start.clone();
 
-        while let Some(current) = stack.pop() {
-            let state = self.get_state(current);
-            for t in &state.transitions {
-                if t.trigger == Trigger::Epsilon && !closure.contains(&t.to) {
-                    closure.insert(t.to);
-                    stack.push(t.to);
+        while let Some(s) = stack.pop() {
+            for t in &a.all_states[s].transitions {
+                if t.trigger == Trigger::Epsilon {
+                    if !closure.contains(&t.to) {
+                        closure.insert(t.to);
+                        stack.push(t.to);
+                    }
                 }
             }
         }
 
         closure
+    }
+
+    fn partition_ranges(edges: &Vec<(u32, u32, StateId)>) -> Vec<((u32, u32), HashSet<StateId>)> {
+        let mut points = Vec::new();
+
+        for (l, r, _) in edges {
+            points.push(*l);
+            if *r < u32::MAX {
+                points.push(r + 1);
+            }
+        }
+
+        points.sort();
+        points.dedup();
+
+        let mut result = Vec::new();
+
+        for w in points.windows(2) {
+            let a = w[0];
+            let b = w[1] - 1;
+
+            let mut dests = HashSet::new();
+
+            for (l, r, to) in edges {
+                if *l <= a && *r >= b {
+                    dests.insert(*to);
+                }
+            }
+            if !dests.is_empty() {
+                result.push(((a, b), dests));
+            }
+        }
+
+        result
     }
 
     // Set of all triggers in the automaton
@@ -254,80 +289,201 @@ impl Automaton {
             .collect()
     }
 
-    pub fn nfa_to_dfa(&self) -> Automaton {
-        let triggers = self.symbol_triggers();
-        let start_closure: BTreeSet<usize> = self
-            .epsilon_closure(&HashSet::from([self.initial_state]))
-            .into_iter()
-            .collect();
-
+    pub fn determinize(nfa: &Automaton) -> Automaton {
         let mut new_states: Vec<State> = Vec::new();
-        let mut state_map: HashMap<BTreeSet<StateId>, StateId> = HashMap::new();
-        let mut queue: VecDeque<BTreeSet<StateId>> = VecDeque::new();
+        let mut state_map: HashMap<HashSet<StateId>, StateId> = HashMap::new();
+        let mut queue = VecDeque::new();
 
-        let mut next_id: StateId = 0;
-        state_map.insert(start_closure.clone(), next_id);
-        queue.push_back(start_closure.clone());
-        next_id += 1;
+        let mut init = HashSet::new();
+        init.insert(nfa.initial_state);
+        let init_closure = Automaton::epsilon_closure(&init, nfa);
 
+        let init_accept = init_closure.iter().any(|&s| nfa.all_states[s].accept);
+
+        new_states.push(State {
+            id: "D0".to_string(),
+            accept: init_accept,
+            transitions: HashSet::new(),
+        });
+
+        state_map.insert(init_closure.clone(), 0);
+        queue.push_back(init_closure);
+
+        // Subset construction
         while let Some(current_set) = queue.pop_front() {
-            let current_id = state_map[&current_set];
+            let current_id = *state_map.get(&current_set).unwrap();
 
-            // Estado de aceitação: se algum estado do conjunto for de aceitação
-            let accept = current_set.iter().any(|&sid| self.get_state(sid).accept);
+            let mut edges: Vec<(u32, u32, StateId)> = Vec::new();
 
-            let mut transitions = HashSet::new();
-
-            // Para cada símbolo (não-ε)
-            for trigger in &triggers {
-                let mut reachable = HashSet::new();
-
-                // Estados alcançáveis lendo esse símbolo
-                for &sid in &current_set {
-                    let state = self.get_state(sid);
-                    for t in &state.transitions {
-                        if &t.trigger == trigger {
-                            reachable.insert(t.to);
-                        }
+            for s in &current_set {
+                for t in &nfa.all_states[*s].transitions {
+                    if let Trigger::Range((l, r)) = t.trigger {
+                        edges.push((l, r, t.to));
                     }
                 }
-
-                // Fecho-ε dos alcançáveis
-                let next_closure = self.epsilon_closure(&reachable);
-                if next_closure.is_empty() {
-                    continue;
-                }
-
-                // Verifica se já existe no DFA
-                let next_state_id = *state_map
-                    .entry(next_closure.clone().into_iter().collect())
-                    .or_insert_with(|| {
-                        let id = next_id;
-                        next_id += 1;
-                        queue.push_back(next_closure.clone().into_iter().collect());
-                        id
-                    });
-
-                // Adiciona a transição
-                transitions.insert(Transition {
-                    to: next_state_id,
-                    trigger: trigger.clone(),
-                });
             }
 
-            new_states.push(State {
-                id: current_id.to_string(),
-                accept,
-                transitions,
-            });
+            let parts = Automaton::partition_ranges(&edges);
+
+            for ((l, r), dests) in parts {
+                let closure = Automaton::epsilon_closure(&dests, nfa);
+
+                let dest_id = if let Some(id) = state_map.get(&closure) {
+                    *id
+                } else {
+                    let new_id = new_states.len();
+                    let accept = closure.iter().any(|&s| nfa.all_states[s].accept);
+
+                    new_states.push(State {
+                        id: format!("D{}", new_id),
+                        accept,
+                        transitions: HashSet::new(),
+                    });
+
+                    state_map.insert(closure.clone(), new_id);
+                    queue.push_back(closure);
+                    new_id
+                };
+
+                new_states[current_id].transitions.insert(Transition {
+                    to: dest_id,
+                    trigger: Trigger::Range((l, r)),
+                });
+            }
         }
 
+        // Sink state and complete transitions
+        let sink_id = new_states.len();
+
+        new_states.push(State {
+            id: format!("D{}", sink_id),
+            accept: false,
+            transitions: HashSet::new(),
+        });
+
+        for i in 0..sink_id {
+            let mut covered = vec![false; 256];
+
+            for t in new_states[i].transitions.clone() {
+                if let Trigger::Range((l, r)) = t.trigger {
+                    for c in l as usize..=r.min(255) as usize {
+                        covered[c] = true;
+                    }
+                }
+            }
+
+            let mut start = None;
+
+            for c in 0..256 {
+                if !covered[c] && start.is_none() {
+                    start = Some(c as u32);
+                }
+                if covered[c] && start.is_some() {
+                    let l = start.unwrap();
+                    let r = (c as u32) - 1;
+                    new_states[i].transitions.insert(Transition {
+                        to: sink_id,
+                        trigger: Trigger::Range((l, r)),
+                    });
+                    start = None;
+                }
+            }
+
+            if let Some(l) = start {
+                new_states[i].transitions.insert(Transition {
+                    to: sink_id,
+                    trigger: Trigger::Range((l, 255)),
+                });
+            }
+        }
+
+        // Sink loop
+        new_states[sink_id].transitions.insert(Transition {
+            to: sink_id,
+            trigger: Trigger::Range((0, 255)),
+        });
+
         Automaton {
-            name: format!("{}_dfa", self.name),
+            name: format!("{}_dfa", nfa.name),
             all_states: new_states,
             initial_state: 0,
         }
     }
+
+    // pub fn nfa_to_dfa(&self) -> Automaton {
+    //     let triggers = self.symbol_triggers();
+    //     let start_closure: BTreeSet<usize> = self
+    //         .epsilon_closure(&HashSet::from([self.initial_state]))
+    //         .into_iter()
+    //         .collect();
+    //
+    //     let mut new_states: Vec<State> = Vec::new();
+    //     let mut state_map: HashMap<BTreeSet<StateId>, StateId> = HashMap::new();
+    //     let mut queue: VecDeque<BTreeSet<StateId>> = VecDeque::new();
+    //
+    //     let mut next_id: StateId = 0;
+    //     state_map.insert(start_closure.clone(), next_id);
+    //     queue.push_back(start_closure.clone());
+    //     next_id += 1;
+    //
+    //     while let Some(current_set) = queue.pop_front() {
+    //         let current_id = state_map[&current_set];
+    //
+    //         // Estado de aceitação: se algum estado do conjunto for de aceitação
+    //         let accept = current_set.iter().any(|&sid| self.get_state(sid).accept);
+    //
+    //         let mut transitions = HashSet::new();
+    //
+    //         // Para cada símbolo (não-ε)
+    //         for trigger in &triggers {
+    //             let mut reachable = HashSet::new();
+    //
+    //             // Estados alcançáveis lendo esse símbolo
+    //             for &sid in &current_set {
+    //                 let state = self.get_state(sid);
+    //                 for t in &state.transitions {
+    //                     if &t.trigger == trigger {
+    //                         reachable.insert(t.to);
+    //                     }
+    //                 }
+    //             }
+    //
+    //             // Fecho-ε dos alcançáveis
+    //             let next_closure = self.epsilon_closure(&reachable);
+    //             if next_closure.is_empty() {
+    //                 continue;
+    //             }
+    //
+    //             // Verifica se já existe no DFA
+    //             let next_state_id = *state_map
+    //                 .entry(next_closure.clone().into_iter().collect())
+    //                 .or_insert_with(|| {
+    //                     let id = next_id;
+    //                     next_id += 1;
+    //                     queue.push_back(next_closure.clone().into_iter().collect());
+    //                     id
+    //                 });
+    //
+    //             // Adiciona a transição
+    //             transitions.insert(Transition {
+    //                 to: next_state_id,
+    //                 trigger: trigger.clone(),
+    //             });
+    //         }
+    //
+    //         new_states.push(State {
+    //             id: current_id.to_string(),
+    //             accept,
+    //             transitions,
+    //         });
+    //     }
+    //
+    //     Automaton {
+    //         name: format!("{}_dfa", self.name),
+    //         all_states: new_states,
+    //         initial_state: 0,
+    //     }
+    // }
 
     pub fn complement(&self) -> Automaton {
         let alphabet: HashSet<Trigger> = self.symbol_triggers();
@@ -541,10 +697,10 @@ mod tests {
         iter.into_iter().collect()
     }
 
-    fn make_state(id: StateId, transitions: &[(StateId, Trigger)]) -> State {
+    fn make_state(id: StateId, transitions: &[(StateId, Trigger)], accept: bool) -> State {
         State {
             id: id.to_string(),
-            accept: false,
+            accept: accept,
             transitions: transitions
                 .iter()
                 .cloned()
@@ -555,10 +711,14 @@ mod tests {
 
     #[test]
     fn test_is_nfa_by_epsilon_transition() {
-        let s0 = make_state(0, &[(1, Trigger::Range((0, 255))), (2, Trigger::Epsilon)]);
-        let s1 = make_state(1, &[(3, Trigger::Range((0, 255)))]);
-        let s2 = make_state(2, &[(3, Trigger::Range((0, 255)))]);
-        let s3 = make_state(3, &[(3, Trigger::Range((0, 255)))]);
+        let s0 = make_state(
+            0,
+            &[(1, Trigger::Range((0, 255))), (2, Trigger::Epsilon)],
+            false,
+        );
+        let s1 = make_state(1, &[(3, Trigger::Range((0, 255)))], false);
+        let s2 = make_state(2, &[(3, Trigger::Range((0, 255)))], false);
+        let s3 = make_state(3, &[(3, Trigger::Range((0, 255)))], false);
         let a = Automaton {
             name: "a".into(),
             all_states: vec![s0, s1, s2, s3],
@@ -623,7 +783,7 @@ mod tests {
     #[test]
     fn test_epsilon_closure_single_state_no_epsilon() {
         // Estado 0 sem transições ε
-        let s0 = make_state(0, &[]);
+        let s0 = make_state(0, &[], false);
         let nfa = Automaton {
             name: "no_epsilon".into(),
             all_states: vec![s0],
@@ -637,9 +797,9 @@ mod tests {
     #[test]
     fn test_epsilon_closure_simple_chain() {
         // 0 --ε--> 1 --ε--> 2
-        let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
-        let s1 = make_state(1, &[(2, Trigger::Epsilon)]);
-        let s2 = make_state(2, &[]);
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(2, Trigger::Epsilon)], false);
+        let s2 = make_state(2, &[], false);
         let nfa = Automaton {
             name: "chain".into(),
             all_states: vec![s0, s1, s2],
@@ -653,9 +813,9 @@ mod tests {
     #[test]
     fn test_epsilon_closure_with_cycle() {
         // 0 --ε--> 1 --ε--> 2 --ε--> 0 (ciclo)
-        let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
-        let s1 = make_state(1, &[(2, Trigger::Epsilon)]);
-        let s2 = make_state(2, &[(0, Trigger::Epsilon)]);
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(2, Trigger::Epsilon)], false);
+        let s2 = make_state(2, &[(0, Trigger::Epsilon)], false);
         let nfa = Automaton {
             name: "cycle".into(),
             all_states: vec![s0, s1, s2],
@@ -671,9 +831,9 @@ mod tests {
     #[test]
     fn test_epsilon_closure_multiple_start_states() {
         // 0 --ε--> 1, 2 sem conexão
-        let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
-        let s1 = make_state(1, &[]);
-        let s2 = make_state(2, &[]);
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[], false);
+        let s2 = make_state(2, &[], false);
         let nfa = Automaton {
             name: "multi_start".into(),
             all_states: vec![s0, s1, s2],
@@ -686,14 +846,32 @@ mod tests {
     }
 
     #[test]
+    fn test_nfa_to_dfa_simple_conversion() {
+        let s0 = make_state(0, &[(1, Trigger::Range((97, 97)))], false);
+        let s1 = make_state(1, &[(2, Trigger::Range((98, 98)))], false);
+        let s2 = make_state(2, &[(3, Trigger::Range((99, 99)))], false);
+        let s3 = make_state(3, &[], true);
+        let nfa = Automaton {
+            name: "nfa".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+        println!("{:?}", nfa);
+        let dfa = nfa.nfa_to_dfa();
+        println!("\n{:?}", dfa);
+        assert!(!dfa.is_nfa());
+    }
+
+    #[test]
     fn test_nfa_to_dfa_remove_epsilon_transitions() {
-        let s0 = make_state(0, &[(1, Trigger::Epsilon)]);
-        let s1 = make_state(1, &[(2, Trigger::Range((97, 98)))]);
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(2, Trigger::Range((97, 98)))], false);
         let s2 = make_state(
             2,
             &[(3, Trigger::Range((97, 98))), (1, Trigger::Range((98, 99)))],
+            false,
         );
-        let s3 = make_state(3, &[]);
+        let s3 = make_state(3, &[], false);
         let nfa = Automaton {
             name: "nfa".into(),
             all_states: vec![s0, s1, s2, s3],
@@ -707,10 +885,10 @@ mod tests {
 
     #[test]
     fn test_nfa_to_dfa_add_sink_state_for_missing_ranges() {
-        let s0 = make_state(0, &[(1, Trigger::Range((97, 97)))]);
-        let s1 = make_state(1, &[(2, Trigger::Range((98, 98)))]);
-        let s2 = make_state(2, &[(3, Trigger::Range((99, 99)))]);
-        let s3 = make_state(3, &[]);
+        let s0 = make_state(0, &[(1, Trigger::Range((97, 97)))], false);
+        let s1 = make_state(1, &[(2, Trigger::Range((98, 98)))], false);
+        let s2 = make_state(2, &[(3, Trigger::Range((99, 99)))], false);
+        let s3 = make_state(3, &[], false);
         let nfa = Automaton {
             name: "nfa".into(),
             all_states: vec![s0, s1, s2, s3],
@@ -732,10 +910,11 @@ mod tests {
                 (2, Trigger::Range((98, 99))),
                 (3, Trigger::Range((100, 255))),
             ],
+            false,
         );
-        let s1 = make_state(1, &[(3, Trigger::Range((0, 255)))]);
-        let s2 = make_state(2, &[(3, Trigger::Range((0, 255)))]);
-        let s3 = make_state(3, &[(3, Trigger::Range((0, 255)))]);
+        let s1 = make_state(1, &[(3, Trigger::Range((0, 255)))], false);
+        let s2 = make_state(2, &[(3, Trigger::Range((0, 255)))], false);
+        let s3 = make_state(3, &[(3, Trigger::Range((0, 255)))], false);
         let nfa = Automaton {
             name: "nfa".into(),
             all_states: vec![s0, s1, s2, s3],
