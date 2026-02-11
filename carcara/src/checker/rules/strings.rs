@@ -601,7 +601,9 @@ fn make_automaton_from_string(
                 }
 
                 let regex_a = pool.add(Term::Op(Operator::ReConcat, components));
-                let expanded = Automaton::create_from_regex_operators(pool, &regex_a)?.nfa_to_dfa();
+                let expanded = Automaton::determinize(&Automaton::create_from_regex_operators(
+                    pool, &regex_a,
+                )?);
                 Ok(expanded)
             }
             // TODO: add other forwadable functions
@@ -1556,7 +1558,7 @@ pub fn re_convert(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
 
     assert_eq(w1, w2)?;
 
-    let a1 = Automaton::create_from_regex_operators(pool, a1)?.nfa_to_dfa();
+    let a1 = Automaton::determinize(&Automaton::create_from_regex_operators(pool, a1)?);
     let a2 = a2.as_automata_err()?;
 
     if !operations::is_equivalent(a1.clone(), a2.clone()) {
@@ -1572,8 +1574,8 @@ pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResul
 
     assert_eq(w1, w2)?;
 
-    let a1 = a1.as_automata_err()?.nfa_to_dfa();
-    let a2 = a2.as_automata_err()?.nfa_to_dfa();
+    let a1 = Automaton::determinize(&a1.as_automata_err()?);
+    let a2 = Automaton::determinize(&a2.as_automata_err()?);
     let intersection = operations::intersection(a1.clone(), a2.clone())?;
 
     if has_reachable_accepting_state(intersection.clone()) {
@@ -1598,7 +1600,7 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
         let term = get_premise_term(premise)?;
         let (w, a) = match_term_err!((strinre w a1) = term)?;
         ws.push(w.clone());
-        premise_automatas.push(a.as_automata_err()?.nfa_to_dfa().clone());
+        premise_automatas.push(Automaton::determinize(&a.as_automata_err()?).clone());
     }
 
     let (w_conc, conc_automaton) = match_term_err!(
@@ -1623,7 +1625,7 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
     }
 
     // Check equivalence with the automaton in the conclusion
-    let conc_automaton = conc_automaton.as_automata_err()?.nfa_to_dfa();
+    let conc_automaton = Automaton::determinize(&conc_automaton.as_automata_err()?);
     if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
         return Err(CheckerError::ExpectedAutomataToBeEquivalent(
             expected,
@@ -1650,7 +1652,7 @@ pub fn re_forward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) ->
     }
 
     let expected = make_automaton_from_string(pool, s, premise_automatas)?;
-    let conc_automaton = conc_automaton.as_automata_err()?.nfa_to_dfa();
+    let conc_automaton = Automaton::determinize(&conc_automaton.as_automata_err()?);
 
     if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
         return Err(CheckerError::ExpectedAutomataToBeEquivalent(

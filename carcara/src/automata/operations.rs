@@ -268,7 +268,7 @@ mod tests {
             vec!["q2"],
         );
 
-        let a_y_det = a_y.nfa_to_dfa();
+        let a_y_det = Automaton::determinize(&a_y);
 
         println!("{:?}", a_y);
         println!("\n{:?}", a_y_det);

@@ -233,7 +233,7 @@ impl<'a, R: BufRead> Parser<'a, R> {
                 if !remaining.is_empty() {
                     return Err(ParserError::InvalidAutomataDeclaration(automaton_repr));
                 }
-                return Ok(automata.nfa_to_dfa());
+                return Ok(Automaton::determinize(&automata));
             }
             Err(_) => {
                 return Err(ParserError::InvalidAutomataDeclaration(automaton_repr));

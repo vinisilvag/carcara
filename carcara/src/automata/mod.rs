@@ -226,7 +226,7 @@ impl Automaton {
 
     // Returns the set of states the can be reached by every state in the automaton following any
     // number of Epsilon transitions
-    fn epsilon_closure(start: &HashSet<StateId>, a: &Automaton) -> HashSet<StateId> {
+    fn epsilon_closure(start: &BTreeSet<StateId>, a: &Automaton) -> BTreeSet<StateId> {
         let mut stack: Vec<StateId> = start.iter().cloned().collect();
         let mut closure = start.clone();
 
@@ -244,7 +244,7 @@ impl Automaton {
         closure
     }
 
-    fn partition_ranges(edges: &Vec<(u32, u32, StateId)>) -> Vec<((u32, u32), HashSet<StateId>)> {
+    fn partition_ranges(edges: &Vec<(u32, u32, StateId)>) -> Vec<((u32, u32), BTreeSet<StateId>)> {
         let mut points = Vec::new();
 
         for (l, r, _) in edges {
@@ -263,7 +263,7 @@ impl Automaton {
             let a = w[0];
             let b = w[1] - 1;
 
-            let mut dests = HashSet::new();
+            let mut dests = BTreeSet::new();
 
             for (l, r, to) in edges {
                 if *l <= a && *r >= b {
@@ -291,10 +291,10 @@ impl Automaton {
 
     pub fn determinize(nfa: &Automaton) -> Automaton {
         let mut new_states: Vec<State> = Vec::new();
-        let mut state_map: HashMap<HashSet<StateId>, StateId> = HashMap::new();
+        let mut state_map: HashMap<BTreeSet<StateId>, StateId> = HashMap::new();
         let mut queue = VecDeque::new();
 
-        let mut init = HashSet::new();
+        let mut init = BTreeSet::new();
         init.insert(nfa.initial_state);
         let init_closure = Automaton::epsilon_closure(&init, nfa);
 
@@ -691,11 +691,7 @@ impl fmt::Display for Automaton {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
-
-    fn hs<I: IntoIterator<Item = StateId>>(iter: I) -> HashSet<StateId> {
-        iter.into_iter().collect()
-    }
+    use std::collections::BTreeSet;
 
     fn make_state(id: StateId, transitions: &[(StateId, Trigger)], accept: bool) -> State {
         State {
@@ -707,6 +703,136 @@ mod tests {
                 .map(|(to, trigger)| Transition { to, trigger })
                 .collect(),
         }
+    }
+
+    fn make_aut(states: Vec<State>) -> Automaton {
+        Automaton {
+            name: "test".to_string(),
+            all_states: states,
+            initial_state: 0,
+        }
+    }
+
+    fn set(v: &[usize]) -> BTreeSet<usize> {
+        v.iter().cloned().collect()
+    }
+
+    #[test]
+    fn test_epsilon_closure_single_state_no_epsilon() {
+        let s0 = make_state(0, &[], false);
+
+        let aut = make_aut(vec![s0]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_simple_epsilon() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[], false);
+
+        let aut = make_aut(vec![s0, s1]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_chain() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(2, Trigger::Epsilon)], false);
+        let s2 = make_state(2, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1, 2]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_cycle() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(0, Trigger::Epsilon)], false);
+
+        let aut = make_aut(vec![s0, s1]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_branching() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon), (2, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[], false);
+        let s2 = make_state(2, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1, 2]));
+    }
+
+    #[test]
+    fn epsilon_closure_multiple_start_states() {
+        let s0 = make_state(0, &[(2, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(3, Trigger::Epsilon)], false);
+        let s2 = make_state(2, &[], false);
+        let s3 = make_state(3, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2, s3]);
+
+        let start = set(&[0, 1]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1, 2, 3]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_ignores_non_epsilon() {
+        let s0 = make_state(
+            0,
+            &[(1, Trigger::Epsilon), (2, Trigger::Range((0, 10)))],
+            false,
+        );
+        let s1 = make_state(1, &[], false);
+        let s2 = make_state(2, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_complex_graph() {
+        // 0 ->ε 1 ->ε 3
+        // 0 ->ε 2 ->ε 3
+        // 3 ->ε 4
+        let s0 = make_state(0, &[(1, Trigger::Epsilon), (2, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(3, Trigger::Epsilon)], false);
+        let s2 = make_state(2, &[(3, Trigger::Epsilon)], false);
+        let s3 = make_state(3, &[(4, Trigger::Epsilon)], false);
+        let s4 = make_state(4, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2, s3, s4]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1, 2, 3, 4]));
     }
 
     #[test]
@@ -781,72 +907,7 @@ mod tests {
     }
 
     #[test]
-    fn test_epsilon_closure_single_state_no_epsilon() {
-        // Estado 0 sem transições ε
-        let s0 = make_state(0, &[], false);
-        let nfa = Automaton {
-            name: "no_epsilon".into(),
-            all_states: vec![s0],
-            initial_state: 0,
-        };
-
-        let closure = nfa.epsilon_closure(&hs([0]));
-        assert_eq!(closure, hs([0]));
-    }
-
-    #[test]
-    fn test_epsilon_closure_simple_chain() {
-        // 0 --ε--> 1 --ε--> 2
-        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
-        let s1 = make_state(1, &[(2, Trigger::Epsilon)], false);
-        let s2 = make_state(2, &[], false);
-        let nfa = Automaton {
-            name: "chain".into(),
-            all_states: vec![s0, s1, s2],
-            initial_state: 0,
-        };
-
-        let closure = nfa.epsilon_closure(&hs([0]));
-        assert_eq!(closure, hs([0, 1, 2]));
-    }
-
-    #[test]
-    fn test_epsilon_closure_with_cycle() {
-        // 0 --ε--> 1 --ε--> 2 --ε--> 0 (ciclo)
-        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
-        let s1 = make_state(1, &[(2, Trigger::Epsilon)], false);
-        let s2 = make_state(2, &[(0, Trigger::Epsilon)], false);
-        let nfa = Automaton {
-            name: "cycle".into(),
-            all_states: vec![s0, s1, s2],
-            initial_state: 0,
-        };
-
-        let closure = nfa.epsilon_closure(&hs([0]));
-
-        // Deve incluir todos os estados e não entrar em loop
-        assert_eq!(closure, hs([0, 1, 2]));
-    }
-
-    #[test]
-    fn test_epsilon_closure_multiple_start_states() {
-        // 0 --ε--> 1, 2 sem conexão
-        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
-        let s1 = make_state(1, &[], false);
-        let s2 = make_state(2, &[], false);
-        let nfa = Automaton {
-            name: "multi_start".into(),
-            all_states: vec![s0, s1, s2],
-            initial_state: 0,
-        };
-
-        // Fecho-ε de {0,2} deve conter {0,1,2}
-        let closure = nfa.epsilon_closure(&hs([0, 2]));
-        assert_eq!(closure, hs([0, 1, 2]));
-    }
-
-    #[test]
-    fn test_nfa_to_dfa_simple_conversion() {
+    fn test_determinize_simple_conversion() {
         let s0 = make_state(0, &[(1, Trigger::Range((97, 97)))], false);
         let s1 = make_state(1, &[(2, Trigger::Range((98, 98)))], false);
         let s2 = make_state(2, &[(3, Trigger::Range((99, 99)))], false);
@@ -857,13 +918,13 @@ mod tests {
             initial_state: 0,
         };
         println!("{:?}", nfa);
-        let dfa = nfa.nfa_to_dfa();
+        let dfa = Automaton::determinize(&nfa);
         println!("\n{:?}", dfa);
         assert!(!dfa.is_nfa());
     }
 
     #[test]
-    fn test_nfa_to_dfa_remove_epsilon_transitions() {
+    fn test_determinize_remove_epsilon_transitions() {
         let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
         let s1 = make_state(1, &[(2, Trigger::Range((97, 98)))], false);
         let s2 = make_state(
@@ -878,13 +939,13 @@ mod tests {
             initial_state: 0,
         };
         println!("{:?}", nfa);
-        let dfa = nfa.nfa_to_dfa();
+        let dfa = Automaton::determinize(&nfa);
         println!("\n{:?}", dfa);
         assert!(!dfa.is_nfa());
     }
 
     #[test]
-    fn test_nfa_to_dfa_add_sink_state_for_missing_ranges() {
+    fn test_determinize_add_sink_state_for_missing_ranges() {
         let s0 = make_state(0, &[(1, Trigger::Range((97, 97)))], false);
         let s1 = make_state(1, &[(2, Trigger::Range((98, 98)))], false);
         let s2 = make_state(2, &[(3, Trigger::Range((99, 99)))], false);
@@ -895,13 +956,13 @@ mod tests {
             initial_state: 0,
         };
         println!("{:?}", nfa);
-        let dfa = nfa.nfa_to_dfa();
+        let dfa = Automaton::determinize(&nfa);
         println!("\n{:?}", dfa);
         assert!(!dfa.is_nfa());
     }
 
     #[test]
-    fn test_nfa_to_dfa_handle_overlapping_ranges() {
+    fn test_determinize_handle_overlapping_ranges() {
         let s0 = make_state(
             0,
             &[
@@ -921,7 +982,7 @@ mod tests {
             initial_state: 0,
         };
         println!("{:?}", nfa);
-        let dfa = nfa.nfa_to_dfa();
+        let dfa = Automaton::determinize(&nfa);
         println!("\n{:?}", dfa);
         assert!(!dfa.is_nfa());
     }
