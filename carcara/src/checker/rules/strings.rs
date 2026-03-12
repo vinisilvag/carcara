@@ -1664,26 +1664,36 @@ pub fn re_forward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) ->
     Ok(())
 }
 
-pub fn re_backward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
-    assert_num_premises(premises, 1)?;
-    assert_clause_len(conclusion, 2..)?;
+pub fn concat_bwd_propagation(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2)?;
+    assert_clause_len(conclusion, 1..)?;
 
-    let premise = get_premise_term(&premises[0])?;
-    let (w, a) = match_term_err!((strinre w a) = premise)?;
+    let p1 = get_premise_term(&premises[0])?;
+    let p2 = get_premise_term(&premises[1])?;
 
-    let a = a.as_automata_err()?;
+    let (x1, ws) = match_term_err!((= x1 (strconcat ...)) = p1)?;
+    let (x2, a) = match_term_err!((strinre x2 a) = p2)?;
+
+    assert_eq(x1, x2)?;
+
+    let a = Automaton::determinize(&Automaton::create_from_regex_operators(pool, &a)?);
 
     // Soundness check
-    for conc in conclusion {
-        let and_terms = match_term_err!((and ...) = conc)?;
+    for and_term in conclusion {
+        let ands = match_term_err!((and ...) = and_term)?;
+        // TODO: check this later
+        assert_eq!(&ws.len(), &ands.len());
 
-        let mut automatas: Vec<(Rc<Term>, Rc<Term>)> = Vec::new();
-        for and_term in and_terms {
-            let (x, automata) = match_term_err!((strinre x a) = and_term)?;
-            automatas.push((x.clone(), automata.clone()));
+        let mut automata = Vec::new();
+        for (idx, term) in ands.iter().enumerate() {
+            let (w, re) = match_term_err!((strinre w re) = term)?;
+            assert_eq(&ws[idx], w)?;
+            automata.push(re.clone());
         }
 
-        let computed = make_automaton_from_string(pool, w, automatas)?;
+        let re = pool.add(Term::Op(Operator::ReConcat, automata));
+        let computed = Automaton::determinize(&Automaton::create_from_regex_operators(pool, &re)?);
+
         let intersection = operations::intersection(a.clone(), computed.clone())?;
         if !operations::has_reachable_accepting_state(intersection) {
             return Err(CheckerError::ExpectedIntersection(
@@ -1733,6 +1743,8 @@ pub fn concat_aut_bwd_propagation(
 
     assert_eq(x1, x2)?;
 
+    let a = a.as_automata_err()?;
+
     for and_term in conclusion {
         let ands = match_term_err!((and ...) = and_term)?;
         // TODO: check this later
@@ -1747,7 +1759,6 @@ pub fn concat_aut_bwd_propagation(
 
         let re = pool.add(Term::Op(Operator::ReConcat, automata));
         let computed = Automaton::determinize(&Automaton::create_from_regex_operators(pool, &re)?);
-        let a = a.as_automata_err()?;
 
         let intersection = operations::intersection(a.clone(), computed.clone())?;
         if !operations::has_reachable_accepting_state(intersection) {

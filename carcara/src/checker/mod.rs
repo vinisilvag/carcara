@@ -522,7 +522,7 @@ impl<'c> ProofChecker<'c> {
             "re_empty_intersection" => strings::re_empty_intersection,
             "re_intersection" => strings::re_intersection,
             "re_forward_prop" => strings::re_forward_prop,
-            "re_backward_prop" => strings::re_backward_prop,
+            "re_backward_prop" => strings::concat_bwd_propagation,
             "concat_aut_bwd_propagation" => strings::concat_aut_bwd_propagation,
 
             // Drup format rules
