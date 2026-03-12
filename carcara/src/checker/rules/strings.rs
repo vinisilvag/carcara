@@ -1703,29 +1703,6 @@ pub fn concat_bwd_propagation(RuleArgs { premises, conclusion, pool, .. }: RuleA
         }
     }
 
-    // Completeness check
-    // Ideia:
-    // 1. Construir um autômato que reconheça todas as decomposições possíveis do termo de
-    //    interesse (a concatenação de interesse) - representa tudo que é possível
-    // 2. Construir um autômato para cada termo do and na conclusão e uní-los com um operador
-    //    específico para isso (um separador como #, etc) - representa tudo o que a regra diz ser
-    //    possível
-    // 3. Existe algo no primeiro que não está no segundo?
-    //    Faz o complemento do primeiro e gera a interseção com o segundo. Se for vazio, todas as
-    //    decomposições válidas foram enumeradas e a regra passa. Caso contrário, não passa.
-
-    // 1.
-    // let complete_automaton = ;
-
-    // 2.
-    // let conclusion_automaton = ;
-
-    // 3.
-    // let intersection = operations::intersection(complete_automaton.clone(), conclusion_automaton.clone())?;
-    // if !operations::has_reachable_accepting_state(intersection) {
-    //     unimplemented!("error not implemented yet but should fail");
-    // }
-
     Ok(())
 }
 
