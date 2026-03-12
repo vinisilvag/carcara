@@ -609,7 +609,7 @@ fn make_automaton_from_string(
             // TODO: add other forwadable functions
             // Term::Op(Operator::Replace, _) => {}
             // Term::Op(Operator::ReplaceAll, _) => {}
-            _ => unimplemented!(),
+            _ => Err(CheckerError::NotBackwardableOperator(t.clone())),
         }
     }
 
@@ -1574,8 +1574,8 @@ pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResul
 
     assert_eq(w1, w2)?;
 
-    let a1 = Automaton::determinize(&a1.as_automata_err()?);
-    let a2 = Automaton::determinize(&a2.as_automata_err()?);
+    let a1 = a1.as_automata_err()?;
+    let a2 = a2.as_automata_err()?;
     let intersection = operations::intersection(a1.clone(), a2.clone())?;
 
     if has_reachable_accepting_state(intersection.clone()) {
@@ -1600,7 +1600,7 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
         let term = get_premise_term(premise)?;
         let (w, a) = match_term_err!((strinre w a1) = term)?;
         ws.push(w.clone());
-        premise_automatas.push(Automaton::determinize(&a.as_automata_err()?).clone());
+        premise_automatas.push(a.as_automata_err()?);
     }
 
     let (w_conc, conc_automaton) = match_term_err!(
@@ -1625,7 +1625,7 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
     }
 
     // Check equivalence with the automaton in the conclusion
-    let conc_automaton = Automaton::determinize(&conc_automaton.as_automata_err()?);
+    let conc_automaton = conc_automaton.as_automata_err()?;
     if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
         return Err(CheckerError::ExpectedAutomataToBeEquivalent(
             expected,
@@ -1652,12 +1652,12 @@ pub fn re_forward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) ->
     }
 
     let expected = make_automaton_from_string(pool, s, premise_automatas)?;
-    let conc_automaton = Automaton::determinize(&conc_automaton.as_automata_err()?);
+    let conc_automaton = &conc_automaton.as_automata_err()?;
 
     if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
         return Err(CheckerError::ExpectedAutomataToBeEquivalent(
             expected,
-            conc_automaton,
+            conc_automaton.clone(),
         ));
     }
 
@@ -1686,7 +1686,10 @@ pub fn re_backward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -
         let computed = make_automaton_from_string(pool, w, automatas)?;
         let intersection = operations::intersection(a.clone(), computed.clone())?;
         if !operations::has_reachable_accepting_state(intersection) {
-            unimplemented!("error not implemented yet but should fail");
+            return Err(CheckerError::ExpectedIntersection(
+                a.clone(),
+                computed.clone(),
+            ));
         }
     }
 
@@ -1712,6 +1715,48 @@ pub fn re_backward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -
     // if !operations::has_reachable_accepting_state(intersection) {
     //     unimplemented!("error not implemented yet but should fail");
     // }
+
+    Ok(())
+}
+
+pub fn concat_aut_bwd_propagation(
+    RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
+) -> RuleResult {
+    assert_num_premises(premises, 2)?;
+    assert_clause_len(conclusion, 1..)?;
+
+    let p1 = get_premise_term(&premises[0])?;
+    let p2 = get_premise_term(&premises[1])?;
+
+    let (x1, ws) = match_term_err!((= x1 (strconcat ...)) = p1)?;
+    let (x2, a) = match_term_err!((strinre x2 a) = p2)?;
+
+    assert_eq(x1, x2)?;
+
+    for and_term in conclusion {
+        let ands = match_term_err!((and ...) = and_term)?;
+        // TODO: check this later
+        assert_eq!(&ws.len(), &ands.len());
+
+        let mut automata = Vec::new();
+        for (idx, term) in ands.iter().enumerate() {
+            let (w, re) = match_term_err!((strinre w re) = term)?;
+            assert_eq(&ws[idx], w)?;
+            automata.push(re.clone());
+        }
+
+        let re = pool.add(Term::Op(Operator::ReConcat, automata));
+        let computed = Automaton::determinize(&Automaton::create_from_regex_operators(pool, &re)?);
+        let a = a.as_automata_err()?;
+
+        let intersection = operations::intersection(a.clone(), computed.clone())?;
+        if !operations::has_reachable_accepting_state(intersection) {
+            return Err(CheckerError::ExpectedIntersection(
+                a.clone(),
+                computed.clone(),
+            ));
+        }
+    }
 
     Ok(())
 }

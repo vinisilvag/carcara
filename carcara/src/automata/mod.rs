@@ -410,81 +410,6 @@ impl Automaton {
         }
     }
 
-    // pub fn nfa_to_dfa(&self) -> Automaton {
-    //     let triggers = self.symbol_triggers();
-    //     let start_closure: BTreeSet<usize> = self
-    //         .epsilon_closure(&HashSet::from([self.initial_state]))
-    //         .into_iter()
-    //         .collect();
-    //
-    //     let mut new_states: Vec<State> = Vec::new();
-    //     let mut state_map: HashMap<BTreeSet<StateId>, StateId> = HashMap::new();
-    //     let mut queue: VecDeque<BTreeSet<StateId>> = VecDeque::new();
-    //
-    //     let mut next_id: StateId = 0;
-    //     state_map.insert(start_closure.clone(), next_id);
-    //     queue.push_back(start_closure.clone());
-    //     next_id += 1;
-    //
-    //     while let Some(current_set) = queue.pop_front() {
-    //         let current_id = state_map[&current_set];
-    //
-    //         // Estado de aceitação: se algum estado do conjunto for de aceitação
-    //         let accept = current_set.iter().any(|&sid| self.get_state(sid).accept);
-    //
-    //         let mut transitions = HashSet::new();
-    //
-    //         // Para cada símbolo (não-ε)
-    //         for trigger in &triggers {
-    //             let mut reachable = HashSet::new();
-    //
-    //             // Estados alcançáveis lendo esse símbolo
-    //             for &sid in &current_set {
-    //                 let state = self.get_state(sid);
-    //                 for t in &state.transitions {
-    //                     if &t.trigger == trigger {
-    //                         reachable.insert(t.to);
-    //                     }
-    //                 }
-    //             }
-    //
-    //             // Fecho-ε dos alcançáveis
-    //             let next_closure = self.epsilon_closure(&reachable);
-    //             if next_closure.is_empty() {
-    //                 continue;
-    //             }
-    //
-    //             // Verifica se já existe no DFA
-    //             let next_state_id = *state_map
-    //                 .entry(next_closure.clone().into_iter().collect())
-    //                 .or_insert_with(|| {
-    //                     let id = next_id;
-    //                     next_id += 1;
-    //                     queue.push_back(next_closure.clone().into_iter().collect());
-    //                     id
-    //                 });
-    //
-    //             // Adiciona a transição
-    //             transitions.insert(Transition {
-    //                 to: next_state_id,
-    //                 trigger: trigger.clone(),
-    //             });
-    //         }
-    //
-    //         new_states.push(State {
-    //             id: current_id.to_string(),
-    //             accept,
-    //             transitions,
-    //         });
-    //     }
-    //
-    //     Automaton {
-    //         name: format!("{}_dfa", self.name),
-    //         all_states: new_states,
-    //         initial_state: 0,
-    //     }
-    // }
-
     pub fn complement(&self) -> Automaton {
         let alphabet: HashSet<Trigger> = self.symbol_triggers();
         let mut new_states = self.all_states.clone();
@@ -532,6 +457,21 @@ impl Automaton {
         pool: &mut dyn TermPool,
         t: &Rc<Term>,
     ) -> Result<Automaton, CheckerError> {
+        fn shift_states(states: Vec<State>, shift: usize) -> Vec<State> {
+            let mut new_states = states.clone();
+            for state in new_states.iter_mut() {
+                for transition in state.transitions.clone() {
+                    let new_transition = transition.clone();
+                    state.transitions.remove(&transition);
+                    state.transitions.insert(Transition {
+                        to: new_transition.to + shift,
+                        trigger: new_transition.trigger,
+                    });
+                }
+            }
+            new_states
+        }
+
         fn rec_create_from_regex_operators(
             pool: &mut dyn TermPool,
             t: &Rc<Term>,
@@ -668,6 +608,72 @@ impl Automaton {
 
                     Ok(Automaton {
                         name: "str_to_re".to_owned(),
+                        all_states: states,
+                        initial_state: 0,
+                    })
+                }
+                Term::Op(Operator::ReNone, _) => {
+                    let mut states: Vec<State> = Vec::new();
+                    states.push(State {
+                        id: "init".to_string(),
+                        accept: false,
+                        transitions: HashSet::from_iter(
+                            vec![Transition {
+                                to: 0,
+                                trigger: Trigger::Range((0, 255)),
+                            }]
+                            .iter()
+                            .cloned(),
+                        ),
+                    });
+                    Ok(Automaton {
+                        name: "re_none".to_owned(),
+                        all_states: states,
+                        initial_state: 0,
+                    })
+                }
+                Term::Op(Operator::ReIntersection, inter) => {
+                    let mut components = Vec::new();
+                    for re in inter {
+                        let nfa = rec_create_from_regex_operators(pool, &re)?;
+                        components.push(Automaton::determinize(&nfa));
+                    }
+                    let mut res =
+                        operations::intersection(components[0].clone(), components[1].clone())?;
+                    for index in 2..components.len() {
+                        res = operations::intersection(res, components[index].clone())?;
+                    }
+                    Ok(res)
+                }
+                Term::Op(Operator::ReUnion, uni) => {
+                    let mut automata: Vec<Automaton> = Vec::new();
+                    for re in uni {
+                        automata.push(rec_create_from_regex_operators(pool, &re)?);
+                    }
+
+                    let mut states: Vec<State> = Vec::new();
+                    let mut transitions: HashSet<Transition> = HashSet::new();
+                    let mut index = 1;
+                    for automaton in automata {
+                        states.extend(shift_states(automaton.all_states.clone(), states.len() + 1));
+                        transitions.insert(Transition {
+                            to: index,
+                            trigger: Trigger::Epsilon,
+                        });
+                        index += automaton.all_states.len();
+                    }
+
+                    states.insert(
+                        0,
+                        State {
+                            id: "init".to_string(),
+                            accept: false,
+                            transitions,
+                        },
+                    );
+
+                    Ok(Automaton {
+                        name: "re_union".to_owned(),
                         all_states: states,
                         initial_state: 0,
                     })

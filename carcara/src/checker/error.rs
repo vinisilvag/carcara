@@ -185,6 +185,12 @@ pub enum CheckerError {
     #[error("mismatched number of terms: concatenation has {0} terms, but premises have {1}")]
     ConcatTermsNumberDiffersFromPremiseTermsNumber(usize, usize),
 
+    #[error("expected a backwardable operator, got '{0}'")]
+    NotBackwardableOperator(Rc<Term>),
+
+    #[error("expected non empty intersection between '{0}' and '{1}'")]
+    ExpectedIntersection(Automaton, Automaton),
+
     #[error("this rule can only be used in the last step of a subproof")]
     MustBeLastStepInSubproof,
 
