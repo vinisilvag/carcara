@@ -255,6 +255,53 @@ fn backward_concat_xx(a_y: &Automaton) -> Vec<(Automaton, Automaton)> {
     result
 }
 
+// p is subautomaton of q
+pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
+    // Check if states of p are subset of states of q
+    let p_states: HashSet<String> = p.all_states.iter().map(|state| state.id.clone()).collect();
+    let q_states: HashSet<String> = q.all_states.iter().map(|state| state.id.clone()).collect();
+    if !p_states.is_subset(&q_states) {
+        return false;
+    }
+
+    // Check if accepting states of p are subset of accepting states of q
+    let p_accepting_states: HashSet<String> = p
+        .get_accepting_states()
+        .iter()
+        .map(|state| state.id.clone())
+        .collect();
+    let q_accepting_states: HashSet<String> = q
+        .get_accepting_states()
+        .iter()
+        .map(|state| state.id.clone())
+        .collect();
+    if !p_accepting_states.is_subset(&q_accepting_states) {
+        return false;
+    }
+
+    // Check if initial state of p is equal to the initial state of q
+    if p.get_initial_state().id != q.get_initial_state().id {
+        return false;
+    }
+
+    // Check if transitions of p are subset of transitions of q
+    let p_transitions: HashSet<(String, String, Trigger)> = p
+        .get_all_transitions()
+        .iter()
+        .map(|(s1, s2, trigger)| (s1.id.clone(), s2.id.clone(), trigger.clone()))
+        .collect();
+    let q_transitions: HashSet<(String, String, Trigger)> = q
+        .get_all_transitions()
+        .iter()
+        .map(|(s1, s2, trigger)| (s1.id.clone(), s2.id.clone(), trigger.clone()))
+        .collect();
+    if !p_transitions.is_subset(&q_transitions) {
+        return false;
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

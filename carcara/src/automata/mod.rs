@@ -216,12 +216,32 @@ impl Automaton {
         return state.transitions.clone();
     }
 
-    pub fn get_transitions(&self) -> Vec<Transition> {
-        let mut transitions: Vec<Transition> = Vec::new();
+    pub fn get_accepting_states(&self) -> Vec<State> {
+        let mut states = Vec::new();
         for state in &self.all_states {
-            transitions.extend(state.transitions.clone());
+            if state.accept {
+                states.push(state.clone());
+            }
         }
-        return transitions;
+        states
+    }
+
+    pub fn get_all_transitions(&self) -> Vec<(State, State, Trigger)> {
+        let mut transitions: Vec<(State, State, Trigger)> = Vec::new();
+        for state in &self.all_states {
+            for transition in &state.transitions {
+                transitions.push((
+                    state.clone(),
+                    self.get_state(transition.to).clone(),
+                    transition.trigger.clone(),
+                ));
+            }
+        }
+        transitions
+    }
+
+    pub fn get_initial_state(&self) -> State {
+        self.get_state(self.initial_state).clone()
     }
 
     // Returns the set of states the can be reached by every state in the automaton following any
