@@ -133,11 +133,11 @@ pub enum ParserError {
     #[error("not a valid qualified operator: '{0}'")]
     InvalidQualifiedOp(String),
 
-    #[error("not a valid automata declaration: '{0}'")]
-    InvalidAutomataDeclaration(String),
+    #[error("not a valid automaton declaration: '{0}'")]
+    InvalidAutomatonDeclaration(String),
 
-    #[error("expected automata declaration, got an operator")]
-    ExpectedAnAutomataDeclaration(),
+    #[error("expected an automaton declaration, got an operator")]
+    ExpectedAnAutomatonDeclaration(),
 }
 
 /// Returns an error if the length of `sequence` is not in the `expected` range.

@@ -231,12 +231,12 @@ impl<'a, R: BufRead> Parser<'a, R> {
         match parse_automaton(automaton_repr.trim()) {
             Ok((remaining, automata)) => {
                 if !remaining.is_empty() {
-                    return Err(ParserError::InvalidAutomataDeclaration(automaton_repr));
+                    return Err(ParserError::InvalidAutomatonDeclaration(automaton_repr));
                 }
                 return Ok(Automaton::determinize(&automata));
             }
             Err(_) => {
-                return Err(ParserError::InvalidAutomataDeclaration(automaton_repr));
+                return Err(ParserError::InvalidAutomatonDeclaration(automaton_repr));
             }
         }
     }
@@ -374,7 +374,7 @@ impl<'a, R: BufRead> Parser<'a, R> {
                         .pool
                         .add(Term::Const(Constant::RegLan(s.to_owned(), automata))));
                 } else {
-                    ParserError::ExpectedAnAutomataDeclaration;
+                    ParserError::ExpectedAnAutomatonDeclaration;
                 }
             }
             Operator::StrLessThan
