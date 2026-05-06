@@ -1,0 +1,107 @@
+(assume h1 (= a (str.++ b c)))
+(assume h2 (= b (str.++ d c)))
+
+(assume h3 (str.in_re a (re.+ (str.to_re "y"))))
+(assume h4 (str.in_re c (re.+ (str.to_re "x"))))
+
+(step t0 (cl (not (str.in_re a (re.+ (str.to_re "y")))) (str.in_re a (re.from_automaton "automaton aut_a { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };"))) :rule re_convert)
+(step t0.a (cl (str.in_re a (re.from_automaton "automaton aut_a { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };"))) :rule resolution :premises (h3 t0))
+
+(step t1 (cl (not (str.in_re c (re.+ (str.to_re "x")))) (str.in_re c (re.from_automaton "automaton aut_c { init s0; s0 -> s1 [120, 120]; s1 -> s2 [120, 120]; s2 -> s2 [120, 120]; accepting s1; accepting s2; };"))) :rule re_convert)
+(step t1.a (cl (str.in_re c (re.from_automaton "automaton aut_c { init s0; s0 -> s1 [120, 120]; s1 -> s2 [120, 120]; s2 -> s2 [120, 120]; accepting s1; accepting s2; };"))) :rule resolution :premises (h4 t1))
+
+;; ============================================================================
+;; 1. Backward Propagation
+;; ============================================================================
+;; OSTRICH generated axiom (10), which splits the problem into three cases for b and c.
+;; The `rule concat_aut_bwd_propagation` produces the disjunction of these Cartesian products,
+;; combining the automata of the prefix (b) and the suffix (c).
+(step t2 (cl 
+    ;; Case 1: b = Empty (Aut 4), c = y+ (Aut 2)
+    (and (str.in_re b (re.from_automaton "automaton empty { init s0; };")) 
+         (str.in_re c (re.from_automaton "automaton y_plus { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };")))
+    
+    ;; Case 2: b = "y" (Aut 5), c = y* (Aut 6)
+    (and (str.in_re b (re.from_automaton "automaton y { init s1; s1 -> s0 [121, 121]; accepting s0; };")) 
+         (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };")))
+    
+    ;; Case 3: b = yy+ (Aut 7), c = y* (Aut 6)
+    (and (str.in_re b (re.from_automaton "automaton yy_plus { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };")) 
+         (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };")))
+) :rule concat_aut_bwd_propagation :premises (h1 t0.a))
+
+
+;; ============================================================================
+;; Branch 1: Empty intersection from Case 1
+;; ============================================================================
+(anchor :step branch1)
+(assume b1.input (and 
+    (str.in_re b (re.from_automaton "automaton empty { init s0; };")) 
+    (str.in_re c (re.from_automaton "automaton y_plus { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };"))))
+
+(step b1.c (cl (str.in_re c (re.from_automaton "automaton y_plus { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };"))) :rule and :premises (b1.input) :args (1))
+
+;; Empty intersection between Aut 2 (y+) and Aut 3 (x+)
+(step b1.empty (cl 
+    (not (str.in_re c (re.from_automaton "automaton y_plus { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };")))
+    (not (str.in_re c (re.from_automaton "automaton aut_c { init s0; s0 -> s1 [120, 120]; s1 -> s2 [120, 120]; s2 -> s2 [120, 120]; accepting s1; accepting s2; };"))))
+    :rule re_empty_intersection)
+
+(step b1.contra (cl) :rule resolution :premises (t1.a b1.c b1.empty))
+(step branch1 (cl (not (and 
+    (str.in_re b (re.from_automaton "automaton empty { init s0; };")) 
+    (str.in_re c (re.from_automaton "automaton y_plus { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };"))))
+    false
+) :rule subproof :discharge (b1.input))
+
+
+;; ============================================================================
+;; Branch 2: Empty intersection from Case 2
+;; ============================================================================
+(anchor :step branch2)
+(assume b2.input (and
+    (str.in_re b (re.from_automaton "automaton y { init s1; s1 -> s0 [121, 121]; accepting s0; };")) 
+    (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };"))))
+
+(step b2.c (cl (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };"))) :rule and :premises (b2.input) :args (1))
+
+;; Empty intersection between Aut 6 (y*) and Aut 3 (x+)
+(step b2.empty (cl 
+    (not (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };")))
+    (not (str.in_re c (re.from_automaton "automaton aut_c { init s0; s0 -> s1 [120, 120]; s1 -> s2 [120, 120]; s2 -> s2 [120, 120]; accepting s1; accepting s2; };"))))
+    :rule re_empty_intersection)
+
+(step b2.contra (cl) :rule resolution :premises (t1.a b2.c b2.empty))
+(step branch2 (cl (not (and
+    (str.in_re b (re.from_automaton "automaton y { init s1; s1 -> s0 [121, 121]; accepting s0; };")) 
+    (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };"))))
+    false
+) :rule subproof :discharge (b2.input))
+
+
+;; ============================================================================
+;; Branch 3: Empty intersection from Case 3
+;; ============================================================================
+(anchor :step branch3)
+(assume b3.input (and
+    (str.in_re b (re.from_automaton "automaton yy_plus { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };")) 
+    (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };"))))
+
+(step b3.c (cl (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };"))) :rule and :premises (b3.input) :args (1))
+
+;; Empty intersection between Aut 6 (y*) and Aut 3 (x+)
+(step b3.empty (cl 
+    (not (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };")))
+    (not (str.in_re c (re.from_automaton "automaton aut_c { init s0; s0 -> s1 [120, 120]; s1 -> s2 [120, 120]; s2 -> s2 [120, 120]; accepting s1; accepting s2; };"))))
+    :rule re_empty_intersection)
+
+(step b3.contra (cl) :rule resolution :premises (t1.a b3.c b3.empty))
+(step branch3 (cl (not (and
+    (str.in_re b (re.from_automaton "automaton yy_plus { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };")) 
+    (str.in_re c (re.from_automaton "automaton y_star { init s0; s0 -> s1 [121, 121]; s1 -> s1 [121, 121]; accepting s0; accepting s1; };"))))
+    false
+) :rule subproof :discharge (b3.input))
+
+
+(step t_final (cl) :rule resolution :premises (t2 branch1 branch2 branch3))
+

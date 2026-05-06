@@ -1681,7 +1681,6 @@ pub fn concat_bwd_propagation(RuleArgs { premises, conclusion, pool, .. }: RuleA
     // Soundness check
     for and_term in conclusion {
         let ands = match_term_err!((and ...) = and_term)?;
-        // TODO: check this later
         assert_eq!(&ws.len(), &ands.len());
 
         let mut automata = Vec::new();
@@ -1706,6 +1705,7 @@ pub fn concat_bwd_propagation(RuleArgs { premises, conclusion, pool, .. }: RuleA
     Ok(())
 }
 
+// TODO: check sintatically
 pub fn concat_aut_bwd_propagation(
     RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
 ) -> RuleResult {
@@ -1724,7 +1724,6 @@ pub fn concat_aut_bwd_propagation(
 
     for and_term in conclusion {
         let ands = match_term_err!((and ...) = and_term)?;
-        // TODO: check this later
         assert_eq!(&ws.len(), &ands.len());
 
         let mut automata = Vec::new();

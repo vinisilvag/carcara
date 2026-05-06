@@ -25,9 +25,20 @@ pub enum Trigger {
 
     /// Transition enabled by any input symbol in the inclusive range [l, r].
     Range((u32, u32)),
+}
 
-    /// Separator (useful for some rule verification)
-    Separator,
+impl Trigger {
+    /// Returns true if `self` covers `other`
+    pub fn contains(&self, other: &Trigger) -> bool {
+        match (self, other) {
+            (Trigger::Epsilon, Trigger::Epsilon) => true,
+            (Trigger::Range((a_start, a_end)), Trigger::Range((b_start, b_end))) => {
+                a_start <= b_start && b_end <= a_end
+            }
+            (Trigger::Range((_, _)), Trigger::Epsilon) => false,
+            (Trigger::Epsilon, Trigger::Range((_, _))) => false,
+        }
+    }
 }
 
 impl fmt::Display for Trigger {
@@ -35,9 +46,6 @@ impl fmt::Display for Trigger {
         match self {
             Self::Epsilon => {
                 write!(f, "ε")
-            }
-            Self::Separator => {
-                write!(f, "#")
             }
             Self::Range((l, r)) => {
                 write!(f, "({}, {})", l, r)
@@ -943,9 +951,9 @@ mod tests {
             all_states: vec![s0, s1, s2, s3],
             initial_state: 0,
         };
-        println!("{:?}", nfa);
+
         let dfa = Automaton::determinize(&nfa);
-        println!("\n{:?}", dfa);
+
         assert!(!dfa.is_nfa());
     }
 
@@ -964,9 +972,9 @@ mod tests {
             all_states: vec![s0, s1, s2, s3],
             initial_state: 0,
         };
-        println!("{:?}", nfa);
+
         let dfa = Automaton::determinize(&nfa);
-        println!("\n{:?}", dfa);
+
         assert!(!dfa.is_nfa());
     }
 
@@ -981,9 +989,9 @@ mod tests {
             all_states: vec![s0, s1, s2, s3],
             initial_state: 0,
         };
-        println!("{:?}", nfa);
+
         let dfa = Automaton::determinize(&nfa);
-        println!("\n{:?}", dfa);
+
         assert!(!dfa.is_nfa());
     }
 
@@ -1007,9 +1015,9 @@ mod tests {
             all_states: vec![s0, s1, s2, s3],
             initial_state: 0,
         };
-        println!("{:?}", nfa);
+
         let dfa = Automaton::determinize(&nfa);
-        println!("\n{:?}", dfa);
+
         assert!(!dfa.is_nfa());
     }
 }

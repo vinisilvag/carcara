@@ -175,87 +175,28 @@ pub fn complement(a: Automaton) -> Automaton {
     }
 }
 
-fn reachable_from(a: &Automaton, start: StateId) -> HashSet<StateId> {
-    let mut visited = HashSet::new();
-    let mut stack = vec![start];
-
-    while let Some(s) = stack.pop() {
-        if !visited.insert(s) {
-            continue;
-        }
-        for tr in &a.all_states[s].transitions {
-            stack.push(tr.to);
-        }
-    }
-
-    visited
-}
-
-fn can_reach_accept(a: &Automaton, start: StateId) -> bool {
-    let reachable = reachable_from(a, start);
-    reachable.iter().any(|&q| a.all_states[q].accept)
-}
-
-fn possible_cuts(a: &Automaton) -> Vec<StateId> {
-    let reachable_init = reachable_from(a, a.initial_state);
-
-    a.all_states
-        .iter()
-        .enumerate()
-        .filter_map(|(id, _)| {
-            if reachable_init.contains(&id) && can_reach_accept(a, id) {
-                Some(id)
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-fn sub_automaton(base: &Automaton, from: StateId, to: StateId, name: String) -> Automaton {
-    let mut new_states = Vec::new();
-
-    for (i, st) in base.all_states.iter().enumerate() {
-        let new_state = State {
-            id: st.id.clone(),
-            accept: i == to,
-            transitions: st.transitions.clone(),
-        };
-        new_states.push(new_state);
-    }
-
-    Automaton {
-        name,
-        all_states: new_states,
-        initial_state: from,
-    }
-}
-
-// PROTOTIPO
-fn backward_concat_xx(a_y: &Automaton) -> Vec<(Automaton, Automaton)> {
-    let mut result = Vec::new();
-
-    for q in possible_cuts(a_y) {
-        let a1 = sub_automaton(
-            a_y,
-            a_y.initial_state,
-            q,
-            format!("{}_prefix_{}", a_y.name, q),
-        );
-
-        // um par por estado aceitante final
-        for (fid, st) in a_y.all_states.iter().enumerate() {
-            if st.accept && can_reach_accept(a_y, q) {
-                let a2 = sub_automaton(a_y, q, fid, format!("{}_suffix_{}", a_y.name, fid));
-                result.push((a1.clone(), a2));
-            }
-        }
-    }
-
-    result
-}
-
-// p is subautomaton of q
+/// Checks whether automaton `p` is a **syntactic subautomaton** of automaton `q`,
+/// taking into account **trigger containment (ranges and ε-transitions)**.
+///
+/// # Definition
+/// `p` is considered a subautomaton of `q` if all structural components of `p`
+/// are contained in `q`, with transitions compared using **trigger containment**.
+///
+/// Formally:
+/// - `Q_p ⊆ Q_q` (states)
+/// - `F_p ⊆ F_q` (accepting states)
+/// - `q0_p = q0_q` (initial state)
+/// - For every transition `(s, t, α)` in `p`, there exists a transition
+///   `(s, t, β)` in `q` such that `β.contains(α)`
+///
+/// # Important
+/// - This is a **syntactic/structural check**, NOT language inclusion.
+/// - ε-transitions are treated explicitly and only match other ε-transitions.
+/// - Ranges are compared via interval containment.
+///
+/// # Returns
+/// - `true` if `p` is a subautomaton of `q`
+/// - `false` otherwise
 pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
     // Check if states of p are subset of states of q
     let p_states: HashSet<String> = p.all_states.iter().map(|state| state.id.clone()).collect();
@@ -275,6 +216,8 @@ pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
         .iter()
         .map(|state| state.id.clone())
         .collect();
+    println!("{:?}", p);
+    println!("{:?}", q);
     if !p_accepting_states.is_subset(&q_accepting_states) {
         return false;
     }
@@ -285,18 +228,28 @@ pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
     }
 
     // Check if transitions of p are subset of transitions of q
-    let p_transitions: HashSet<(String, String, Trigger)> = p
-        .get_all_transitions()
-        .iter()
-        .map(|(s1, s2, trigger)| (s1.id.clone(), s2.id.clone(), trigger.clone()))
-        .collect();
-    let q_transitions: HashSet<(String, String, Trigger)> = q
-        .get_all_transitions()
-        .iter()
-        .map(|(s1, s2, trigger)| (s1.id.clone(), s2.id.clone(), trigger.clone()))
-        .collect();
-    if !p_transitions.is_subset(&q_transitions) {
-        return false;
+    let mut q_index: HashMap<(String, String), Vec<Trigger>> = HashMap::new();
+    for (s1, s2, trigger) in q.get_all_transitions().iter() {
+        q_index
+            .entry((s1.id.clone(), s2.id.clone()))
+            .or_default()
+            .push(trigger.clone());
+    }
+
+    // For every transition in p, check if it is covered in q
+    for (p_s1, p_s2, p_trig) in p.get_all_transitions().iter() {
+        let key = (p_s1.id.clone(), p_s2.id.clone());
+
+        // There must be at least one transition with same (src, dst)
+        let Some(q_trigs) = q_index.get(&key) else {
+            return false;
+        };
+
+        // Check if any trigger in q covers the trigger in p
+        let covered = q_trigs.iter().any(|q_trig| q_trig.contains(p_trig));
+        if !covered {
+            return false;
+        }
     }
 
     true
@@ -306,28 +259,19 @@ pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_backward_concatenation() {
-        let a_y = Automaton::new(
-            "a_y",
-            "q0",
-            vec![("q0", "q1", (98, 98)), ("q1", "q2", (97, 97))],
-            vec!["q2"],
-        );
-
-        let a_y_det = Automaton::determinize(&a_y);
-
-        println!("{:?}", a_y);
-        println!("\n{:?}", a_y_det);
-
-        println!("ans");
-
-        let result = backward_concat_xx(&a_y_det);
-        for t in result {
-            println!("{:?}", t);
+    fn make_state(id: StateId, transitions: &[(StateId, Trigger)], accept: bool) -> State {
+        State {
+            id: id.to_string(),
+            accept: accept,
+            transitions: transitions
+                .iter()
+                .cloned()
+                .map(|(to, trigger)| Transition { to, trigger })
+                .collect(),
         }
     }
 
+    // TODO: write test later
     #[test]
     fn test_automata_intersection() {}
 
@@ -396,5 +340,170 @@ mod tests {
         );
 
         assert!(!is_equivalent(a1, a2));
+    }
+
+    // is_subautomaton tests
+    #[test]
+    fn test_identical_automata() {
+        let p = Automaton::new("p", "q0", vec![("q0", "q1", (97, 97))], vec!["q1"]);
+        let q = Automaton::new("q", "q0", vec![("q0", "q1", (97, 97))], vec!["q1"]);
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_proper_subautomaton() {
+        let p = Automaton::new("p", "q0", vec![("q0", "q1", (97, 97))], vec!["q1"]);
+        let q = Automaton::new(
+            "q",
+            "q0",
+            vec![("q0", "q1", (97, 97)), ("q1", "q2", (98, 98))],
+            vec!["q1", "q2"],
+        );
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_range_in_q_covers_p() {
+        let p = Automaton::new(
+            "p",
+            "q0",
+            vec![("q0", "q1", (99, 101))], // c-e
+            vec![],
+        );
+
+        let q = Automaton::new(
+            "q",
+            "q0",
+            vec![("q0", "q1", (97, 122))], // a-z
+            vec![],
+        );
+
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_multiple_transitions_cover() {
+        let p = Automaton::new(
+            "p",
+            "q0",
+            vec![("q0", "q1", (105, 105))], // 'i'
+            vec![],
+        );
+        let q = Automaton::new(
+            "q",
+            "q0",
+            vec![
+                ("q0", "q1", (97, 100)),  // a-d
+                ("q0", "q1", (101, 110)), // e-n (cobre)
+            ],
+            vec![],
+        );
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_epsilon_matches() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[], false);
+
+        let p = Automaton {
+            name: "p".into(),
+            all_states: vec![s0.clone(), s1.clone()],
+            initial_state: 0,
+        };
+
+        let q = Automaton {
+            name: "q".into(),
+            all_states: vec![s0, s1],
+            initial_state: 0,
+        };
+
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_state_not_subset() {
+        let p = Automaton::new("p", "q0", vec![("q0", "qX", (97, 97))], vec![]);
+        let q = Automaton::new("q", "q0", vec![], vec![]);
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_accepting_not_subset() {
+        let p = Automaton::new("p", "q0", vec![], vec!["q0"]);
+        let q = Automaton::new("q", "q0", vec![], vec![]);
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_different_initial_state() {
+        let p = Automaton::new("p", "q0", vec![], vec![]);
+        let q = Automaton::new("q", "q1", vec![], vec![]);
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_transition_not_covered() {
+        let p = Automaton::new(
+            "p",
+            "q0",
+            vec![("q0", "q1", (100, 105))], // d-h
+            vec![],
+        );
+
+        let q = Automaton::new(
+            "q",
+            "q0",
+            vec![("q0", "q1", (97, 99))], // a-c
+            vec![],
+        );
+
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_epsilon_not_covered_by_range() {
+        let s0_p = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1_p = make_state(1, &[], false);
+
+        let p = Automaton {
+            name: "p".into(),
+            all_states: vec![s0_p, s1_p],
+            initial_state: 0,
+        };
+
+        let s0_q = make_state(0, &[(1, Trigger::Range((0, 255)))], false);
+        let s1_q = make_state(1, &[], false);
+
+        let q = Automaton {
+            name: "q".into(),
+            all_states: vec![s0_q, s1_q],
+            initial_state: 0,
+        };
+
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_range_not_covered_by_epsilon() {
+        let s0_p = make_state(0, &[(1, Trigger::Range((97, 97)))], false);
+        let s1_p = make_state(1, &[], false);
+
+        let p = Automaton {
+            name: "p".into(),
+            all_states: vec![s0_p, s1_p],
+            initial_state: 0,
+        };
+
+        let s0_q = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1_q = make_state(1, &[], false);
+
+        let q = Automaton {
+            name: "q".into(),
+            all_states: vec![s0_q, s1_q],
+            initial_state: 0,
+        };
+
+        assert!(!is_subautomaton(p, q));
     }
 }
