@@ -5,7 +5,7 @@ use super::{
 use crate::{
     ast::*,
     automata::{
-        operations::{self, has_reachable_accepting_state},
+        operations::{self, has_reachable_accepting_state, is_subautomaton},
         Automaton,
     },
     checker::{error::CheckerError, rules::assert_polyeq},
@@ -1705,10 +1705,7 @@ pub fn concat_bwd_propagation(RuleArgs { premises, conclusion, pool, .. }: RuleA
     Ok(())
 }
 
-// TODO: check sintatically
-pub fn concat_aut_bwd_propagation(
-    RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
-) -> RuleResult {
+pub fn concat_aut_bwd_propagation(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
     assert_num_premises(premises, 2)?;
     assert_clause_len(conclusion, 1..)?;
 
@@ -1726,22 +1723,14 @@ pub fn concat_aut_bwd_propagation(
         let ands = match_term_err!((and ...) = and_term)?;
         assert_eq!(&ws.len(), &ands.len());
 
-        let mut automata = Vec::new();
         for (idx, term) in ands.iter().enumerate() {
-            let (w, re) = match_term_err!((strinre w re) = term)?;
+            let (w, aut) = match_term_err!((strinre w aut) = term)?;
             assert_eq(&ws[idx], w)?;
-            automata.push(re.clone());
-        }
 
-        let re = pool.add(Term::Op(Operator::ReConcat, automata));
-        let computed = Automaton::determinize(&Automaton::create_from_regex_operators(pool, &re)?);
-
-        let intersection = operations::intersection(a.clone(), computed.clone())?;
-        if !operations::has_reachable_accepting_state(intersection) {
-            return Err(CheckerError::ExpectedIntersection(
-                a.clone(),
-                computed.clone(),
-            ));
+            let aut = aut.as_automata_err()?;
+            if !is_subautomaton(aut, a.clone()) {
+                return Err(CheckerError::Unspecified);
+            }
         }
     }
 

@@ -12,7 +12,6 @@
 
 
 (step t2 (cl 
-    
     (and (str.in_re b (re.from_automaton "automaton empty { init s0; accepting s0; };")) 
          (str.in_re c (re.from_automaton "automaton y_plus { init s0; s0 -> s1 [121, 121]; s1 -> s2 [121, 121]; s2 -> s2 [121, 121]; accepting s1; accepting s2; };")))
     
