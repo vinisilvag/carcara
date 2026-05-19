@@ -5,7 +5,7 @@ use super::{
 use crate::{
     ast::*,
     automata::{
-        operations::{self, has_reachable_accepting_state},
+        operations::{self, has_reachable_accepting_state, is_subautomaton},
         Automaton,
     },
     checker::{error::CheckerError, rules::assert_polyeq},
@@ -568,6 +568,51 @@ fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> Result<usize, Check
         }
         _ => Err(CheckerError::LengthCannotBeEvaluated(r.clone())),
     }
+}
+
+fn make_automaton_from_string(
+    pool: &mut dyn TermPool,
+    t: &Rc<Term>,
+    premise_automatas: Vec<(Rc<Term>, Rc<Term>)>,
+) -> Result<Automaton, CheckerError> {
+    fn rec_make_automaton_from_string(
+        pool: &mut dyn TermPool,
+        t: &Rc<Term>,
+        premise_automatas: Vec<(Rc<Term>, Rc<Term>)>,
+    ) -> Result<Automaton, CheckerError> {
+        match t.as_ref() {
+            Term::Op(Operator::StrConcat, ss) => {
+                if ss.len() != premise_automatas.len() {
+                    return Err(
+                        CheckerError::ConcatTermsNumberDiffersFromPremiseTermsNumber(
+                            ss.len(),
+                            premise_automatas.len(),
+                        ),
+                    );
+                }
+
+                let mut components: Vec<Rc<Term>> = Vec::new();
+                for (index, w) in ss.iter().enumerate() {
+                    let premise_a = premise_automatas[index].clone();
+                    assert_eq(w, &premise_a.0)?;
+                    components.push(premise_a.1.clone());
+                }
+
+                let regex_a = pool.add(Term::Op(Operator::ReConcat, components));
+                Ok(Automaton::create_from_regex_operators(pool, &regex_a)?)
+            }
+            // TODO: add other forwadable functions
+            // Term::Op(Operator::Replace, _) => {}
+            // Term::Op(Operator::ReplaceAll, _) => {}
+            _ => Err(CheckerError::NotBackwardableOperator(t.clone())),
+        }
+    }
+
+    Ok(Automaton::determinize(&rec_make_automaton_from_string(
+        pool,
+        t,
+        premise_automatas,
+    )?))
 }
 
 pub fn concat_eq(
@@ -1576,8 +1621,8 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
     // Create the intersection automaton from the premises
     let mut expected =
         operations::intersection(premise_automatas[0].clone(), premise_automatas[1].clone())?;
-    for index in 2..premise_automatas.len() {
-        expected = operations::intersection(expected, premise_automatas[index].clone())?;
+    for automaton in premise_automatas.iter().skip(2) {
+        expected = operations::intersection(expected, automaton.clone())?;
     }
 
     // Check equivalence with the automaton in the conclusion
@@ -1587,6 +1632,108 @@ pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleR
             expected,
             conc_automaton,
         ));
+    }
+
+    Ok(())
+}
+
+pub fn re_forward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2..)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let (s, conc_automaton) = match_term_err!(
+        (strinre s a) = &conclusion[0]
+    )?;
+
+    let mut premise_automatas: Vec<(Rc<Term>, Rc<Term>)> = Vec::new();
+    for premise in premises {
+        let term = get_premise_term(premise)?;
+        let (w, a) = match_term_err!((strinre w a) = term)?;
+        premise_automatas.push((w.clone(), a.clone()));
+    }
+
+    let expected = make_automaton_from_string(pool, s, premise_automatas)?;
+    let conc_automaton = Automaton::determinize(&conc_automaton.as_automata_err()?);
+
+    if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
+        return Err(CheckerError::ExpectedEquivalentAutomata(
+            expected,
+            conc_automaton.clone(),
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn concat_bwd_propagation(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2)?;
+    assert_clause_len(conclusion, 1..)?;
+
+    let p1 = get_premise_term(&premises[0])?;
+    let p2 = get_premise_term(&premises[1])?;
+
+    let (x1, ws) = match_term_err!((= x1 (strconcat ...)) = p1)?;
+    let (x2, a) = match_term_err!((strinre x2 a) = p2)?;
+
+    assert_eq(x1, x2)?;
+
+    let a = Automaton::determinize(&Automaton::create_from_regex_operators(pool, &a)?);
+
+    // Soundness check
+    for and_term in conclusion {
+        let ands = match_term_err!((and ...) = and_term)?;
+        assert_eq!(&ws.len(), &ands.len());
+
+        let mut automata = Vec::new();
+        for (idx, term) in ands.iter().enumerate() {
+            let (w, re) = match_term_err!((strinre w re) = term)?;
+            assert_eq(&ws[idx], w)?;
+            automata.push(re.clone());
+        }
+
+        let re = pool.add(Term::Op(Operator::ReConcat, automata));
+        let computed = Automaton::determinize(&Automaton::create_from_regex_operators(pool, &re)?);
+
+        let intersection = operations::intersection(a.clone(), computed.clone())?;
+        if !operations::has_reachable_accepting_state(intersection) {
+            return Err(CheckerError::ExpectedIntersection(
+                a.clone(),
+                computed.clone(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+pub fn concat_aut_bwd_propagation(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2)?;
+    assert_clause_len(conclusion, 1..)?;
+
+    let p1 = get_premise_term(&premises[0])?;
+    let p2 = get_premise_term(&premises[1])?;
+
+    let (x1, ws) = match_term_err!((= x1 (strconcat ...)) = p1)?;
+    let (x2, a) = match_term_err!((strinre x2 a) = p2)?;
+
+    assert_eq(x1, x2)?;
+
+    let a = a.as_automata_err()?;
+
+    for and_term in conclusion {
+        let ands = match_term_err!((and ...) = and_term)?;
+        assert_eq!(&ws.len(), &ands.len());
+
+        for (idx, term) in ands.iter().enumerate() {
+            let (w, aut) = match_term_err!((strinre w aut) = term)?;
+            assert_eq(&ws[idx], w)?;
+
+            let aut = aut.as_automata_err()?;
+            if !is_subautomaton(aut, a.clone()) {
+                // TODO: change error later
+                return Err(CheckerError::Unspecified);
+            }
+        }
     }
 
     Ok(())

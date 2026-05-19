@@ -262,7 +262,7 @@ mod tests {
     fn make_state(id: StateId, transitions: &[(StateId, Trigger)], accept: bool) -> State {
         State {
             id: id.to_string(),
-            accept: accept,
+            accept,
             transitions: transitions
                 .iter()
                 .cloned()

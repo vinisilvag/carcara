@@ -160,7 +160,7 @@ impl Automaton {
             for id in [from, to] {
                 let mut found: Option<StateId> = None;
                 for (index, state) in all_states.iter().enumerate() {
-                    if state.id == id.to_owned() {
+                    if state.id == *id.to_owned() {
                         found = Some(index);
                         transition_ids.push(index);
                     }
@@ -254,16 +254,14 @@ impl Automaton {
     // Returns the set of states the can be reached by every state in the automaton following any
     // number of Epsilon transitions
     fn epsilon_closure(start: &BTreeSet<StateId>, a: &Automaton) -> BTreeSet<StateId> {
-        let mut stack: Vec<StateId> = start.iter().cloned().collect();
+        let mut stack: Vec<StateId> = start.iter().copied().collect();
         let mut closure = start.clone();
 
         while let Some(s) = stack.pop() {
             for t in &a.all_states[s].transitions {
-                if t.trigger == Trigger::Epsilon {
-                    if !closure.contains(&t.to) {
-                        closure.insert(t.to);
-                        stack.push(t.to);
-                    }
+                if t.trigger == Trigger::Epsilon && !closure.contains(&t.to) {
+                    closure.insert(t.to);
+                    stack.push(t.to);
                 }
             }
         }
@@ -328,7 +326,7 @@ impl Automaton {
         let init_accept = init_closure.iter().any(|&s| nfa.all_states[s].accept);
 
         new_states.push(State {
-            id: "D0".to_string(),
+            id: "D0".to_owned(),
             accept: init_accept,
             transitions: HashSet::new(),
         });
@@ -338,8 +336,7 @@ impl Automaton {
 
         // Subset construction
         while let Some(current_set) = queue.pop_front() {
-            let current_id = *state_map.get(&current_set).unwrap();
-
+            let current_id = state_map[&current_set];
             let mut edges: Vec<(u16, u16, StateId)> = Vec::new();
 
             for s in &current_set {
@@ -388,13 +385,13 @@ impl Automaton {
             transitions: HashSet::new(),
         });
 
-        for i in 0..sink_id {
+        for state in new_states.iter_mut().take(sink_id) {
             let mut covered = vec![false; u16::MAX as usize + 1];
 
-            for t in new_states[i].transitions.clone() {
+            for t in state.transitions.clone() {
                 if let Trigger::Range((l, r)) = t.trigger {
-                    for c in l as usize..=r.min(u16::MAX) as usize {
-                        covered[c] = true;
+                    for item in covered.iter_mut().take(r as usize + 1).skip(l as usize) {
+                        *item = true;
                     }
                 }
             }
@@ -403,12 +400,12 @@ impl Automaton {
 
             for c in 0..=u16::MAX {
                 if !covered[c as usize] && start.is_none() {
-                    start = Some(c as u16);
+                    start = Some(c);
                 }
                 if covered[c as usize] && start.is_some() {
                     let l = start.unwrap();
-                    let r = (c as u16) - 1;
-                    new_states[i].transitions.insert(Transition {
+                    let r = c - 1;
+                    state.transitions.insert(Transition {
                         to: sink_id,
                         trigger: Trigger::Range((l, r)),
                     });
@@ -417,7 +414,7 @@ impl Automaton {
             }
 
             if let Some(l) = start {
-                new_states[i].transitions.insert(Transition {
+                state.transitions.insert(Transition {
                     to: sink_id,
                     trigger: Trigger::Range((l, u16::MAX)),
                 });
@@ -444,7 +441,7 @@ impl Automaton {
         // Create sink state
         let sink_id = new_states.len();
         let sink = State {
-            id: format!("sink"),
+            id: "sink".to_owned(),
             accept: false,
             transitions: alphabet
                 .iter()
@@ -486,7 +483,7 @@ impl Automaton {
     ) -> Result<Automaton, CheckerError> {
         fn shift_states(states: Vec<State>, shift: usize) -> Vec<State> {
             let mut new_states = states.clone();
-            for state in new_states.iter_mut() {
+            for state in &mut new_states {
                 for transition in state.transitions.clone() {
                     let new_transition = transition.clone();
                     state.transitions.remove(&transition);
@@ -522,9 +519,9 @@ impl Automaton {
                     });
 
                     // handle accepting states
-                    for i in 0..a.all_states.len() {
-                        if states[i].accept {
-                            states[i].transitions.insert(Transition {
+                    for state in states.iter_mut().take(a.all_states.len()) {
+                        if state.accept {
+                            state.transitions.insert(Transition {
                                 to: a.initial_state,
                                 trigger: Trigger::Epsilon,
                             });
@@ -532,7 +529,7 @@ impl Automaton {
                     }
 
                     Ok(Automaton {
-                        name: "re_kleene_closure".to_string(),
+                        name: "re_kleene_closure".to_owned(),
                         all_states: states,
                         initial_state: new_init_id,
                     })
@@ -564,7 +561,7 @@ impl Automaton {
                     let new_initial_state = automatons.first().unwrap().initial_state;
                     let offset = states.len();
 
-                    for state in states.iter_mut() {
+                    for state in &mut states {
                         if state.accept {
                             state.transitions.insert(Transition {
                                 to: automatons[1].initial_state + offset,
@@ -576,7 +573,7 @@ impl Automaton {
 
                     let mut concat_states = automatons[1].all_states.clone();
 
-                    for state in concat_states.iter_mut() {
+                    for state in &mut concat_states {
                         for transition in state.transitions.clone() {
                             let new_transition = transition.clone();
                             state.transitions.remove(&transition);
@@ -607,14 +604,11 @@ impl Automaton {
 
                     let mut states: Vec<State> = Vec::new();
                     states.push(State {
-                        id: "init".to_string(),
+                        id: "init".to_owned(),
                         accept: false,
                         transitions: HashSet::from([Transition {
                             to: 1,
-                            trigger: Trigger::Range((
-                                first_char.clone() as u16,
-                                first_char.clone() as u16,
-                            )),
+                            trigger: Trigger::Range((*first_char as u16, *first_char as u16)),
                         }]),
                     });
 
@@ -623,7 +617,7 @@ impl Automaton {
                         if index != characters.len() - 1 {
                             transitions.insert(Transition {
                                 to: index + offset + 1,
-                                trigger: Trigger::Range((c.clone() as u16, c.clone() as u16)),
+                                trigger: Trigger::Range((*c as u16, *c as u16)),
                             });
                         }
                         states.push(State {
@@ -639,10 +633,10 @@ impl Automaton {
                         initial_state: 0,
                     })
                 }
-                Term::Op(Operator::ReNone, _) => {
-                    let mut states: Vec<State> = Vec::new();
-                    states.push(State {
-                        id: "init".to_string(),
+                Term::Op(Operator::ReNone, _) => Ok(Automaton {
+                    name: "re_none".to_owned(),
+                    all_states: vec![State {
+                        id: "init".to_owned(),
                         accept: false,
                         transitions: HashSet::from_iter(
                             [Transition {
@@ -652,30 +646,26 @@ impl Automaton {
                             .iter()
                             .cloned(),
                         ),
-                    });
-                    Ok(Automaton {
-                        name: "re_none".to_owned(),
-                        all_states: states,
-                        initial_state: 0,
-                    })
-                }
+                    }],
+                    initial_state: 0,
+                }),
                 Term::Op(Operator::ReIntersection, inter) => {
                     let mut components = Vec::new();
                     for re in inter {
-                        let nfa = rec_create_from_regex_operators(pool, &re)?;
+                        let nfa = rec_create_from_regex_operators(pool, re)?;
                         components.push(Automaton::determinize(&nfa));
                     }
                     let mut res =
                         operations::intersection(components[0].clone(), components[1].clone())?;
-                    for index in 2..components.len() {
-                        res = operations::intersection(res, components[index].clone())?;
+                    for comp in components.iter().skip(2) {
+                        res = operations::intersection(res, comp.clone())?;
                     }
                     Ok(res)
                 }
                 Term::Op(Operator::ReUnion, uni) => {
                     let mut automata: Vec<Automaton> = Vec::new();
                     for re in uni {
-                        automata.push(rec_create_from_regex_operators(pool, &re)?);
+                        automata.push(rec_create_from_regex_operators(pool, re)?);
                     }
 
                     let mut states: Vec<State> = Vec::new();
@@ -693,7 +683,7 @@ impl Automaton {
                     states.insert(
                         0,
                         State {
-                            id: "init".to_string(),
+                            id: "init".to_owned(),
                             accept: false,
                             transitions,
                         },
@@ -710,7 +700,7 @@ impl Automaton {
             }
         }
 
-        Ok(rec_create_from_regex_operators(pool, t)?)
+        rec_create_from_regex_operators(pool, t)
     }
 }
 
@@ -718,5 +708,305 @@ impl Automaton {
 impl fmt::Display for Automaton {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    fn make_state(id: StateId, transitions: &[(StateId, Trigger)], accept: bool) -> State {
+        State {
+            id: id.to_string(),
+            accept: accept,
+            transitions: transitions
+                .iter()
+                .cloned()
+                .map(|(to, trigger)| Transition { to, trigger })
+                .collect(),
+        }
+    }
+
+    fn make_aut(states: Vec<State>) -> Automaton {
+        Automaton {
+            name: "test".to_string(),
+            all_states: states,
+            initial_state: 0,
+        }
+    }
+
+    fn set(v: &[usize]) -> BTreeSet<usize> {
+        v.iter().cloned().collect()
+    }
+
+    #[test]
+    fn test_epsilon_closure_single_state_no_epsilon() {
+        let s0 = make_state(0, &[], false);
+
+        let aut = make_aut(vec![s0]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_simple_epsilon() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[], false);
+
+        let aut = make_aut(vec![s0, s1]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_chain() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(2, Trigger::Epsilon)], false);
+        let s2 = make_state(2, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1, 2]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_cycle() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(0, Trigger::Epsilon)], false);
+
+        let aut = make_aut(vec![s0, s1]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_branching() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon), (2, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[], false);
+        let s2 = make_state(2, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1, 2]));
+    }
+
+    #[test]
+    fn epsilon_closure_multiple_start_states() {
+        let s0 = make_state(0, &[(2, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(3, Trigger::Epsilon)], false);
+        let s2 = make_state(2, &[], false);
+        let s3 = make_state(3, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2, s3]);
+
+        let start = set(&[0, 1]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1, 2, 3]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_ignores_non_epsilon() {
+        let s0 = make_state(
+            0,
+            &[(1, Trigger::Epsilon), (2, Trigger::Range((0, 10)))],
+            false,
+        );
+        let s1 = make_state(1, &[], false);
+        let s2 = make_state(2, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1]));
+    }
+
+    #[test]
+    fn test_epsilon_closure_complex_graph() {
+        // 0 ->ε 1 ->ε 3
+        // 0 ->ε 2 ->ε 3
+        // 3 ->ε 4
+        let s0 = make_state(0, &[(1, Trigger::Epsilon), (2, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(3, Trigger::Epsilon)], false);
+        let s2 = make_state(2, &[(3, Trigger::Epsilon)], false);
+        let s3 = make_state(3, &[(4, Trigger::Epsilon)], false);
+        let s4 = make_state(4, &[], false);
+
+        let aut = make_aut(vec![s0, s1, s2, s3, s4]);
+
+        let start = set(&[0]);
+        let res = Automaton::epsilon_closure(&start, &aut);
+
+        assert_eq!(res, set(&[0, 1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn test_is_nfa_by_epsilon_transition() {
+        let s0 = make_state(
+            0,
+            &[(1, Trigger::Range((0, 255))), (2, Trigger::Epsilon)],
+            false,
+        );
+        let s1 = make_state(1, &[(3, Trigger::Range((0, 255)))], false);
+        let s2 = make_state(2, &[(3, Trigger::Range((0, 255)))], false);
+        let s3 = make_state(3, &[(3, Trigger::Range((0, 255)))], false);
+        let a = Automaton {
+            name: "a".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+        assert!(a.is_nfa());
+    }
+
+    #[test]
+    fn test_is_nfa_by_incomplete_transition_table() {
+        let a = Automaton::new(
+            "a",
+            "q0",
+            vec![
+                ("q0", "q1", (98, 98)),
+                ("q0", "q3", (0, 97)),
+                ("q0", "q3", (100, 255)),
+                ("q1", "q3", (0, 255)),
+                ("q3", "q3", (0, 255)),
+            ],
+            vec!["q1"],
+        );
+        assert!(a.is_nfa());
+    }
+
+    #[test]
+    fn test_is_nfa_by_overlapping_transitions() {
+        let a = Automaton::new(
+            "a",
+            "q0",
+            vec![
+                ("q0", "q1", (98, 98)),
+                ("q0", "q2", (99, 99)),
+                ("q0", "q3", (0, 97)),
+                ("q0", "q3", (99, 255)),
+                ("q1", "q3", (0, 255)),
+                ("q2", "q3", (0, 255)),
+                ("q3", "q3", (0, 255)),
+            ],
+            vec!["q1"],
+        );
+        assert!(a.is_nfa());
+    }
+
+    #[test]
+    fn test_is_dfa() {
+        let a = Automaton::new(
+            "a",
+            "q0",
+            vec![
+                ("q0", "q1", (98, 98)),
+                ("q0", "q3", (0, 97)),
+                ("q0", "q3", (99, u16::MAX)),
+                ("q1", "q3", (0, u16::MAX)),
+                ("q3", "q3", (0, u16::MAX)),
+            ],
+            vec!["q1"],
+        );
+        assert!(!a.is_nfa());
+    }
+
+    #[test]
+    fn test_determinize_simple_conversion() {
+        let s0 = make_state(0, &[(1, Trigger::Range((97, 97)))], false);
+        let s1 = make_state(1, &[(2, Trigger::Range((98, 98)))], false);
+        let s2 = make_state(2, &[(3, Trigger::Range((99, 99)))], false);
+        let s3 = make_state(3, &[], true);
+        let nfa = Automaton {
+            name: "nfa".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+
+        let dfa = Automaton::determinize(&nfa);
+
+        assert!(!dfa.is_nfa());
+    }
+
+    #[test]
+    fn test_determinize_remove_epsilon_transitions() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[(2, Trigger::Range((97, 98)))], false);
+        let s2 = make_state(
+            2,
+            &[(3, Trigger::Range((97, 98))), (1, Trigger::Range((98, 99)))],
+            false,
+        );
+        let s3 = make_state(3, &[], false);
+        let nfa = Automaton {
+            name: "nfa".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+
+        let dfa = Automaton::determinize(&nfa);
+
+        assert!(!dfa.is_nfa());
+    }
+
+    #[test]
+    fn test_determinize_add_sink_state_for_missing_ranges() {
+        let s0 = make_state(0, &[(1, Trigger::Range((97, 97)))], false);
+        let s1 = make_state(1, &[(2, Trigger::Range((98, 98)))], false);
+        let s2 = make_state(2, &[(3, Trigger::Range((99, 99)))], false);
+        let s3 = make_state(3, &[], false);
+        let nfa = Automaton {
+            name: "nfa".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+
+        let dfa = Automaton::determinize(&nfa);
+
+        assert!(!dfa.is_nfa());
+    }
+
+    #[test]
+    fn test_determinize_handle_overlapping_ranges() {
+        let s0 = make_state(
+            0,
+            &[
+                (3, Trigger::Range((0, 96))),
+                (1, Trigger::Range((97, 98))),
+                (2, Trigger::Range((98, 99))),
+                (3, Trigger::Range((100, 255))),
+            ],
+            false,
+        );
+        let s1 = make_state(1, &[(3, Trigger::Range((0, 255)))], false);
+        let s2 = make_state(2, &[(3, Trigger::Range((0, 255)))], false);
+        let s3 = make_state(3, &[(3, Trigger::Range((0, 255)))], false);
+        let nfa = Automaton {
+            name: "nfa".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+
+        let dfa = Automaton::determinize(&nfa);
+
+        assert!(!dfa.is_nfa());
     }
 }

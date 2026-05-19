@@ -14,7 +14,7 @@ pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u16, u16)>, 
                 Ok(None)
             }
         }
-        // TODO: melhorar isso depois
+        // TODO: better error (probably not a CheckerError)
         _ => Err(CheckerError::ExpectedRangesToCalculateTheIntersection(
             r1, r2,
         )),

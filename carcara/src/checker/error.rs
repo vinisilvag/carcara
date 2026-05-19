@@ -204,6 +204,15 @@ pub enum CheckerError {
 
     #[error("unexpected term when converting '{0}' to his automaton form")]
     UnexpectedTermOnAutomatonConversion(Rc<Term>),
+
+    #[error("expected non empty intersection between '{0}' and '{1}'")]
+    ExpectedIntersection(Automaton, Automaton),
+
+    #[error("expected a backwardable operator, got '{0}'")]
+    NotBackwardableOperator(Rc<Term>),
+
+    #[error("mismatched number of terms: concatenation has {0} terms, but premises have {1}")]
+    ConcatTermsNumberDiffersFromPremiseTermsNumber(usize, usize),
 }
 
 /// Errors in which we expected two things to be equal but they weren't.
