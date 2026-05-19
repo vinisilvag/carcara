@@ -254,3 +254,257 @@ pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
 
     true
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_state(id: StateId, transitions: &[(StateId, Trigger)], accept: bool) -> State {
+        State {
+            id: id.to_string(),
+            accept: accept,
+            transitions: transitions
+                .iter()
+                .cloned()
+                .map(|(to, trigger)| Transition { to, trigger })
+                .collect(),
+        }
+    }
+
+    // TODO: write test later
+    #[test]
+    fn test_automata_intersection() {}
+
+    #[test]
+    fn test_equiv_automatas() {
+        // <a1> -'a'-> a2 -'a'-> [a3] -'a'-> a4 -'a'-> a5 -'a'-> [a6] -\
+        //                                 |                           |
+        //                                 \------------'a'------------/
+        let a1 = Automaton::new(
+            "a1",
+            "a1",
+            vec![
+                ("a1", "a2", (97, 97)),
+                ("a2", "a3", (97, 97)),
+                ("a3", "a4", (97, 97)),
+                ("a4", "a5", (97, 97)),
+                ("a5", "a6", (97, 97)),
+                ("a6", "a4", (97, 97)),
+            ],
+            vec!["a3", "a6"],
+        );
+
+        // > <b1> -'a'-> b2 -'a'-> [b3] -\
+        // |                             |
+        // \-------------'a'-------------/
+        let a2 = Automaton::new(
+            "a2",
+            "b1",
+            vec![
+                ("b1", "b2", (97, 97)),
+                ("b2", "b3", (97, 97)),
+                ("b3", "b1", (97, 97)),
+            ],
+            vec!["b3"],
+        );
+
+        assert!(is_equivalent(a1, a2));
+    }
+
+    #[test]
+    fn test_unequiv_automatas() {
+        // Language: b*a(a ∪ b)*
+        let a1 = Automaton::new(
+            "a1",
+            "q0",
+            vec![
+                ("q0", "q1", (97, 97)),
+                ("q0", "q0", (98, 98)),
+                ("q1", "q1", (97, 97)),
+                ("q1", "q1", (98, 98)),
+            ],
+            vec!["q1"],
+        );
+
+        // Language: (a ∪ b)*a(a ∪ b)*
+        let a2 = Automaton::new(
+            "a2",
+            "p0",
+            vec![
+                ("p0", "p1", (97, 97)),
+                ("p0", "p0", (98, 98)),
+                ("p1", "p1", (97, 97)),
+                ("p1", "p0", (98, 98)),
+            ],
+            vec!["p1"],
+        );
+
+        assert!(!is_equivalent(a1, a2));
+    }
+
+    // is_subautomaton tests
+    #[test]
+    fn test_identical_automata() {
+        let p = Automaton::new("p", "q0", vec![("q0", "q1", (97, 97))], vec!["q1"]);
+        let q = Automaton::new("q", "q0", vec![("q0", "q1", (97, 97))], vec!["q1"]);
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_proper_subautomaton() {
+        let p = Automaton::new("p", "q0", vec![("q0", "q1", (97, 97))], vec!["q1"]);
+        let q = Automaton::new(
+            "q",
+            "q0",
+            vec![("q0", "q1", (97, 97)), ("q1", "q2", (98, 98))],
+            vec!["q1", "q2"],
+        );
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_range_in_q_covers_p() {
+        let p = Automaton::new(
+            "p",
+            "q0",
+            vec![("q0", "q1", (99, 101))], // c-e
+            vec![],
+        );
+
+        let q = Automaton::new(
+            "q",
+            "q0",
+            vec![("q0", "q1", (97, 122))], // a-z
+            vec![],
+        );
+
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_multiple_transitions_cover() {
+        let p = Automaton::new(
+            "p",
+            "q0",
+            vec![("q0", "q1", (105, 105))], // 'i'
+            vec![],
+        );
+        let q = Automaton::new(
+            "q",
+            "q0",
+            vec![
+                ("q0", "q1", (97, 100)),  // a-d
+                ("q0", "q1", (101, 110)), // e-n (cobre)
+            ],
+            vec![],
+        );
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_epsilon_matches() {
+        let s0 = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1 = make_state(1, &[], false);
+
+        let p = Automaton {
+            name: "p".into(),
+            all_states: vec![s0.clone(), s1.clone()],
+            initial_state: 0,
+        };
+
+        let q = Automaton {
+            name: "q".into(),
+            all_states: vec![s0, s1],
+            initial_state: 0,
+        };
+
+        assert!(is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_state_not_subset() {
+        let p = Automaton::new("p", "q0", vec![("q0", "qX", (97, 97))], vec![]);
+        let q = Automaton::new("q", "q0", vec![], vec![]);
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_accepting_not_subset() {
+        let p = Automaton::new("p", "q0", vec![], vec!["q0"]);
+        let q = Automaton::new("q", "q0", vec![], vec![]);
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_different_initial_state() {
+        let p = Automaton::new("p", "q0", vec![], vec![]);
+        let q = Automaton::new("q", "q1", vec![], vec![]);
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_transition_not_covered() {
+        let p = Automaton::new(
+            "p",
+            "q0",
+            vec![("q0", "q1", (100, 105))], // d-h
+            vec![],
+        );
+
+        let q = Automaton::new(
+            "q",
+            "q0",
+            vec![("q0", "q1", (97, 99))], // a-c
+            vec![],
+        );
+
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_epsilon_not_covered_by_range() {
+        let s0_p = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1_p = make_state(1, &[], false);
+
+        let p = Automaton {
+            name: "p".into(),
+            all_states: vec![s0_p, s1_p],
+            initial_state: 0,
+        };
+
+        let s0_q = make_state(0, &[(1, Trigger::Range((0, 255)))], false);
+        let s1_q = make_state(1, &[], false);
+
+        let q = Automaton {
+            name: "q".into(),
+            all_states: vec![s0_q, s1_q],
+            initial_state: 0,
+        };
+
+        assert!(!is_subautomaton(p, q));
+    }
+
+    #[test]
+    fn test_range_not_covered_by_epsilon() {
+        let s0_p = make_state(0, &[(1, Trigger::Range((97, 97)))], false);
+        let s1_p = make_state(1, &[], false);
+
+        let p = Automaton {
+            name: "p".into(),
+            all_states: vec![s0_p, s1_p],
+            initial_state: 0,
+        };
+
+        let s0_q = make_state(0, &[(1, Trigger::Epsilon)], false);
+        let s1_q = make_state(1, &[], false);
+
+        let q = Automaton {
+            name: "q".into(),
+            all_states: vec![s0_q, s1_q],
+
+            initial_state: 0,
+        };
+
+        assert!(!is_subautomaton(p, q));
+    }
+}
