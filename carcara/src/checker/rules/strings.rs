@@ -1677,7 +1677,7 @@ pub fn concat_bwd_propagation(RuleArgs { premises, conclusion, pool, .. }: RuleA
 
     assert_eq(x1, x2)?;
 
-    let a = Automaton::determinize(&Automaton::create_from_regex_operators(pool, &a)?);
+    let a = Automaton::determinize(&Automaton::create_from_regex_operators(pool, a)?);
 
     // Soundness check
     for and_term in conclusion {

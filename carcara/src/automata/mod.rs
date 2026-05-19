@@ -719,7 +719,7 @@ mod tests {
     fn make_state(id: StateId, transitions: &[(StateId, Trigger)], accept: bool) -> State {
         State {
             id: id.to_string(),
-            accept: accept,
+            accept,
             transitions: transitions
                 .iter()
                 .cloned()
@@ -730,14 +730,14 @@ mod tests {
 
     fn make_aut(states: Vec<State>) -> Automaton {
         Automaton {
-            name: "test".to_string(),
+            name: "test".to_owned(),
             all_states: states,
             initial_state: 0,
         }
     }
 
     fn set(v: &[usize]) -> BTreeSet<usize> {
-        v.iter().cloned().collect()
+        v.iter().copied().collect()
     }
 
     #[test]
