@@ -534,6 +534,12 @@ impl<'c> ProofChecker<'c> {
             "re_unfold_neg" => strings::re_unfold_neg,
             "re_unfold_neg_concat_fixed_prefix" => strings::re_unfold_neg_concat_fixed_prefix,
             "re_unfold_neg_concat_fixed_suffix" => strings::re_unfold_neg_concat_fixed_suffix,
+
+            // RCP rules
+            "re_convert" => strings::re_convert,
+            "re_empty_intersection" => strings::re_empty_intersection,
+            "re_intersection" => strings::re_intersection,
+
             // Drup format rules
             "drup" => |x| drup::drup(false, x),
             // Drup format rules

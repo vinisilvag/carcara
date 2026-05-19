@@ -4,6 +4,10 @@ use super::{
 };
 use crate::{
     ast::*,
+    automata::{
+        operations::{self, has_reachable_accepting_state},
+        Automaton,
+    },
     checker::{error::CheckerError, rules::assert_polyeq},
 };
 use std::{cmp, time::Duration};
@@ -1502,4 +1506,88 @@ pub fn re_unfold_neg_concat_fixed_suffix(
     }?;
 
     assert_eq(&conclusion[0], &expanded)
+}
+
+pub fn re_convert(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    let (w1, a1) = match_term_err!((not (strinre w a1)) = &conclusion[0])?;
+    let (w2, a2) = match_term_err!((strinre w a2) = &conclusion[1])?;
+
+    assert_eq(w1, w2)?;
+
+    let a1 = Automaton::determinize(&Automaton::create_from_regex_operators(pool, a1)?);
+    let a2 = Automaton::determinize(&a2.as_automata_err()?);
+
+    if !operations::is_equivalent(a1.clone(), a2.clone()) {
+        return Err(CheckerError::ExpectedEquivalentAutomata(a1, a2));
+    }
+
+    Ok(())
+}
+
+pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
+    let (w1, a1) = match_term_err!((not (strinre w a1)) = &conclusion[0])?;
+    let (w2, a2) = match_term_err!((not (strinre w a2)) = &conclusion[1])?;
+
+    assert_eq(w1, w2)?;
+
+    let a1 = Automaton::determinize(&a1.as_automata_err()?);
+    let a2 = Automaton::determinize(&a2.as_automata_err()?);
+    let intersection = operations::intersection(a1.clone(), a2.clone())?;
+
+    if has_reachable_accepting_state(intersection.clone()) {
+        return Err(CheckerError::ExpectedAutomataEmptyIntersection(
+            intersection,
+            a1,
+            a2,
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2..)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let mut ws: Vec<Rc<Term>> = Vec::new();
+    let mut premise_automatas: Vec<Automaton> = Vec::new();
+
+    for premise in premises {
+        let term = get_premise_term(premise)?;
+        let (w, a) = match_term_err!((strinre w a1) = term)?;
+        ws.push(w.clone());
+        premise_automatas.push(Automaton::determinize(&a.as_automata_err()?));
+    }
+
+    let (w_conc, conc_automaton) = match_term_err!(
+        (strinre w a) = &conclusion[0]
+    )?;
+
+    // Assert that every w in the premises is equal
+    let mut r = 1;
+    for l in 0..(ws.len() - 1) {
+        assert_eq(&ws[l], &ws[r])?;
+        r += 1;
+    }
+    // Assert that the last w is equal to the w on the conclusion
+    // Equality by transition
+    assert_eq(&ws[r - 1], w_conc)?;
+
+    // Create the intersection automaton from the premises
+    let mut expected =
+        operations::intersection(premise_automatas[0].clone(), premise_automatas[1].clone())?;
+    for index in 2..premise_automatas.len() {
+        expected = operations::intersection(expected, premise_automatas[index].clone())?;
+    }
+
+    // Check equivalence with the automaton in the conclusion
+    let conc_automaton = Automaton::determinize(&conc_automaton.as_automata_err()?);
+    if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
+        return Err(CheckerError::ExpectedEquivalentAutomata(
+            expected,
+            conc_automaton,
+        ));
+    }
+
+    Ok(())
 }
