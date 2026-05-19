@@ -1,8 +1,8 @@
 use nom::{
     bytes::complete::tag,
     character::complete::{alpha1, char, digit1, multispace0, multispace1},
-    combinator::{map, map_res, recognize},
-    multi::many0,
+    combinator::{map, map_res, recognize, verify},
+    multi::{many0, separated_list1},
     sequence::{delimited, pair, preceded, separated_pair, terminated},
     IResult, Parser,
 };
@@ -30,10 +30,16 @@ fn initial_state(input: &str) -> IResult<&str, &str> {
     .parse(input)
 }
 
-fn accepting_state(input: &str) -> IResult<&str, &str> {
+fn accepting_states(input: &str) -> IResult<&str, Vec<&str>> {
     preceded(
         terminated(tag("accepting"), multispace1),
-        terminated(recognize(identifier), char(';')),
+        terminated(
+            separated_list1(
+                preceded(multispace0, char(',')),
+                preceded(multispace0, identifier),
+            ),
+            char(';'),
+        ),
     )
     .parse(input)
 }
@@ -41,10 +47,13 @@ fn accepting_state(input: &str) -> IResult<&str, &str> {
 fn char_range(input: &str) -> IResult<&str, (u16, u16)> {
     delimited(
         char('['),
-        separated_pair(
-            preceded(multispace0, number),
-            preceded(multispace0, char(',')),
-            preceded(multispace0, number),
+        verify(
+            separated_pair(
+                preceded(multispace0, number),
+                preceded(multispace0, char(',')),
+                preceded(multispace0, number),
+            ),
+            |(start, end)| start <= end,
         ),
         char(']'),
     )
@@ -76,7 +85,7 @@ pub fn parse_automaton(input: &str) -> IResult<&str, Automaton> {
                     (
                         preceded(multispace0, initial_state),
                         many0(preceded(multispace0, transition)),
-                        many0(preceded(multispace0, accepting_state)),
+                        preceded(multispace0, accepting_states),
                     ),
                     preceded(multispace0, char('}')),
                 ),
@@ -183,19 +192,17 @@ mod tests {
         assert!(parse_automaton(input).is_err());
     }
 
-    // TODO: checar se a falta de um estado inicial é um erro de fato na string
-    // #[test]
-    // fn test_fails_without_initial_state() {
-    //     let input = r#"automaton a { s0 -> s1 [97, 97]; accepting s1; };"#;
-    //     assert!(parse_automaton(input).is_err());
-    // }
+    #[test]
+    fn test_fails_without_initial_state() {
+        let input = r#"automaton a { s0 -> s1 [97, 97]; accepting s1; };"#;
+        assert!(parse_automaton(input).is_err());
+    }
 
-    // TODO: checar se ranges invertidos devem retornar um erro
-    // #[test]
-    // fn test_fails_on_invalid_range() {
-    //     let input = r#"automaton a { init s0; s0 -> s1 [100, 97]; accepting s1; };"#;
-    //     assert!(parse_automaton(input).is_err());
-    // }
+    #[test]
+    fn test_fails_on_invalid_range() {
+        let input = r#"automaton a { init s0; s0 -> s1 [100, 97]; accepting s1; };"#;
+        assert!(parse_automaton(input).is_err());
+    }
 
     #[test]
     fn test_fails_on_trailing_garbage() {
