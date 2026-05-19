@@ -44,12 +44,9 @@ impl Trigger {
 impl fmt::Display for Trigger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Epsilon => {
-                write!(f, "ε")
-            }
-            Self::Range((l, r)) => {
-                write!(f, "({}, {})", l, r)
-            }
+            Self::Epsilon => write!(f, "ε"),
+            Self::Range((l, r)) if l == r => write!(f, "{}", l),
+            Self::Range((l, r)) => write!(f, "{}, {}", l, r),
         }
     }
 }
@@ -704,10 +701,35 @@ impl Automaton {
     }
 }
 
-// TODO: improve automaton display later
 impl fmt::Display for Automaton {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
+        writeln!(f, "automaton {} {{", self.name)?;
+
+        writeln!(f, "  init {};", self.all_states[self.initial_state].id)?;
+
+        for state in &self.all_states {
+            for transition in &state.transitions {
+                let target = &self.all_states[transition.to];
+
+                match &transition.trigger {
+                    Trigger::Epsilon => {
+                        writeln!(f, "  {} -> {} [ε];", state.id, target.id)?;
+                    }
+
+                    Trigger::Range((l, r)) => {
+                        writeln!(f, "  {} -> {} [{}, {}];", state.id, target.id, l, r)?;
+                    }
+                }
+            }
+        }
+
+        for state in &self.all_states {
+            if state.accept {
+                writeln!(f, "  accepting {};", state.id)?;
+            }
+        }
+
+        write!(f, "}}")
     }
 }
 

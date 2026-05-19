@@ -271,9 +271,68 @@ mod tests {
         }
     }
 
-    // TODO: write test later
     #[test]
-    fn test_automata_intersection() {}
+    fn test_automata_intersection() {
+        // a1 accepts only 'a'
+        let a1 = Automaton::determinize(&Automaton::new(
+            "a1",
+            "q0",
+            vec![("q0", "q1", (97, 97))],
+            vec!["q1"],
+        ));
+        // a2 accepts 'a' and 'b'
+        let a2 = Automaton::determinize(&Automaton::new(
+            "a2",
+            "p0",
+            vec![("p0", "p1", (97, 98))],
+            vec!["p1"],
+        ));
+
+        let intersection = intersection(a1, a2).unwrap();
+        assert!(has_reachable_accepting_state(intersection));
+    }
+
+    #[test]
+    fn test_automata_intersection_empty() {
+        // accepts only 'a'
+        let a1 = Automaton::determinize(&Automaton::new(
+            "a1",
+            "q0",
+            vec![("q0", "q1", (97, 97))],
+            vec!["q1"],
+        ));
+        // accepts only 'b'
+        let a2 = Automaton::determinize(&Automaton::new(
+            "a2",
+            "p0",
+            vec![("p0", "p1", (98, 98))],
+            vec!["p1"],
+        ));
+
+        let intersection = intersection(a1, a2).unwrap();
+        assert!(!has_reachable_accepting_state(intersection));
+    }
+
+    #[test]
+    fn test_automata_intersection_with_partial_overlap() {
+        // accepts a-f
+        let a1 = Automaton::determinize(&Automaton::new(
+            "a1",
+            "q0",
+            vec![("q0", "q1", (97, 102))],
+            vec!["q1"],
+        ));
+        // accepts d-z
+        let a2 = Automaton::determinize(&Automaton::new(
+            "a2",
+            "p0",
+            vec![("p0", "p1", (100, 122))],
+            vec!["p1"],
+        ));
+
+        let intersection = intersection(a1, a2).unwrap();
+        assert!(has_reachable_accepting_state(intersection));
+    }
 
     #[test]
     fn test_equiv_automatas() {
