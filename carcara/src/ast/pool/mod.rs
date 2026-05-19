@@ -81,6 +81,7 @@ impl PrimitivePool {
                 Constant::Integer(_) => Sort::Int,
                 Constant::Real(_) => Sort::Real,
                 Constant::String(_) => Sort::String,
+                Constant::RegLan(_, _) => Sort::RegLan,
                 Constant::BitVec(_, w) => Sort::BitVec(w.clone()),
             },
             Term::Var(_, sort) => sort.as_sort().unwrap().clone(),
@@ -205,7 +206,8 @@ impl PrimitivePool {
                 | Operator::ReDiff
                 | Operator::ReKleeneCross
                 | Operator::ReOption
-                | Operator::ReRange => Sort::RegLan,
+                | Operator::ReRange
+                | Operator::ReFromAutomaton => Sort::RegLan,
                 Operator::RareList => Sort::RareList,
             },
             Term::App(f, args) => {

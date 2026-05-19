@@ -1,5 +1,6 @@
 use crate::{
     ast::*,
+    automata::Trigger,
     checker::rules::linear_arithmetic::{CmpOperator, LinearComb},
     utils::{Range, TypeName},
 };
@@ -184,6 +185,10 @@ pub enum CheckerError {
 
     #[error("unknown rule")]
     UnknownRule,
+
+    // RCP errors
+    #[error("expected two ranges to calculate the intersection between then, got '{0}' and '{1}'")]
+    ExpectedRangesToCalculateTheIntersection(Trigger, Trigger),
 }
 
 /// Errors in which we expected two things to be equal but they weren't.
