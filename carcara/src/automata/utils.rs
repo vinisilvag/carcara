@@ -3,7 +3,7 @@ use crate::{
     checker::error::CheckerError,
 };
 
-pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u32, u32)>, CheckerError> {
+pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u16, u16)>, CheckerError> {
     match (r1.clone(), r2.clone()) {
         (Trigger::Range(r1), Trigger::Range(r2)) => {
             let start = r1.0.max(r2.0);
@@ -21,7 +21,7 @@ pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u32, u32)>, 
     }
 }
 
-fn normalize_ranges(mut ranges: Vec<(u32, u32)>) -> Vec<(u32, u32)> {
+fn normalize_ranges(mut ranges: Vec<(u16, u16)>) -> Vec<(u16, u16)> {
     if ranges.is_empty() {
         return ranges;
     }
@@ -42,10 +42,10 @@ fn normalize_ranges(mut ranges: Vec<(u32, u32)>) -> Vec<(u32, u32)> {
 }
 
 pub fn missing_ranges(
-    existing: &[(u32, u32)],
-    min_symbol: u32,
-    max_symbol: u32,
-) -> Vec<(u32, u32)> {
+    existing: &[(u16, u16)],
+    min_symbol: u16,
+    max_symbol: u16,
+) -> Vec<(u16, u16)> {
     let normalized = normalize_ranges(existing.to_vec());
     let mut holes = Vec::new();
 
@@ -65,7 +65,7 @@ pub fn missing_ranges(
     holes
 }
 
-pub fn has_overlapping_ranges(ranges: Vec<(u32, u32)>) -> bool {
+pub fn has_overlapping_ranges(ranges: Vec<(u16, u16)>) -> bool {
     if ranges.len() < 2 {
         return false;
     }
@@ -95,7 +95,7 @@ pub fn totalize(states: Vec<State>) -> Vec<State> {
     let mut sink_state = State::new("sink", false);
     sink_state
         .transitions
-        .insert(Transition::new(sink_id, Trigger::Range((0, 255))));
+        .insert(Transition::new(sink_id, Trigger::Range((0, u16::MAX))));
     new_states.push(sink_state);
 
     for state in &mut new_states[..sink_id] {
@@ -106,7 +106,7 @@ pub fn totalize(states: Vec<State>) -> Vec<State> {
             }
         }
 
-        let holes = missing_ranges(&existing_ranges, 0, 255);
+        let holes = missing_ranges(&existing_ranges, 0, u16::MAX);
 
         for (l, r) in holes {
             state

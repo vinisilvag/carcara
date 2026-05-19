@@ -18,7 +18,7 @@ fn identifier(input: &str) -> IResult<&str, &str> {
     .parse(input)
 }
 
-fn number(input: &str) -> IResult<&str, u32> {
+fn number(input: &str) -> IResult<&str, u16> {
     map_res(digit1, FromStr::from_str).parse(input)
 }
 
@@ -38,7 +38,7 @@ fn accepting_state(input: &str) -> IResult<&str, &str> {
     .parse(input)
 }
 
-fn char_range(input: &str) -> IResult<&str, (u32, u32)> {
+fn char_range(input: &str) -> IResult<&str, (u16, u16)> {
     delimited(
         char('['),
         separated_pair(
@@ -51,7 +51,7 @@ fn char_range(input: &str) -> IResult<&str, (u32, u32)> {
     .parse(input)
 }
 
-fn transition(input: &str) -> IResult<&str, (&str, &str, (u32, u32))> {
+fn transition(input: &str) -> IResult<&str, (&str, &str, (u16, u16))> {
     map(
         (
             terminated(identifier, preceded(multispace0, tag("->"))),

@@ -24,7 +24,7 @@ pub enum Trigger {
     Epsilon,
 
     /// Transition enabled by any input symbol in the inclusive range [l, r].
-    Range((u32, u32)),
+    Range((u16, u16)),
 }
 
 impl Trigger {
@@ -138,7 +138,7 @@ impl Automaton {
     fn new(
         automaton_name: &str,
         initial_state_id: &str,
-        transitions: Vec<(&str, &str, (u32, u32))>,
+        transitions: Vec<(&str, &str, (u16, u16))>,
         accepting_states: Vec<&str>,
     ) -> Automaton {
         let mut accepting_states_map = HashSet::new();
@@ -206,8 +206,8 @@ impl Automaton {
             if has_overlapping_ranges(ranges.clone()) {
                 return true;
             }
-            // NFA if the automaton does not have transitions for every range from 0 to 255
-            if !missing_ranges(&ranges, 0, 255).is_empty() {
+            // NFA if the automaton does not have transitions for every range from 0 to u16::MAX
+            if !missing_ranges(&ranges, 0, u16::MAX).is_empty() {
                 return true;
             }
         }
@@ -271,12 +271,12 @@ impl Automaton {
         closure
     }
 
-    fn partition_ranges(edges: &Vec<(u32, u32, StateId)>) -> Vec<((u32, u32), BTreeSet<StateId>)> {
+    fn partition_ranges(edges: &Vec<(u16, u16, StateId)>) -> Vec<((u16, u16), BTreeSet<StateId>)> {
         let mut points = Vec::new();
 
         for (l, r, _) in edges {
             points.push(*l);
-            if *r < u32::MAX {
+            if *r < u16::MAX {
                 points.push(r + 1);
             }
         }
@@ -340,7 +340,7 @@ impl Automaton {
         while let Some(current_set) = queue.pop_front() {
             let current_id = *state_map.get(&current_set).unwrap();
 
-            let mut edges: Vec<(u32, u32, StateId)> = Vec::new();
+            let mut edges: Vec<(u16, u16, StateId)> = Vec::new();
 
             for s in &current_set {
                 for t in &nfa.all_states[*s].transitions {
@@ -389,11 +389,11 @@ impl Automaton {
         });
 
         for i in 0..sink_id {
-            let mut covered = vec![false; 256];
+            let mut covered = vec![false; u16::MAX as usize + 1];
 
             for t in new_states[i].transitions.clone() {
                 if let Trigger::Range((l, r)) = t.trigger {
-                    for c in l as usize..=r.min(255) as usize {
+                    for c in l as usize..=r.min(u16::MAX) as usize {
                         covered[c] = true;
                     }
                 }
@@ -401,13 +401,13 @@ impl Automaton {
 
             let mut start = None;
 
-            for c in 0..256 {
-                if !covered[c] && start.is_none() {
-                    start = Some(c as u32);
+            for c in 0..=u16::MAX {
+                if !covered[c as usize] && start.is_none() {
+                    start = Some(c as u16);
                 }
-                if covered[c] && start.is_some() {
+                if covered[c as usize] && start.is_some() {
                     let l = start.unwrap();
-                    let r = (c as u32) - 1;
+                    let r = (c as u16) - 1;
                     new_states[i].transitions.insert(Transition {
                         to: sink_id,
                         trigger: Trigger::Range((l, r)),
@@ -419,7 +419,7 @@ impl Automaton {
             if let Some(l) = start {
                 new_states[i].transitions.insert(Transition {
                     to: sink_id,
-                    trigger: Trigger::Range((l, 255)),
+                    trigger: Trigger::Range((l, u16::MAX)),
                 });
             }
         }
@@ -427,7 +427,7 @@ impl Automaton {
         // Sink loop
         new_states[sink_id].transitions.insert(Transition {
             to: sink_id,
-            trigger: Trigger::Range((0, 255)),
+            trigger: Trigger::Range((0, u16::MAX)),
         });
 
         Automaton {
@@ -612,8 +612,8 @@ impl Automaton {
                         transitions: HashSet::from([Transition {
                             to: 1,
                             trigger: Trigger::Range((
-                                first_char.clone() as u32,
-                                first_char.clone() as u32,
+                                first_char.clone() as u16,
+                                first_char.clone() as u16,
                             )),
                         }]),
                     });
@@ -623,7 +623,7 @@ impl Automaton {
                         if index != characters.len() - 1 {
                             transitions.insert(Transition {
                                 to: index + offset + 1,
-                                trigger: Trigger::Range((c.clone() as u32, c.clone() as u32)),
+                                trigger: Trigger::Range((c.clone() as u16, c.clone() as u16)),
                             });
                         }
                         states.push(State {
@@ -645,9 +645,9 @@ impl Automaton {
                         id: "init".to_string(),
                         accept: false,
                         transitions: HashSet::from_iter(
-                            vec![Transition {
+                            [Transition {
                                 to: 0,
-                                trigger: Trigger::Range((0, 255)),
+                                trigger: Trigger::Range((0, u16::MAX)),
                             }]
                             .iter()
                             .cloned(),
