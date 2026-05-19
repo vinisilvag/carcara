@@ -213,6 +213,9 @@ pub enum CheckerError {
 
     #[error("mismatched number of terms: concatenation has {0} terms, but premises have {1}")]
     ConcatTermsNumberDiffersFromPremiseTermsNumber(usize, usize),
+
+    #[error("expected '{0}' to be a subautomaton of '{1}'")]
+    ExpectedSubautomaton(Automaton, Automaton),
 }
 
 /// Errors in which we expected two things to be equal but they weren't.

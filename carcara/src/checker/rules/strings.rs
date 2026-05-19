@@ -1729,9 +1729,8 @@ pub fn concat_aut_bwd_propagation(RuleArgs { premises, conclusion, .. }: RuleArg
             assert_eq(&ws[idx], w)?;
 
             let aut = aut.as_automata_err()?;
-            if !is_subautomaton(aut, a.clone()) {
-                // TODO: change error later
-                return Err(CheckerError::Unspecified);
+            if !is_subautomaton(aut.clone(), a.clone()) {
+                return Err(CheckerError::ExpectedSubautomaton(aut, a));
             }
         }
     }
