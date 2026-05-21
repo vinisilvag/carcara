@@ -422,6 +422,7 @@ impl<'c> ProofChecker<'c> {
             "trans" => transitivity::trans,
             "cong" => congruence::cong,
             "ho_cong" => congruence::ho_cong,
+            "and_intro" => extras::and_intro,
             "and" => clausification::and,
             "tautology" => resolution::tautology,
             "not_or" => clausification::not_or,

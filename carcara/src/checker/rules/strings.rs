@@ -10,7 +10,7 @@ use crate::{
     },
     checker::{error::CheckerError, rules::assert_polyeq},
 };
-use std::{cmp, time::Duration};
+use std::{cmp, collections::HashMap, time::Duration};
 
 /// A function that takes an `Rc<Term>` and returns a vector corresponding to
 /// the flat form of that term.
@@ -1713,8 +1713,8 @@ pub fn concat_aut_bwd_propagation(RuleArgs { premises, conclusion, .. }: RuleArg
     let p1 = get_premise_term(&premises[0])?;
     let p2 = get_premise_term(&premises[1])?;
 
-    let (x1, ws) = match_term_err!((= x1 (strconcat ...)) = p1)?;
-    let (x2, a) = match_term_err!((strinre x2 a) = p2)?;
+    let (x2, a) = match_term_err!((strinre x2 a) = p1)?;
+    let (x1, ws) = match_term_err!((= x1 (strconcat ...)) = p2)?;
 
     assert_eq(x1, x2)?;
 
