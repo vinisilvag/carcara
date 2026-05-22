@@ -10,7 +10,7 @@ use crate::{
     },
     checker::{error::CheckerError, rules::assert_polyeq},
 };
-use std::{cmp, collections::HashMap, time::Duration};
+use std::{cmp, time::Duration};
 
 /// A function that takes an `Rc<Term>` and returns a vector corresponding to
 /// the flat form of that term.
