@@ -132,6 +132,13 @@ pub enum ParserError {
     /// The parser encountered an unknown qualified operator.
     #[error("not a valid qualified operator: '{0}'")]
     InvalidQualifiedOp(String),
+
+    // RCP errors
+    #[error("not a valid automaton declaration: '{0}'")]
+    InvalidAutomatonDeclaration(String),
+
+    #[error("expected an automaton declaration, got: '{0}'")]
+    ExpectedAnAutomatonDeclaration(Rc<Term>),
 }
 
 /// Returns an error if the length of `sequence` is not in the `expected` range.

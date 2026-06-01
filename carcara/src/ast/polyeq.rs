@@ -950,6 +950,7 @@ fn nary_case(op: Operator) -> Option<NaryCase> {
         | Operator::ReUnion
         | Operator::ReIntersection
         | Operator::ReDiff => Some(NaryCase::LeftAssoc),
+
         Operator::StrLen
         | Operator::CharAt
         | Operator::Substring
@@ -975,7 +976,8 @@ fn nary_case(op: Operator) -> Option<NaryCase> {
         | Operator::ReComplement
         | Operator::ReKleeneCross
         | Operator::ReOption
-        | Operator::ReRange => None,
+        | Operator::ReRange
+        | Operator::ReFromAutomaton => None,
 
         // Bitvectors
         Operator::BvAnd | Operator::BvOr | Operator::BvAdd | Operator::BvMul => {

@@ -422,6 +422,7 @@ impl<'c> ProofChecker<'c> {
             "trans" => transitivity::trans,
             "cong" => congruence::cong,
             "ho_cong" => congruence::ho_cong,
+            "and_intro" => extras::and_intro,
             "and" => clausification::and,
             "tautology" => resolution::tautology,
             "not_or" => clausification::not_or,
@@ -534,6 +535,15 @@ impl<'c> ProofChecker<'c> {
             "re_unfold_neg" => strings::re_unfold_neg,
             "re_unfold_neg_concat_fixed_prefix" => strings::re_unfold_neg_concat_fixed_prefix,
             "re_unfold_neg_concat_fixed_suffix" => strings::re_unfold_neg_concat_fixed_suffix,
+
+            // RCP rules
+            "re_convert" => strings::re_convert,
+            "re_empty_intersection" => strings::re_empty_intersection,
+            "re_intersection" => strings::re_intersection,
+            "re_forward_prop" => strings::re_forward_prop,
+            "concat_bwd_propagation" => strings::concat_bwd_propagation,
+            "concat_aut_bwd_propagation" => strings::concat_aut_bwd_propagation,
+
             // Drup format rules
             "drup" => |x| drup::drup(false, x),
             // Drup format rules

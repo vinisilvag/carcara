@@ -1,5 +1,6 @@
 use crate::{
     ast::*,
+    automata::{Automaton, Trigger},
     checker::rules::linear_arithmetic::{CmpOperator, LinearComb},
     utils::{Range, TypeName},
 };
@@ -184,6 +185,37 @@ pub enum CheckerError {
 
     #[error("unknown rule")]
     UnknownRule,
+
+    // RCP errors
+    #[error("expected two ranges to calculate the intersection between then, got '{0}' and '{1}'")]
+    ExpectedRangesToCalculateTheIntersection(Trigger, Trigger),
+
+    #[error("expected an 'automaton' term, got '{0}'")]
+    ExpectedAutomaton(Rc<Term>),
+
+    #[error("expected automata '{0}' and '{1}' to be equivalent")]
+    ExpectedEquivalentAutomata(Automaton, Automaton),
+
+    #[error("expected automaton '{0}' to be the empty intersection of '{1}' and '{2}'")]
+    ExpectedAutomataEmptyIntersection(Automaton, Automaton, Automaton),
+
+    #[error("expected a string constant inside the str.to_re operator, got '{0}'")]
+    ExpectedStringConstantInsideStrToRe(Rc<Term>),
+
+    #[error("unexpected term when converting '{0}' to his automaton form")]
+    UnexpectedTermOnAutomatonConversion(Rc<Term>),
+
+    #[error("expected non empty intersection between '{0}' and '{1}'")]
+    ExpectedIntersection(Automaton, Automaton),
+
+    #[error("expected a backwardable operator, got '{0}'")]
+    NotBackwardableOperator(Rc<Term>),
+
+    #[error("mismatched number of terms: concatenation has {0} terms, but premises have {1}")]
+    ConcatTermsNumberDiffersFromPremiseTermsNumber(usize, usize),
+
+    #[error("expected '{0}' to be a subautomaton of '{1}'")]
+    ExpectedSubautomaton(Automaton, Automaton),
 }
 
 /// Errors in which we expected two things to be equal but they weren't.

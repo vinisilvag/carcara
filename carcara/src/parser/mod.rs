@@ -11,6 +11,7 @@ pub use lexer::{Lexer, Position, Reserved, Token};
 
 use crate::{
     ast::*,
+    automata::{parser::parse_automaton, Automaton},
     utils::{HashCache, HashMapStack},
     CarcaraResult, Error,
 };
@@ -224,6 +225,19 @@ impl<'a, R: BufRead> Parser<'a, R> {
         self.is_real_only_logic && self.problem.is_some()
     }
 
+    fn make_automaton(&self, automaton_repr: String) -> Result<Automaton, ParserError> {
+        match parse_automaton(automaton_repr.trim()) {
+            Ok((remaining, automata)) => {
+                if !remaining.is_empty() {
+                    return Err(ParserError::InvalidAutomatonDeclaration(automaton_repr));
+                }
+                // return Ok(Automaton::determinize(&automata));
+                Ok(automata)
+            }
+            Err(_) => Err(ParserError::InvalidAutomatonDeclaration(automaton_repr)),
+        }
+    }
+
     /// Constructs and sort checks an operation term.
     fn make_op(&mut self, op: Operator, args: Vec<Rc<Term>>) -> Result<Rc<Term>, ParserError> {
         let sorts: Vec<_> = args.iter().map(|t| self.pool.sort(t)).collect();
@@ -418,6 +432,18 @@ impl<'a, R: BufRead> Parser<'a, R> {
                 SortError::assert_eq(&Sort::String, sorts[0])?;
                 SortError::assert_eq(&Sort::RegLan, sorts[1])?;
                 SortError::assert_eq(&Sort::String, sorts[2])?;
+            }
+            Operator::ReFromAutomaton => {
+                assert_num_args(&args, 1)?;
+                SortError::assert_eq(&Sort::String, sorts[0])?;
+                if let Term::Const(Constant::String(s)) = args[0].as_ref() {
+                    let automata = self.make_automaton(s.to_owned())?;
+                    return Ok(self
+                        .pool
+                        .add(Term::Const(Constant::RegLan(s.to_owned(), automata))));
+                } else {
+                    return Err(ParserError::ExpectedAnAutomatonDeclaration(args[0].clone()));
+                }
             }
             Operator::BvNot | Operator::BvNeg => {
                 assert_num_args(&args, 1)?;

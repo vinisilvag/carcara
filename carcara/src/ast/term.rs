@@ -1,5 +1,5 @@
 use super::{PrimitivePool, Rc, TermPool};
-use crate::CheckerError;
+use crate::{automata::Automaton, CheckerError};
 use indexmap::{map::Entry, IndexMap};
 use rug::{Integer, Rational};
 use std::{collections::HashSet, hash::Hash, ops::Deref};
@@ -112,6 +112,9 @@ pub enum Constant {
 
     /// A string literal term.
     String(String),
+
+    /// A regular expression term.
+    RegLan(String, Automaton),
 
     /// A bitvector literal term.
     BitVec(Integer, Integer),
@@ -326,6 +329,9 @@ pub enum Operator {
     /// The `re.range` operator.
     ReRange,
 
+    /// The `re.from_automaton` operator.
+    ReFromAutomaton,
+
     // BV operators (unary)
     BvNot,
     BvNeg,
@@ -465,6 +471,8 @@ impl_str_conversion_traits!(Operator {
     ReKleeneCross: "re.+",
     ReOption: "re.opt",
     ReRange: "re.range",
+    ReFromAutomaton: "re.from_automaton",
+
     BvNot: "bvnot",
     BvNeg: "bvneg",
     BvAnd: "bvand",
@@ -867,6 +875,13 @@ impl Term {
         }
     }
 
+    pub fn as_automata(&self) -> Option<Automaton> {
+        match self {
+            Term::Const(Constant::RegLan(_, a)) => Some(a.clone()),
+            _ => None,
+        }
+    }
+
     /// Returns `true` if the term is the boolean constant `true`.
     pub fn is_bool_true(&self) -> bool {
         *self == Term::Op(Operator::True, Vec::new())
@@ -990,6 +1005,11 @@ impl Rc<Term> {
         self.as_let()
             .ok_or_else(|| CheckerError::ExpectedLetTerm(self.clone()))
     }
+
+    pub fn as_automata_err(&self) -> Result<Automaton, CheckerError> {
+        self.as_automata()
+            .ok_or_else(|| CheckerError::ExpectedAutomaton(self.clone()))
+    }
 }
 
 impl Constant {
@@ -999,6 +1019,7 @@ impl Constant {
             Constant::Integer(_) => Sort::Int,
             Constant::Real(_) => Sort::Real,
             Constant::String(_) => Sort::String,
+            Constant::RegLan(_, _) => Sort::RegLan,
             Constant::BitVec(_, width) => Sort::BitVec(width.clone()),
         }
     }
