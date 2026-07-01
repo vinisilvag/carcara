@@ -1560,3 +1560,32 @@ fn re_concat_unfold_pos() {
         }
     }
 }
+
+#[test]
+fn str_replace_re_eval() {
+    test_cases! {
+        definitions = "",
+        "Simple working examples" {
+            r#"(step t1 (cl (= (str.replace_re "abbc" (str.to_re "b") "x") "axbc")) :rule str_replace_re_eval)"#: true,
+            r#"(step t1 (cl (= (str.replace_re "abbc" (re.union (str.to_re "a") (str.to_re "b")) "x") "xbbc")) :rule str_replace_re_eval)"#: true,
+            r#"(step t1 (cl (= (str.replace_re "abbc" (re.* (str.to_re "b")) "x") "xabbc")) :rule str_replace_re_eval)"#: true,
+        }
+        "Incorrect results" {
+            r#"(step t1 (cl (= (str.replace_re "abbc" (str.to_re "b") "x") "axxc")) :rule str_replace_re_eval)"#: false,
+        }
+    }
+}
+
+#[test]
+fn str_replace_re_all_eval() {
+    test_cases! {
+        definitions = "",
+        "Simple working examples" {
+            r#"(step t1 (cl (= (str.replace_re_all "abbc" (str.to_re "b") "x") "axxc")) :rule str_replace_re_all_eval)"#: true,
+            r#"(step t1 (cl (= (str.replace_re_all "abbc" (str.to_re "d") "x") "abbc")) :rule str_replace_re_all_eval)"#: true,
+        }
+        "Incorrect results" {
+            r#"(step t1 (cl (= (str.replace_re_all "abbc" (str.to_re "b") "x") "axbc")) :rule str_replace_re_all_eval)"#: false,
+        }
+    }
+}

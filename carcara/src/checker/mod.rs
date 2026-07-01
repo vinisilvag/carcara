@@ -525,16 +525,20 @@ impl<'c> ProofChecker<'c> {
             "cp_literal" => cutting_planes::cp_literal,
             "cp_normalize" => cutting_planes::cp_normalize,
 
+            // Strings rules
             "string_decompose" => strings::string_decompose,
             "string_length_pos" => strings::string_length_pos,
             "string_length_non_empty" => strings::string_length_non_empty,
-
             "re_inter" => strings::re_inter,
             "re_kleene_star_unfold_pos" => strings::re_kleene_star_unfold_pos,
             "re_concat_unfold_pos" => strings::re_concat_unfold_pos,
             "re_unfold_neg" => strings::re_unfold_neg,
             "re_unfold_neg_concat_fixed_prefix" => strings::re_unfold_neg_concat_fixed_prefix,
             "re_unfold_neg_concat_fixed_suffix" => strings::re_unfold_neg_concat_fixed_suffix,
+
+            "str_in_re_eval" => strings::str_in_re_eval,
+            "str_replace_re_eval" => strings::str_replace_re_eval,
+            "str_replace_re_all_eval" => strings::str_replace_re_all_eval,
 
             // RCP rules
             "re_convert" => strings::re_convert,

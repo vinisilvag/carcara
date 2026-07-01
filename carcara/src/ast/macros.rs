@@ -220,9 +220,13 @@ macro_rules! match_term {
     (@GET_VARIANT strconcat) => { $crate::ast::Operator::StrConcat };
     (@GET_VARIANT strsubstr) => { $crate::ast::Operator::Substring };
     (@GET_VARIANT strlen)    => { $crate::ast::Operator::StrLen };
+    (@GET_VARIANT replacere)    => { $crate::ast::Operator::ReplaceRe };
+    (@GET_VARIANT replacereall)    => { $crate::ast::Operator::ReplaceReAll };
 
     (@GET_VARIANT strinre)    => { $crate::ast::Operator::StrInRe };
     (@GET_VARIANT reinter)    => { $crate::ast::Operator::ReIntersection };
+    (@GET_VARIANT reloop)    => { $crate::ast::Operator::ReLoop };
+    (@GET_VARIANT reunion)    => { $crate::ast::Operator::ReUnion };
 
     // In the last case it can match a literal integer
     ($lit:literal = $var:expr $(, $flag:ident)?) => {

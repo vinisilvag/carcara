@@ -699,6 +699,34 @@ impl Automaton {
 
         rec_create_from_regex_operators(pool, t)
     }
+
+    pub fn accepts(&self, s: &str) -> bool {
+        let dfa = if self.is_nfa() {
+            Automaton::determinize(self)
+        } else {
+            self.clone()
+        };
+
+        let mut current = dfa.initial_state;
+        for c in s.chars() {
+            let symbol = c as u16;
+            let mut next = None;
+            for transition in &dfa.all_states[current].transitions {
+                if let Trigger::Range((l, r)) = transition.trigger {
+                    if symbol >= l && symbol <= r {
+                        next = Some(transition.to);
+                        break;
+                    }
+                }
+            }
+            if let Some(n) = next {
+                current = n;
+            } else {
+                return false;
+            }
+        }
+        dfa.all_states[current].accept
+    }
 }
 
 impl fmt::Display for Automaton {
@@ -1030,5 +1058,23 @@ mod tests {
         let dfa = Automaton::determinize(&nfa);
 
         assert!(!dfa.is_nfa());
+    }
+
+    #[test]
+    fn test_accepts() {
+        let s0 = make_state(0, &[(1, Trigger::Range((97, 97)))], false);
+        let s1 = make_state(1, &[(2, Trigger::Range((98, 98)))], false);
+        let s2 = make_state(2, &[(3, Trigger::Range((99, 99)))], false);
+        let s3 = make_state(3, &[], true);
+        let aut = Automaton {
+            name: "test_accepts".into(),
+            all_states: vec![s0, s1, s2, s3],
+            initial_state: 0,
+        };
+
+        assert!(aut.accepts("abc"));
+        assert!(!aut.accepts("ab"));
+        assert!(!aut.accepts("abcd"));
+        assert!(!aut.accepts(""));
     }
 }

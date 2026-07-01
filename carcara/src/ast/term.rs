@@ -731,6 +731,15 @@ impl Term {
         }
     }
 
+    /// Tries to extract a `String` from a term. Returns `Some` if the term is a string
+    /// constant.
+    pub fn as_string(&self) -> Option<String> {
+        match self {
+            Term::Const(Constant::String(s)) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
     /// Tries to extract a `bool` from a term. Returns `Some` if the term is a boolean constant.
     pub fn as_bool(&self) -> Option<bool> {
         match self {
@@ -942,6 +951,12 @@ impl Rc<Term> {
     pub fn as_number_err(&self) -> Result<Rational, CheckerError> {
         self.as_number()
             .ok_or_else(|| CheckerError::ExpectedAnyNumber(self.clone()))
+    }
+
+    /// Similar to `Term::as_string`, but returns a `CheckerError` on failure.
+    pub fn as_string_err(&self) -> Result<String, CheckerError> {
+        self.as_string()
+            .ok_or_else(|| CheckerError::ExpectedAnyString(self.clone()))
     }
 
     /// Similar to `Term::as_integer`, but returns a `CheckerError` on failure.

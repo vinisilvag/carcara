@@ -206,26 +206,24 @@ pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
     }
 
     // Check if accepting states of p are subset of accepting states of q
-    // let p_accepting_states: HashSet<String> = p
-    //     .get_accepting_states()
-    //     .iter()
-    //     .map(|state| state.id.clone())
-    //     .collect();
-    // let q_accepting_states: HashSet<String> = q
-    //     .get_accepting_states()
-    //     .iter()
-    //     .map(|state| state.id.clone())
-    //     .collect();
-    // println!("{:?}", p);
-    // println!("{:?}", q);
-    // if !p_accepting_states.is_subset(&q_accepting_states) {
-    //     return false;
-    // }
+    let p_accepting_states: HashSet<String> = p
+        .get_accepting_states()
+        .iter()
+        .map(|state| state.id.clone())
+        .collect();
+    let q_accepting_states: HashSet<String> = q
+        .get_accepting_states()
+        .iter()
+        .map(|state| state.id.clone())
+        .collect();
+    if !p_accepting_states.is_subset(&q_accepting_states) {
+        return false;
+    }
 
     // Check if initial state of p is equal to the initial state of q
-    // if p.get_initial_state().id != q.get_initial_state().id {
-    //     return false;
-    // }
+    if p.get_initial_state().id != q.get_initial_state().id {
+        return false;
+    }
 
     // Check if transitions of p are subset of transitions of q
     let mut q_index: HashMap<(String, String), Vec<Trigger>> = HashMap::new();
@@ -237,20 +235,20 @@ pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
     }
 
     // For every transition in p, check if it is covered in q
-    // for (p_s1, p_s2, p_trig) in &p.get_all_transitions() {
-    //     let key = (p_s1.id.clone(), p_s2.id.clone());
+    for (p_s1, p_s2, p_trig) in &p.get_all_transitions() {
+        let key = (p_s1.id.clone(), p_s2.id.clone());
 
-    //     // There must be at least one transition with same (src, dst)
-    //     let Some(q_trigs) = q_index.get(&key) else {
-    //         return false;
-    //     };
+        // There must be at least one transition with same (src, dst)
+        let Some(q_trigs) = q_index.get(&key) else {
+            return false;
+        };
 
-    //     // Check if any trigger in q covers the trigger in p
-    //     let covered = q_trigs.iter().any(|q_trig| q_trig.contains(p_trig));
-    //     if !covered {
-    //         return false;
-    //     }
-    // }
+        // Check if any trigger in q covers the trigger in p
+        let covered = q_trigs.iter().any(|q_trig| q_trig.contains(p_trig));
+        if !covered {
+            return false;
+        }
+    }
 
     true
 }
