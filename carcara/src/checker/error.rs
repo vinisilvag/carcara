@@ -66,6 +66,9 @@ pub enum CheckerError {
     #[error("broken transitivity chain: can't prove '(= {0} {1})'")]
     BrokenTransitivityChain(Rc<Term>, Rc<Term>),
 
+    #[error("terms '{0}' and '{1}' are not congruent under the premise equalities")]
+    TermsNotCongruent(Rc<Term>, Rc<Term>),
+
     #[error("term '{0}' is missing in conclusion clause")]
     ContractionMissingTerm(Rc<Term>),
 

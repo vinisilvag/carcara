@@ -199,6 +199,7 @@ impl From<CheckingOptions> for checker::Config {
 enum ElaborationStep {
     Polyeq,
     LiaGeneric,
+    Eunif,
     Local,
     Uncrowd,
     Reordering,
@@ -246,7 +247,7 @@ struct ElaborationOptions {
         arg_enum,
         long,
         multiple = true,
-        default_values = &["sko-rename", "polyeq", "lia-generic", "local", "uncrowd", "reordering", "hole"]
+        default_values = &["sko-rename", "polyeq", "lia-generic", "eunif", "local", "uncrowd", "reordering", "hole"]
     )]
     pipeline: Vec<ElaborationStep>,
 }
@@ -259,6 +260,7 @@ impl From<ElaborationOptions> for (elaborator::Config, Vec<elaborator::Elaborati
             .map(|s| match s {
                 ElaborationStep::Polyeq => elaborator::ElaborationStep::Polyeq,
                 ElaborationStep::LiaGeneric => elaborator::ElaborationStep::LiaGeneric,
+                ElaborationStep::Eunif => elaborator::ElaborationStep::Eunif,
                 ElaborationStep::Local => elaborator::ElaborationStep::Local,
                 ElaborationStep::Uncrowd => elaborator::ElaborationStep::Uncrowd,
                 ElaborationStep::Reordering => elaborator::ElaborationStep::Reordering,

@@ -13,6 +13,7 @@ rust-version = "1.87"
 license = "Apache-2.0"
 
 [dependencies]
+hashbrown = "0.15"
 indexmap = "2.0.0"
 log = "0.4.20"
 nom = "8.0.0"

@@ -28,6 +28,7 @@ pub struct ParallelProofChecker<'c> {
     reached_empty_clause: bool,
     is_holey: bool,
     stack_size: usize,
+    eunif_cc: Option<crate::cc::CongruenceClosure>,
 }
 
 impl<'c> ParallelProofChecker<'c> {
@@ -46,6 +47,7 @@ impl<'c> ParallelProofChecker<'c> {
             reached_empty_clause: false,
             is_holey: false,
             stack_size,
+            eunif_cc: None,
         }
     }
 
@@ -59,6 +61,7 @@ impl<'c> ParallelProofChecker<'c> {
             reached_empty_clause: false,
             is_holey: false,
             stack_size: self.stack_size,
+            eunif_cc: None,
         }
     }
 
@@ -457,6 +460,7 @@ impl<'c> ParallelProofChecker<'c> {
             previous_command,
             discharge: &discharge,
             polyeq_time: &mut polyeq_time,
+            eunif_cc: &mut self.eunif_cc,
         };
 
         rule(rule_args)?;
