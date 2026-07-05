@@ -86,7 +86,7 @@ pub enum Sort {
     ///  `BitVec` sort.
     ///
     /// The associated term is the BV width of this sort.
-    BitVec(Integer),
+    BitVec(usize),
 
     /// A parametric sort, with a set of sort variables that can appear in the second argument.
     ParamSort(Vec<Rc<Term>>, Rc<Term>),
@@ -117,7 +117,7 @@ pub enum Constant {
     RegLan(String, Automaton),
 
     /// A bitvector literal term.
-    BitVec(Integer, Integer),
+    BitVec(Integer, usize),
 }
 
 /// A binder, either a quantifier (`forall` or `exists`), `choice`, or `lambda`.
@@ -665,8 +665,8 @@ impl Term {
     }
 
     /// Constructs a new bv term.
-    pub fn new_bv(value: impl Into<Integer>, width: impl Into<Integer>) -> Self {
-        Term::Const(Constant::BitVec(value.into(), width.into()))
+    pub fn new_bv(value: impl Into<Integer>, width: usize) -> Self {
+        Term::Const(Constant::BitVec(value.into(), width))
     }
 
     /// Constructs a new variable term.
@@ -770,9 +770,9 @@ impl Term {
 
     /// Tries to extract a `BitVec` from a term. Returns `Some` if the
     /// term is a bitvector constant.
-    pub fn as_bitvector(&self) -> Option<(Integer, Integer)> {
+    pub fn as_bitvector(&self) -> Option<(Integer, usize)> {
         match self {
-            Term::Const(Constant::BitVec(v, w)) => Some((v.clone(), w.clone())),
+            Term::Const(Constant::BitVec(v, w)) => Some((v.clone(), *w)),
             _ => None,
         }
     }
@@ -1020,7 +1020,7 @@ impl Constant {
             Constant::Real(_) => Sort::Real,
             Constant::String(_) => Sort::String,
             Constant::RegLan(_, _) => Sort::RegLan,
-            Constant::BitVec(_, width) => Sort::BitVec(width.clone()),
+            Constant::BitVec(_, width) => Sort::BitVec(*width),
         }
     }
 

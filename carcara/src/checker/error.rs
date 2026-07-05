@@ -57,6 +57,9 @@ pub enum CheckerError {
     #[error("'{0}' is not a valid simplification result for this rule")]
     SumProdSimplifyInvalidConclusion(Rc<Term>),
 
+    #[error("argument multisets are not equal")]
+    ShuffleArgsNotEqual,
+
     #[error("term '{0}' is not a connective")]
     TermIsNotConnective(Rc<Term>),
 

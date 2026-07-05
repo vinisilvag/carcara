@@ -469,6 +469,7 @@ impl<'c> ProofChecker<'c> {
             "comp_simplify" => simplification::comp_simplify,
             "nary_elim" => clausification::nary_elim,
             "ac_simp" => simplification::ac_simp,
+            "aci_simp" => simplification::aci_simp,
             "bfun_elim" => clausification::bfun_elim,
             "bind" => subproof::bind,
             "qnt_cnf" => quantifier::qnt_cnf,
