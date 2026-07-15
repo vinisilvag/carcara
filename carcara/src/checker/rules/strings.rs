@@ -1747,7 +1747,6 @@ pub fn str_indexof_re_eval(RuleArgs { premises, conclusion, .. }: RuleArgs) -> R
     Ok(())
 }
 
-// TODO: fix return errors
 pub fn str_replace_re_eval(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
     assert_num_premises(premises, 0)?;
     assert_clause_len(conclusion, 1)?;
@@ -1804,7 +1803,6 @@ pub fn str_replace_re_eval(RuleArgs { premises, conclusion, pool, .. }: RuleArgs
     Ok(())
 }
 
-// TODO: fix return errors
 pub fn str_replace_re_all_eval(
     RuleArgs { premises, conclusion, pool, .. }: RuleArgs,
 ) -> RuleResult {
@@ -1893,11 +1891,7 @@ pub fn str_in_re_eval(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> 
     let accepts = aut.accepts(&s);
 
     if accepts != c {
-        return Err(CheckerError::RegexMatchFailed {
-            s,
-            regex: R.clone(),
-            expected: c,
-        });
+        return Err(CheckerError::RegexMatchFailed { s, regex: R.clone(), expected: c });
     }
 
     Ok(())
