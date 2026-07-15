@@ -1792,7 +1792,13 @@ pub fn str_replace_re_eval(RuleArgs { premises, conclusion, pool, .. }: RuleArgs
     };
 
     if expected != u {
-        return Err(CheckerError::Unspecified);
+        return Err(CheckerError::RegexReplaceFailed {
+            s,
+            regex: R.clone(),
+            replacement: t,
+            expected: u,
+            got: expected,
+        });
     }
 
     Ok(())
@@ -1848,7 +1854,13 @@ pub fn str_replace_re_all_eval(
     }
 
     if result != u {
-        return Err(CheckerError::Unspecified);
+        return Err(CheckerError::RegexReplaceFailed {
+            s,
+            regex: r.clone(),
+            replacement: t,
+            expected: u,
+            got: result,
+        });
     }
 
     Ok(())
@@ -1868,26 +1880,24 @@ pub fn re_eq_elim(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult
     Ok(())
 }
 
-// TODO: fix return errors
-pub fn str_in_re_eval(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+pub fn str_in_re_eval(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
     assert_num_premises(premises, 0)?;
     assert_clause_len(conclusion, 1)?;
 
     let ((s, R), c) = match_term_err!((= (strinre s R) c) = &conclusion[0])?;
 
     let s = s.as_string_err()?;
-    let s_R = match R.as_ref() {
-        Term::Op(Operator::StrToRe, ss) => ss.first().ok_or_else(|| CheckerError::Unspecified),
-        _ => {
-            return Err(CheckerError::Unspecified);
-        }
-    }?
-    .as_string_err()?;
     let c = c.as_bool_err()?;
 
-    let comp = s == s_R;
-    if comp != c {
-        return Err(CheckerError::Unspecified);
+    let aut = Automaton::create_from_regex_operators(pool, R)?;
+    let accepts = aut.accepts(&s);
+
+    if accepts != c {
+        return Err(CheckerError::RegexMatchFailed {
+            s,
+            regex: R.clone(),
+            expected: c,
+        });
     }
 
     Ok(())

@@ -225,8 +225,10 @@ macro_rules! match_term {
 
     (@GET_VARIANT strinre)    => { $crate::ast::Operator::StrInRe };
     (@GET_VARIANT reinter)    => { $crate::ast::Operator::ReIntersection };
-    (@GET_VARIANT reloop)    => { $crate::ast::Operator::ReLoop };
+    (@GET_VARIANT reloop)    => { $crate::ast::ParamOperator::ReLoop };
+    (@GET_VARIANT repower)   => { $crate::ast::ParamOperator::RePower };
     (@GET_VARIANT reunion)    => { $crate::ast::Operator::ReUnion };
+    (@GET_VARIANT renone)     => { $crate::ast::Operator::ReNone };
 
     // In the last case it can match a literal integer
     ($lit:literal = $var:expr $(, $flag:ident)?) => {

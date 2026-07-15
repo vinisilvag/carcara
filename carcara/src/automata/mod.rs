@@ -267,13 +267,15 @@ impl Automaton {
     }
 
     fn partition_ranges(edges: &Vec<(u16, u16, StateId)>) -> Vec<((u16, u16), BTreeSet<StateId>)> {
+        if edges.is_empty() {
+            return Vec::new();
+        }
+
         let mut points = Vec::new();
 
         for (l, r, _) in edges {
-            points.push(*l);
-            if *r < u16::MAX {
-                points.push(r + 1);
-            }
+            points.push(*l as u32);
+            points.push(*r as u32 + 1);
         }
 
         points.sort();
@@ -282,8 +284,8 @@ impl Automaton {
         let mut result = Vec::new();
 
         for w in points.windows(2) {
-            let a = w[0];
-            let b = w[1] - 1;
+            let a = w[0] as u16;
+            let b = (w[1] - 1) as u16;
 
             let mut dests = BTreeSet::new();
 
@@ -432,36 +434,7 @@ impl Automaton {
     }
 
     pub fn complement(&self) -> Automaton {
-        let alphabet: HashSet<Trigger> = self.symbol_triggers();
         let mut new_states = self.all_states.clone();
-
-        // Create sink state
-        let sink_id = new_states.len();
-        let sink = State {
-            id: "sink".to_owned(),
-            accept: false,
-            transitions: alphabet
-                .iter()
-                .map(|tr| Transition::new(sink_id, tr.clone()))
-                .collect(),
-        };
-        new_states.push(sink);
-
-        for state in &mut new_states {
-            let seen: HashSet<Trigger> = state
-                .transitions
-                .iter()
-                .map(|t| t.trigger.clone())
-                .collect();
-
-            for tr in &alphabet {
-                if !seen.contains(tr) {
-                    state
-                        .transitions
-                        .insert(Transition::new(sink_id, tr.clone()));
-                }
-            }
-        }
 
         for state in &mut new_states {
             state.accept = !state.accept;
@@ -596,6 +569,18 @@ impl Automaton {
                     };
 
                     let characters: Vec<char> = s.chars().collect();
+                    if characters.is_empty() {
+                        return Ok(Automaton {
+                            name: "str_to_re".to_owned(),
+                            all_states: vec![State {
+                                id: "init".to_owned(),
+                                accept: true,
+                                transitions: HashSet::new(),
+                            }],
+                            initial_state: 0,
+                        });
+                    }
+
                     let first_char = characters.first().unwrap();
                     let offset = 1;
 
@@ -612,9 +597,10 @@ impl Automaton {
                     for (index, c) in characters.iter().enumerate() {
                         let mut transitions = HashSet::new();
                         if index != characters.len() - 1 {
+                            let next_char = characters[index + 1];
                             transitions.insert(Transition {
                                 to: index + offset + 1,
-                                trigger: Trigger::Range((*c as u16, *c as u16)),
+                                trigger: Trigger::Range((next_char as u16, next_char as u16)),
                             });
                         }
                         states.push(State {
@@ -627,6 +613,78 @@ impl Automaton {
                     Ok(Automaton {
                         name: "str_to_re".to_owned(),
                         all_states: states,
+                        initial_state: 0,
+                    })
+                }
+                Term::Op(Operator::ReAllChar, _) => Ok(Automaton {
+                    name: "re_allchar".to_owned(),
+                    all_states: vec![
+                        State {
+                            id: "init".to_owned(),
+                            accept: false,
+                            transitions: HashSet::from([Transition {
+                                to: 1,
+                                trigger: Trigger::Range((0, u16::MAX)),
+                            }]),
+                        },
+                        State {
+                            id: "accept".to_owned(),
+                            accept: true,
+                            transitions: HashSet::new(),
+                        },
+                    ],
+                    initial_state: 0,
+                }),
+                Term::Op(Operator::ReAll, _) => Ok(Automaton {
+                    name: "re_all".to_owned(),
+                    all_states: vec![State {
+                        id: "init".to_owned(),
+                        accept: true,
+                        transitions: HashSet::from([Transition {
+                            to: 0,
+                            trigger: Trigger::Range((0, u16::MAX)),
+                        }]),
+                    }],
+                    initial_state: 0,
+                }),
+                Term::Op(Operator::ReComplement, r) => {
+                    let r = r.first().unwrap();
+                    let a = rec_create_from_regex_operators(pool, r)?;
+                    let dfa = if a.is_nfa() {
+                        Automaton::determinize(&a)
+                    } else {
+                        a
+                    };
+                    Ok(dfa.complement())
+                }
+                Term::Op(Operator::ReRange, args) => {
+                    let c1_term = args.get(0).ok_or(CheckerError::Unspecified)?;
+                    let c2_term = args.get(1).ok_or(CheckerError::Unspecified)?;
+                    let Term::Const(Constant::String(s1)) = c1_term.as_ref() else {
+                        return Err(CheckerError::Unspecified);
+                    };
+                    let Term::Const(Constant::String(s2)) = c2_term.as_ref() else {
+                        return Err(CheckerError::Unspecified);
+                    };
+                    let c1 = s1.chars().next().ok_or(CheckerError::Unspecified)? as u16;
+                    let c2 = s2.chars().next().ok_or(CheckerError::Unspecified)? as u16;
+                    Ok(Automaton {
+                        name: "re_range".to_owned(),
+                        all_states: vec![
+                            State {
+                                id: "init".to_owned(),
+                                accept: false,
+                                transitions: HashSet::from([Transition {
+                                    to: 1,
+                                    trigger: Trigger::Range((c1, c2)),
+                                }]),
+                            },
+                            State {
+                                id: "accept".to_owned(),
+                                accept: true,
+                                transitions: HashSet::new(),
+                            },
+                        ],
                         initial_state: 0,
                     })
                 }
