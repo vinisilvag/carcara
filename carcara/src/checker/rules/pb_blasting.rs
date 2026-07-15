@@ -13,9 +13,7 @@ fn get_bit_width(x: &Rc<Term>, pool: &mut dyn TermPool) -> Result<usize, Checker
             "Was not able to get the bitvector sort".into(),
         ));
     };
-    n.to_usize().ok_or(CheckerError::Explanation(format!(
-        "Failed to convert value {n} to usize"
-    )))
+    Ok(n)
 }
 
 // Helper to check that a summation has the expected shape
@@ -380,9 +378,7 @@ pub fn pbblast_pbbconst(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
         "Expected bitvector constant".into(),
     ))?;
 
-    let size = w
-        .to_usize()
-        .ok_or(CheckerError::Explanation("Invalid bitvector width".into()))?;
+    let size = w;
 
     if pbs.len() != size {
         return Err(CheckerError::Explanation(format!(

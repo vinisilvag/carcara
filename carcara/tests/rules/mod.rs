@@ -92,6 +92,7 @@ pub(super) mod clausification;
 pub(super) mod congruence;
 pub(super) mod cutting_planes;
 pub(super) mod drup;
+pub(super) mod eunif;
 pub(super) mod extras;
 pub(super) mod linear_arithmetic;
 pub(super) mod pb_blasting;

@@ -82,6 +82,7 @@ pub struct ProofChecker<'c> {
     context: ContextStack,
     reached_empty_clause: bool,
     is_holey: bool,
+    eunif_cc: Option<crate::cc::CongruenceClosure>,
 }
 
 impl<'c> ProofChecker<'c> {
@@ -92,6 +93,7 @@ impl<'c> ProofChecker<'c> {
             context: ContextStack::new(),
             reached_empty_clause: false,
             is_holey: false,
+            eunif_cc: None,
         }
     }
 
@@ -338,6 +340,7 @@ impl<'c> ProofChecker<'c> {
             previous_command,
             discharge: &processed_discharge,
             polyeq_time: &mut polyeq_time,
+            eunif_cc: &mut self.eunif_cc,
         };
 
         rule(rule_args)?;
@@ -405,6 +408,7 @@ impl<'c> ProofChecker<'c> {
             "eq_reflexive" => reflexivity::eq_reflexive,
             "eq_transitive" => transitivity::eq_transitive,
             "eq_congruent" => congruence::eq_congruent,
+            "g_eunif" => congruence::ground_eunif,
             "eq_congruent_pred" => congruence::eq_congruent_pred,
             "distinct_elim" => clausification::distinct_elim,
             "la_rw_eq" => linear_arithmetic::la_rw_eq,
@@ -465,6 +469,7 @@ impl<'c> ProofChecker<'c> {
             "comp_simplify" => simplification::comp_simplify,
             "nary_elim" => clausification::nary_elim,
             "ac_simp" => simplification::ac_simp,
+            "aci_simp" => simplification::aci_simp,
             "bfun_elim" => clausification::bfun_elim,
             "bind" => subproof::bind,
             "qnt_cnf" => quantifier::qnt_cnf,

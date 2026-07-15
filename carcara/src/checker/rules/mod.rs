@@ -26,6 +26,11 @@ pub struct RuleArgs<'a> {
     pub(super) discharge: &'a [&'a ProofCommand],
 
     pub(super) polyeq_time: &'a mut Duration,
+
+    // The congruence closure used by the `g_eunif` rule. It is only initialized when the first
+    // `g_eunif` step is checked, and is reused (resetting the asserted equalities, but keeping the
+    // indexed terms) by all such steps.
+    pub(super) eunif_cc: &'a mut Option<crate::cc::CongruenceClosure>,
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]

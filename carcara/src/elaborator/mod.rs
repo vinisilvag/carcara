@@ -1,3 +1,4 @@
+mod eunif;
 mod hole;
 mod lia_generic;
 mod polyeq;
@@ -35,6 +36,7 @@ pub struct Config {
 pub enum ElaborationStep {
     Polyeq,
     LiaGeneric,
+    Eunif,
     Local,
     Uncrowd,
     Reordering,
@@ -68,16 +70,24 @@ pub struct Elaborator<'e> {
     pool: &'e mut PrimitivePool,
     problem: &'e Problem,
     config: Config,
+    eunif_cc: Option<crate::cc::CongruenceClosure>,
 }
 
 impl<'e> Elaborator<'e> {
     pub fn new(pool: &'e mut PrimitivePool, problem: &'e Problem, config: Config) -> Self {
-        Self { pool, problem, config }
+        Self {
+            pool,
+            problem,
+            config,
+            eunif_cc: None,
+        }
     }
 
     pub fn elaborate_with_default_pipeline(&mut self, root: &Rc<ProofNode>) -> Rc<ProofNode> {
         use ElaborationStep::*;
-        let pipeline = vec![SkoRename, Polyeq, LiaGeneric, Local, Uncrowd, Reordering];
+        let pipeline = vec![
+            SkoRename, Polyeq, LiaGeneric, Eunif, Local, Uncrowd, Reordering,
+        ];
         self.elaborate(root, pipeline)
     }
 
@@ -109,6 +119,13 @@ impl<'e> Elaborator<'e> {
                     })
                 }
                 ElaborationStep::LiaGeneric => current.clone(),
+                ElaborationStep::Eunif => mutate(&current, |_, node| match node.as_ref() {
+                    ProofNode::Step(s) if s.rule == "g_eunif" => {
+                        // TODO: add proper error handling
+                        eunif::g_eunif(self.pool, &mut self.eunif_cc, s).unwrap()
+                    }
+                    _ => node.clone(),
+                }),
                 ElaborationStep::Local => self.elaborate_local(&current),
                 ElaborationStep::Uncrowd => mutate(&current, |_, node| match node.as_ref() {
                     ProofNode::Step(s)

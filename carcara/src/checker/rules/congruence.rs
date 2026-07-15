@@ -1,7 +1,43 @@
 use super::{
     assert_clause_len, assert_num_premises, get_premise_term, CheckerError, RuleArgs, RuleResult,
 };
-use crate::{ast::*, checker::error::CongruenceError};
+use crate::{ast::*, cc::CongruenceClosure, checker::error::CongruenceError};
+
+pub fn ground_eunif(RuleArgs { conclusion, premises, eunif_cc, .. }: RuleArgs) -> RuleResult {
+    assert_clause_len(conclusion, 1)?;
+    let (t, u) = match_term_err!((= t u) = &conclusion[0])?;
+
+    // The congruence closure's term index starts empty and is filled on demand, shared by all
+    // `g_eunif` steps of the proof; only the premise equalities are fresh in each invocation.
+    // Seeding the index with the term pool instead is prohibitively expensive: it makes both the
+    // initialization and every merge (whose cost depends on the parent lists of the merged
+    // classes) proportional to the size of the pool
+    let cc = eunif_cc.get_or_insert_with(CongruenceClosure::new);
+    cc.reset();
+
+    // Each premise is either an equality or a conjunction of equalities
+    let mut index = 0;
+    for premise in premises {
+        let term = get_premise_term(premise)?;
+        if let Some((a, b)) = match_term!((= a b) = term) {
+            cc.add_equality(a, b, index);
+            index += 1;
+        } else {
+            let conjuncts = match_term_err!((and ...) = term)?;
+            for conjunct in conjuncts {
+                let (a, b) = match_term_err!((= a b) = conjunct)?;
+                cc.add_equality(a, b, index);
+                index += 1;
+            }
+        }
+    }
+
+    rassert!(
+        cc.are_congruent(t, u),
+        CheckerError::TermsNotCongruent(t.clone(), u.clone())
+    );
+    Ok(())
+}
 
 pub fn eq_congruent(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
     assert_clause_len(conclusion, 2..)?;

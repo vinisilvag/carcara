@@ -37,6 +37,7 @@
 pub mod ast;
 pub mod automata;
 pub mod benchmarking;
+mod cc;
 pub mod checker;
 mod drup;
 pub mod elaborator;
