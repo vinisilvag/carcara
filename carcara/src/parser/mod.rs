@@ -55,6 +55,12 @@ pub struct Config {
     /// If `true`, the parser will parse arguments to the `hole` rule, expecting them to be valid
     /// terms.
     pub parse_hole_args: bool,
+
+    /// If `true`, allow indexed operators (usually used like so: `((_ <op> <op_args>...)
+    /// <args>...)`) to be used in "higher-order" fashion, that is, by omitting the `_` construction
+    /// and passing the operator arguments and regular arguments together: `(<op> <op_args>...
+    /// <args>...)`.
+    pub allow_higher_order_indexed_ops: bool,
 }
 
 impl Config {
@@ -66,6 +72,7 @@ impl Config {
             allow_int_real_subtyping: false,
             strict: false,
             parse_hole_args: false,
+            allow_higher_order_indexed_ops: false,
         }
     }
 
@@ -91,6 +98,11 @@ impl Config {
 
     pub const fn parse_hole_args(mut self, val: bool) -> Self {
         self.parse_hole_args = val;
+        self
+    }
+
+    pub const fn allow_higher_order_indexed_ops(mut self, val: bool) -> Self {
+        self.allow_higher_order_indexed_ops = val;
         self
     }
 }
@@ -124,6 +136,7 @@ pub fn parse_instance_with_pool<'s>(
     let proof = parser.parse_proof()?;
     if let Some(rules) = rules {
         parser.reset(rules)?;
+        parser.config.allow_higher_order_indexed_ops = true;
         let rules = parser.parse_rare();
         let rules = match rules {
             Ok(t) => Ok(t),
@@ -2161,6 +2174,17 @@ impl<'p, 's> Parser<'p, 's> {
                 self.next_token()?;
                 let args = self.parse_sequence(Self::parse_term, true)?;
                 self.make_op(operator, args)
+                    .map_err(|err| Error::Parser(err, head_pos))
+            }
+            Token::Symbol(s)
+                if ParamOperator::from_str(s).is_ok_and(ParamOperator::is_indexed)
+                    && self.config.allow_higher_order_indexed_ops =>
+            {
+                let op = ParamOperator::from_str(s).unwrap();
+                self.next_token()?;
+                let mut op_args = self.parse_sequence(Self::parse_term, true)?;
+                let args = op_args.split_off(op.num_op_args());
+                self.make_indexed_op(op, op_args, args)
                     .map_err(|err| Error::Parser(err, head_pos))
             }
             Token::Symbol(s) if s == "eo" => {

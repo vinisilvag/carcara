@@ -689,6 +689,27 @@ impl_str_conversion_traits!(ParamOperator {
     ArrayConst: "const",
 });
 
+impl ParamOperator {
+    pub fn num_op_args(&self) -> usize {
+        use ParamOperator::*;
+        match self {
+            BvBitOf | BvIntOf | ZeroExtend | SignExtend | RotateLeft | RotateRight | Repeat
+            | IntToBv | RePower | Tester => 1,
+            BvExtract | BvConst | ReLoop => 2,
+            ArrayConst => panic!("qualified operator does not have op_args"),
+        }
+    }
+
+    pub fn is_indexed(self) -> bool {
+        use ParamOperator::*;
+        match self {
+            BvExtract | BvBitOf | BvIntOf | ZeroExtend | SignExtend | RotateLeft | RotateRight
+            | Repeat | BvConst | IntToBv | RePower | ReLoop | Tester => true,
+            ArrayConst => false,
+        }
+    }
+}
+
 impl std::ops::Not for Binder {
     type Output = Self;
 

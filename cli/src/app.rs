@@ -434,6 +434,7 @@ impl IntoConfig for ParsingOptions {
             allow_int_real_subtyping: self.allow_int_real_subtyping,
             strict: self.strict,
             parse_hole_args: self.parse_hole_args,
+            allow_higher_order_indexed_ops: false,
         }
     }
 }
