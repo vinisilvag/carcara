@@ -146,13 +146,9 @@ pub fn parse_and_check_solver_proof(
     problem: &str,
     proof: &str,
 ) -> CarcaraResult<(Vec<ProofCommand>, bool)> {
-    let config = parser::Config {
-        apply_function_defs: false,
-        expand_lets: true,
-        allow_int_real_subtyping: true,
-        strict: false,
-        parse_hole_args: false,
-    };
+    let config = parser::Config::new()
+        .expand_lets(true)
+        .allow_int_real_subtyping(true);
 
     let (problem, proof, rules) =
         parser::parse_instance_with_pool(problem, proof, None, config, pool)?;

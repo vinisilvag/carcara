@@ -58,8 +58,40 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        // I can't just call `default()` because it is not const :/
+        Self {
+            apply_function_defs: false,
+            expand_lets: false,
+            allow_int_real_subtyping: false,
+            strict: false,
+            parse_hole_args: false,
+        }
+    }
+
+    pub const fn apply_function_defs(mut self, val: bool) -> Self {
+        self.apply_function_defs = val;
+        self
+    }
+
+    pub const fn expand_lets(mut self, val: bool) -> Self {
+        self.expand_lets = val;
+        self
+    }
+
+    pub const fn allow_int_real_subtyping(mut self, val: bool) -> Self {
+        self.allow_int_real_subtyping = val;
+        self
+    }
+
+    pub const fn strict(mut self, val: bool) -> Self {
+        self.strict = val;
+        self
+    }
+
+    pub const fn parse_hole_args(mut self, val: bool) -> Self {
+        self.parse_hole_args = val;
+        self
     }
 }
 

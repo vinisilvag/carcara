@@ -85,13 +85,7 @@ fn run_test(
 
 fn test_file(proof_path: &str) {
     let config = if proof_path.ends_with(".cvc5.alethe") {
-        let parsing = parser::Config {
-            apply_function_defs: false,
-            expand_lets: true,
-            allow_int_real_subtyping: false,
-            strict: false,
-            parse_hole_args: false,
-        };
+        let parsing = parser::Config::new().expand_lets(true);
         let checking = checker::Config::new().allowed_rules(["all_simplify", "rare_rewrite"]);
         (parsing, checking)
     } else {

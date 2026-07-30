@@ -7,14 +7,8 @@ use crate::ast::pool::PrimitivePool;
 
 const ERROR_MESSAGE: &str = "parser error during test";
 
-const TEST_CONFIG: Config = Config {
-    // Some tests need function definitions to be applied
-    apply_function_defs: true,
-    expand_lets: false,
-    allow_int_real_subtyping: false,
-    strict: false,
-    parse_hole_args: false,
-};
+// Some tests need function definitions to be applied
+const TEST_CONFIG: Config = Config::new().apply_function_defs(true);
 
 pub fn parse_terms<const N: usize>(
     pool: &mut PrimitivePool,
