@@ -290,7 +290,7 @@ impl<'p, 's> Parser<'p, 's> {
 
     fn is_bv_sort(sort: &Sort) -> bool {
         match sort {
-            Sort::BitVec(_) | Sort::BitVecUnknown => true,
+            Sort::BitVec(_) | Sort::ParamBitVec => true,
             Sort::ParamSort(_, head) => matches!(head.as_sort(), Some(Sort::Var(_))),
             Sort::RareList(inner) => inner.as_sort().is_some_and(Self::is_bv_sort),
             _ => false,

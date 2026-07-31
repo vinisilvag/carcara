@@ -154,11 +154,11 @@ impl PrimitivePool {
                     for a in args {
                         match self.unwrap_sort(a) {
                             s @ (Sort::BitVec(_) | Sort::ParamSort(_, _)) => break 'block s,
-                            Sort::BitVecUnknown => (),
+                            Sort::ParamBitVec => (),
                             _ => unreachable!(),
                         }
                     }
-                    Sort::BitVecUnknown
+                    Sort::ParamBitVec
                 }
                 Operator::BvComp => Sort::BitVec(1),
                 Operator::BvBbTerm | Operator::BvPBbTerm => Sort::BitVec(args.len()),
@@ -166,17 +166,17 @@ impl PrimitivePool {
                     Term::Const(Constant::Integer(bvsize)) => {
                         Sort::BitVec(bvsize.to_usize().unwrap())
                     }
-                    _ => Sort::BitVecUnknown,
+                    _ => Sort::ParamBitVec,
                 },
                 Operator::BvConcat => args
                     .iter()
                     .map(|a| self.unwrap_sort(a))
                     .reduce(|acc, sort| match (acc, sort) {
                         (Sort::BitVec(a), Sort::BitVec(b)) => Sort::BitVec(a + b),
-                        (Sort::BitVec(_) | Sort::BitVecUnknown, Sort::BitVecUnknown)
-                        | (Sort::BitVecUnknown, Sort::BitVec(_)) => Sort::BitVecUnknown,
+                        (Sort::BitVec(_) | Sort::ParamBitVec, Sort::ParamBitVec)
+                        | (Sort::ParamBitVec, Sort::BitVec(_)) => Sort::ParamBitVec,
                         (_, Sort::ParamSort(_, _)) | (Sort::ParamSort(_, _), _) => {
-                            Sort::BitVecUnknown // TODO: handle this properly
+                            Sort::ParamBitVec // TODO: handle this properly
                         }
                         _ => unreachable!(),
                     })
@@ -301,7 +301,7 @@ impl PrimitivePool {
                 .clone(),
             Term::ParamOp { op, op_args, args } => self
                 .compute_indexed_op_sort(*op, op_args, args)
-                .unwrap_or(Sort::BitVecUnknown),
+                .unwrap_or(Sort::ParamBitVec),
         };
         let sort = self.storage.add(Term::Sort(result));
         self.sorts_cache.insert(term.clone(), sort);
@@ -326,7 +326,7 @@ impl PrimitivePool {
                 let sort = self.unwrap_sort(&args[0]);
                 match sort {
                     Sort::BitVec(bv_width) => Sort::BitVec(extension_width + bv_width),
-                    Sort::BitVecUnknown => return None,
+                    Sort::ParamBitVec => return None,
                     Sort::ParamSort(v, head) => {
                         let width = v.first().cloned().unwrap_or_else(|| {
                             unreachable!(
@@ -350,7 +350,7 @@ impl PrimitivePool {
                     Sort::BitVec(bv_width) => {
                         Sort::BitVec((repetitions * bv_width).to_usize().unwrap())
                     }
-                    Sort::BitVecUnknown => return None,
+                    Sort::ParamBitVec => return None,
                     Sort::ParamSort(v, head) => {
                         let width = v.first().cloned().unwrap_or_else(|| {
                             unreachable!("bitvector parametric sort missing width in repeat")

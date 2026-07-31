@@ -238,8 +238,8 @@ impl SortError {
         if expected == got
             || expected.is_polymorphic()
             || got.is_polymorphic()
-            || (*expected == Sort::BitVecUnknown && got.is_bitvec())
-            || (*got == Sort::BitVecUnknown && expected.is_bitvec())
+            || (*expected == Sort::ParamBitVec && got.is_bitvec())
+            || (*got == Sort::ParamBitVec && expected.is_bitvec())
         {
             Ok(())
         } else {

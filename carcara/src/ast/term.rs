@@ -90,13 +90,56 @@ pub enum Sort {
     /// The two associated terms are the sort arguments for this sort.
     Array(Rc<Term>, Rc<Term>),
 
-    /// `BitVec` sort.
+    /// A `BitVec` sort with a constant width parameter.
     ///
-    /// The associated `usize` is the BV width of this sort.
+    /// The associated `usize` is the bitvector width of this sort.
     BitVec(usize),
 
-    /// A `BitVec` whose width is not statically known.
-    BitVecUnknown,
+    /// A `BitVec`, parameterized by width parameter that is not statically known.
+    ///
+    /// The motivation for the existence of this sort is that Rare files can contain bitvector sorts
+    /// whose width is parameterized by integer variables. For example:
+    /// ```text
+    /// (declare-rare-rule bv-extract-whole ((@n0 Int) (x1 (BitVec @n0)) (n1 Int))
+    ///   :premises ((= (>= n1 (- (@bvsize x1) 1)) true))
+    ///   :args (x1 n1)
+    ///   :conclusion (= (extract n1 0 x1) x1)
+    /// )
+    /// ```
+    /// Here, `x1` is a bitvector with width `@n0`, which is not statically known.
+    ///
+    /// The most precise way of representing this type would be to use a dependent type constructor
+    /// that takes a series of variables and produces a parametric sort that uses these variables.
+    /// For example, a bitvector term with parametric width `x` would have sort `Π x. BitVec(x)`,
+    /// where `Π` is the dependent type constructor.
+    ///
+    /// Due to operators such as `concat` and `extract`, the term passed to the `BitVec` constructor
+    /// can be a more complicated expression than just a simple variable. For example, for
+    /// bitvectors `u`, `v` of widths `x`, `y`, `(concat u v)` would have sort `Π x, y. BitVec(x +
+    /// y)`, and `(extract i j v)` would have sort `Π i, j. BitVec(i - j + 1)`. As you can imagine,
+    /// the nesting of these operators can lead to arbitrarily complex width expressions.
+    ///
+    /// Type checking these parametric sorts can be difficult. Say we want to ensure the two terms
+    /// `(extract i j v)` and `(concat (extract i (+ j 2) v) (extract (+ j 1) j v))` have compatible
+    /// sorts. Their parametric widths will be, respectively, `i - j + 1` and `(i - (j + 2) + 1) +
+    /// ((j + 1) - j + 1)`. These two expressions are equivalent, but determining that would require
+    /// implementing a general simplification procedure for width expressions, which will get even
+    /// harder as we consider more operators such as `repeat`.
+    ///
+    /// Finally, since SMT-LIB and Alethe do not currently include full support for dependent types,
+    /// there is no actual use for keeping these parametric width expressions, and for accurately
+    /// type checking such dependent types. The upcoming SMT-LIB version 3.0 aims to officially
+    /// include dependent types in the language specification, and will determine precisely to
+    /// which extent this needs to be supported. Until that is settled, however, we choose a more
+    /// pragmatic approach, and don't store the parametric width expressions, instead considering
+    /// all parametric bitvector sorts to be compatible.
+    ///
+    /// Carcara only has support for parametric bitvector sorts to allow correct parsing of Rare
+    /// files, and this simplified representation is sufficient in this case, as long as we make
+    /// sure to type check the concretely-sorted terms that are created when instantiating the
+    /// parametric sorts in the Rare rules.
+    // TODO: actually perform this extra type checking
+    ParamBitVec,
 
     /// A datatype sort only has its name and its type parameters
     Datatype(String, Vec<Rc<Term>>),
@@ -114,7 +157,7 @@ pub enum Sort {
 
 impl Sort {
     pub fn is_bitvec(&self) -> bool {
-        matches!(self, Sort::BitVec(_) | Sort::BitVecUnknown)
+        matches!(self, Sort::BitVec(_) | Sort::ParamBitVec)
     }
 }
 
@@ -817,7 +860,7 @@ impl Sort {
             | (Sort::Real, Sort::Real)
             | (Sort::String, Sort::String)
             | (Sort::RegLan, Sort::RegLan)
-            | (Sort::BitVecUnknown, Sort::BitVecUnknown)
+            | (Sort::ParamBitVec, Sort::ParamBitVec)
             | (Sort::Type, Sort::Type) => true,
             (Sort::RareList(a), Sort::RareList(b)) => {
                 a.as_sort().unwrap().match_with(b.as_sort().unwrap(), map)
