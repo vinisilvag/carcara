@@ -670,6 +670,7 @@ impl PolyeqComparable for Sort {
                 comp.eq(x_a, x_b) && comp.eq(y_a, y_b)
             }
             (Sort::BitVec(a), Sort::BitVec(b)) => a == b,
+            (Sort::BitVecUnknown, Sort::BitVecUnknown) => true,
             _ => false,
         }
     }

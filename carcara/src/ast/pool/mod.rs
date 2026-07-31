@@ -150,19 +150,15 @@ impl PrimitivePool {
                 | Operator::BvSDiv
                 | Operator::BvSRem
                 | Operator::BvSMod
-                | Operator::BvAShr => {
-                    let sort = self.unwrap_sort(&args[0]);
-                    match sort {
-                        Sort::BitVec(width) => Sort::BitVec(width),
-                        Sort::ParamSort(v, head) => {
-                            if let Some(Sort::Var(_)) = head.as_sort() {
-                                Sort::ParamSort(v, head)
-                            } else {
-                                unreachable!()
-                            }
+                | Operator::BvAShr => 'block: {
+                    for a in args {
+                        match self.unwrap_sort(a) {
+                            s @ (Sort::BitVec(_) | Sort::ParamSort(_, _)) => break 'block s,
+                            Sort::BitVecUnknown => (),
+                            _ => unreachable!(),
                         }
-                        _ => unreachable!(),
                     }
+                    Sort::BitVecUnknown
                 }
                 Operator::BvComp => Sort::BitVec(1),
                 Operator::BvBbTerm | Operator::BvPBbTerm => Sort::BitVec(args.len()),
@@ -170,60 +166,21 @@ impl PrimitivePool {
                     Term::Const(Constant::Integer(bvsize)) => {
                         Sort::BitVec(bvsize.to_usize().unwrap())
                     }
-                    _ => Sort::ParamSort(
-                        vec![args[1].clone()],
-                        self.add(Term::Sort(Sort::Var("BitVec".to_owned()))),
-                    ),
+                    _ => Sort::BitVecUnknown,
                 },
-                Operator::BvConcat => {
-                    enum TotalWidth {
-                        Width(usize),
-                        ParamSort(Rc<Term>),
-                    }
-                    let mut total_width: Vec<TotalWidth> = vec![];
-                    for arg in args {
-                        let sort = match self.compute_sort(arg).as_sort().unwrap().clone() {
-                            Sort::RareList(inner) => inner.as_sort().unwrap().clone(),
-                            sort => sort,
-                        };
-                        match sort {
-                            Sort::BitVec(arg_width) => {
-                                total_width.push(TotalWidth::Width(arg_width));
-                            }
-                            Sort::ParamSort(v, _) => {
-                                total_width.push(TotalWidth::ParamSort(v[0].clone()));
-                            }
-                            _ => unreachable!(),
+                Operator::BvConcat => args
+                    .iter()
+                    .map(|a| self.unwrap_sort(a))
+                    .reduce(|acc, sort| match (acc, sort) {
+                        (Sort::BitVec(a), Sort::BitVec(b)) => Sort::BitVec(a + b),
+                        (Sort::BitVec(_) | Sort::BitVecUnknown, Sort::BitVecUnknown)
+                        | (Sort::BitVecUnknown, Sort::BitVec(_)) => Sort::BitVecUnknown,
+                        (_, Sort::ParamSort(_, _)) | (Sort::ParamSort(_, _), _) => {
+                            Sort::BitVecUnknown // TODO: handle this properly
                         }
-                    }
-                    if total_width
-                        .iter()
-                        .any(|x| matches!(x, TotalWidth::ParamSort(_)))
-                    {
-                        let add = Term::Op(
-                            Operator::Add,
-                            total_width
-                                .iter()
-                                .map(|x| match x {
-                                    TotalWidth::Width(w) => {
-                                        self.add(Term::Const(Constant::Integer((*w).into())))
-                                    }
-                                    TotalWidth::ParamSort(p) => p.clone(),
-                                })
-                                .collect(),
-                        );
-
-                        Sort::ParamSort(
-                            vec![self.add(add)],
-                            self.add(Term::Sort(Sort::Var("BitVec".to_owned()))),
-                        )
-                    } else {
-                        Sort::BitVec(total_width.iter().fold(0, |acc, x| match x {
-                            TotalWidth::Width(w) => acc + w,
-                            TotalWidth::ParamSort(_) => unreachable!(),
-                        }))
-                    }
-                }
+                        _ => unreachable!(),
+                    })
+                    .unwrap(),
                 Operator::Ite => self.compute_sort(&args[1]).as_sort().unwrap().clone(),
                 Operator::Abs => self.compute_sort(&args[0]).as_sort().unwrap().clone(),
                 Operator::Add | Operator::Sub | Operator::Mult => {
@@ -342,74 +299,82 @@ impl PrimitivePool {
                 .as_sort()
                 .unwrap()
                 .clone(),
-            Term::ParamOp { op, op_args, args } => {
-                let sort = match op {
-                    ParamOperator::BvExtract => {
-                        let i = op_args[0].as_integer().unwrap().to_usize().unwrap();
-                        let j = op_args[1].as_integer().unwrap().to_usize().unwrap();
-                        Sort::BitVec(i - j + 1)
-                    }
-                    ParamOperator::ZeroExtend | ParamOperator::SignExtend => {
-                        let extension_width = op_args[0].as_integer().unwrap().to_usize().unwrap();
-                        let sort = self.unwrap_sort(&args[0]);
-                        match sort {
-                            Sort::BitVec(bv_width) => Sort::BitVec(extension_width + bv_width),
-                            Sort::ParamSort(v, head) => {
-                                let width = v.first().cloned().unwrap_or_else(|| {
-                                    unreachable!(
-                                        "bitvector parametric sort missing width in zero/sign extend"
-                                    )
-                                });
-                                let ext = self
-                                    .add(Term::Const(Constant::Integer(extension_width.into())));
-                                let add = self.add(Term::Op(Operator::Add, vec![ext, width]));
-                                Sort::ParamSort(vec![add], head)
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    ParamOperator::RotateLeft | ParamOperator::RotateRight => {
-                        self.compute_sort(&args[0]).as_sort().unwrap().clone()
-                    }
-                    ParamOperator::Repeat => {
-                        let repetitions = op_args[0].as_integer().unwrap();
-                        let sort = self.unwrap_sort(&args[0]);
-                        match sort {
-                            Sort::BitVec(bv_width) => {
-                                Sort::BitVec((repetitions * bv_width).to_usize().unwrap())
-                            }
-                            Sort::ParamSort(v, head) => {
-                                let width = v.first().cloned().unwrap_or_else(|| {
-                                    unreachable!(
-                                        "bitvector parametric sort missing width in repeat"
-                                    )
-                                });
-                                let reps =
-                                    self.add(Term::Const(Constant::Integer(repetitions.clone())));
-                                let mul = self.add(Term::Op(Operator::Mult, vec![reps, width]));
-                                Sort::ParamSort(vec![mul], head)
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    ParamOperator::BvConst => unreachable!(
-                        "bv const should be handled by the parser and transformed into a constant"
-                    ),
-                    ParamOperator::IntToBv => {
-                        let bvsize = op_args[0].as_integer().unwrap().to_usize().unwrap();
-                        Sort::BitVec(bvsize)
-                    }
-                    ParamOperator::BvBitOf | ParamOperator::Tester => Sort::Bool,
-                    ParamOperator::BvIntOf => Sort::Int,
-                    ParamOperator::RePower | ParamOperator::ReLoop => Sort::RegLan,
-                    ParamOperator::ArrayConst => op_args[0].as_sort().unwrap().clone(),
-                };
-                sort
-            }
+            Term::ParamOp { op, op_args, args } => self
+                .compute_indexed_op_sort(*op, op_args, args)
+                .unwrap_or(Sort::BitVecUnknown),
         };
         let sort = self.storage.add(Term::Sort(result));
         self.sorts_cache.insert(term.clone(), sort);
         self.sorts_cache[term].clone()
+    }
+
+    // `None` means `BitVecUnknown`
+    fn compute_indexed_op_sort(
+        &mut self,
+        op: ParamOperator,
+        op_args: &[Rc<Term>],
+        args: &[Rc<Term>],
+    ) -> Option<Sort> {
+        let res = match op {
+            ParamOperator::BvExtract => {
+                let i = op_args[0].as_integer()?.to_usize().unwrap();
+                let j = op_args[1].as_integer()?.to_usize().unwrap();
+                Sort::BitVec(i - j + 1)
+            }
+            ParamOperator::ZeroExtend | ParamOperator::SignExtend => {
+                let extension_width = op_args[0].as_integer()?.to_usize().unwrap();
+                let sort = self.unwrap_sort(&args[0]);
+                match sort {
+                    Sort::BitVec(bv_width) => Sort::BitVec(extension_width + bv_width),
+                    Sort::BitVecUnknown => return None,
+                    Sort::ParamSort(v, head) => {
+                        let width = v.first().cloned().unwrap_or_else(|| {
+                            unreachable!(
+                                "bitvector parametric sort missing width in zero/sign extend"
+                            )
+                        });
+                        let ext = self.add(Term::Const(Constant::Integer(extension_width.into())));
+                        let add = self.add(Term::Op(Operator::Add, vec![ext, width]));
+                        Sort::ParamSort(vec![add], head)
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            ParamOperator::RotateLeft | ParamOperator::RotateRight => {
+                self.compute_sort(&args[0]).as_sort().unwrap().clone()
+            }
+            ParamOperator::Repeat => {
+                let repetitions = op_args[0].as_integer()?;
+                let sort = self.unwrap_sort(&args[0]);
+                match sort {
+                    Sort::BitVec(bv_width) => {
+                        Sort::BitVec((repetitions * bv_width).to_usize().unwrap())
+                    }
+                    Sort::BitVecUnknown => return None,
+                    Sort::ParamSort(v, head) => {
+                        let width = v.first().cloned().unwrap_or_else(|| {
+                            unreachable!("bitvector parametric sort missing width in repeat")
+                        });
+                        let reps = self.add(Term::Const(Constant::Integer(repetitions.clone())));
+                        let mul = self.add(Term::Op(Operator::Mult, vec![reps, width]));
+                        Sort::ParamSort(vec![mul], head)
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            ParamOperator::BvConst => unreachable!(
+                "bv const should be handled by the parser and transformed into a constant"
+            ),
+            ParamOperator::IntToBv => {
+                let bvsize = op_args[0].as_integer()?.to_usize().unwrap();
+                Sort::BitVec(bvsize)
+            }
+            ParamOperator::BvBitOf | ParamOperator::Tester => Sort::Bool,
+            ParamOperator::BvIntOf => Sort::Int,
+            ParamOperator::RePower | ParamOperator::ReLoop => Sort::RegLan,
+            ParamOperator::ArrayConst => op_args[0].as_sort().unwrap().clone(),
+        };
+        Some(res)
     }
 
     fn add_with_priorities<const N: usize>(

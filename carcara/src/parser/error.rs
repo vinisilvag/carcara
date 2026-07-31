@@ -235,7 +235,12 @@ impl fmt::Display for SortError {
 impl SortError {
     /// Returns a sort error if `got` does not equal `expected`.
     pub(crate) fn assert_eq(expected: &Sort, got: &Sort) -> Result<(), Self> {
-        if expected == got || expected.is_polymorphic() || got.is_polymorphic() {
+        if expected == got
+            || expected.is_polymorphic()
+            || got.is_polymorphic()
+            || (*expected == Sort::BitVecUnknown && got.is_bitvec())
+            || (*got == Sort::BitVecUnknown && expected.is_bitvec())
+        {
             Ok(())
         } else {
             Err(Self {

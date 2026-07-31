@@ -90,10 +90,13 @@ pub enum Sort {
     /// The two associated terms are the sort arguments for this sort.
     Array(Rc<Term>, Rc<Term>),
 
-    ///  `BitVec` sort.
+    /// `BitVec` sort.
     ///
     /// The associated `usize` is the BV width of this sort.
     BitVec(usize),
+
+    /// A `BitVec` whose width is not statically known.
+    BitVecUnknown,
 
     /// A datatype sort only has its name and its type parameters
     Datatype(String, Vec<Rc<Term>>),
@@ -107,6 +110,12 @@ pub enum Sort {
 
     /// The sort of sorts.
     Type,
+}
+
+impl Sort {
+    pub fn is_bitvec(&self) -> bool {
+        matches!(self, Sort::BitVec(_) | Sort::BitVecUnknown)
+    }
 }
 
 /// A variable and an associated sort.
@@ -808,6 +817,7 @@ impl Sort {
             | (Sort::Real, Sort::Real)
             | (Sort::String, Sort::String)
             | (Sort::RegLan, Sort::RegLan)
+            | (Sort::BitVecUnknown, Sort::BitVecUnknown)
             | (Sort::Type, Sort::Type) => true,
             (Sort::RareList(a), Sort::RareList(b)) => {
                 a.as_sort().unwrap().match_with(b.as_sort().unwrap(), map)

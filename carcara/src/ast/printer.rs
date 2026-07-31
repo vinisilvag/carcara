@@ -596,6 +596,7 @@ impl fmt::Display for Sort {
             Sort::ParamSort(args, s) => write!(f, "(par {:?} {})", args, s),
             Sort::Array(x, y) => write_s_expr(f, "Array", &[x, y]),
             Sort::BitVec(w) => write!(f, "(_ BitVec {})", w),
+            Sort::BitVecUnknown => write!(f, "(_ BitVec ?)"),
             Sort::RareList(elem) => write_s_expr(f, "rare-list", &[elem]),
             Sort::Type => write!(f, "Type"),
         }

@@ -290,7 +290,7 @@ impl<'p, 's> Parser<'p, 's> {
 
     fn is_bv_sort(sort: &Sort) -> bool {
         match sort {
-            Sort::BitVec(_) => true,
+            Sort::BitVec(_) | Sort::BitVecUnknown => true,
             Sort::ParamSort(_, head) => matches!(head.as_sort(), Some(Sort::Var(_))),
             Sort::RareList(inner) => inner.as_sort().is_some_and(Self::is_bv_sort),
             _ => false,
@@ -1922,6 +1922,8 @@ impl<'p, 's> Parser<'p, 's> {
     ) -> Result<Rc<Term>, ParserError> {
         let sorts: Vec<_> = args.iter().map(|t| self.pool.sort(t)).collect();
         let sorts: Vec<_> = sorts.iter().map(|s| s.as_sort().unwrap()).collect();
+        let op_sorts: Vec<_> = op_args.iter().map(|t| self.pool.sort(t)).collect();
+        let op_sorts: Vec<_> = op_sorts.iter().map(|s| s.as_sort().unwrap()).collect();
         match &op {
             ParamOperator::BvConst => {
                 assert_num_args(&op_args, 2)?;
@@ -1946,32 +1948,27 @@ impl<'p, 's> Parser<'p, 's> {
                 if !Self::is_bv_sort(sorts[0]) {
                     return Err(ParserError::ExpectedBvSort(sorts[0].clone()));
                 }
-                for arg in &op_args {
-                    if let Term::Const(c) = arg.as_ref() {
-                        SortError::assert_eq(&Sort::Int, &c.sort())?;
-                    } else {
-                        return Err(ParserError::ExpectedIntegerConstant(arg.clone()));
-                    }
+
+                for s in &op_sorts {
+                    SortError::assert_eq(&Sort::Int, s)?;
                 }
+
                 assert_indexed_op_args_value(&op_args, 0..)?;
-                let i = op_args[0].as_integer().unwrap().to_usize().unwrap();
-                let j = op_args[1].as_integer().unwrap().to_usize().unwrap();
-                let Sort::BitVec(m) = sorts[0].clone() else {
-                    unreachable!()
-                };
-                // j >= 0 is ensured by the parser
-                if !(m > i && i >= j) {
-                    return Err(ParserError::InvalidExtractArgs(i, j, m));
+                let i = op_args[0].as_integer().as_ref().and_then(Integer::to_usize);
+                let j = op_args[1].as_integer().as_ref().and_then(Integer::to_usize);
+
+                // j >= 0 is ensured by the parser. We need to ensure that m > i && i >= j, if they
+                // are all statically known
+                if let (Some(i), Some(j), Sort::BitVec(m)) = (i, j, sorts[0]) {
+                    if !(*m > i && i >= j) {
+                        return Err(ParserError::InvalidExtractArgs(i, j, *m));
+                    }
                 }
             }
             ParamOperator::IntToBv => {
                 assert_num_args(&op_args, 1)?;
                 assert_num_args(&args, 1)?;
-                if let Term::Const(c) = op_args[0].as_ref() {
-                    SortError::assert_eq(&Sort::Int, &c.sort())?;
-                } else {
-                    return Err(ParserError::ExpectedIntegerConstant(op_args[0].clone()));
-                }
+                SortError::assert_eq(&Sort::Int, op_sorts[0])?;
                 SortError::assert_eq(&Sort::Int, sorts[0])?;
             }
             ParamOperator::BvBitOf
@@ -1983,11 +1980,7 @@ impl<'p, 's> Parser<'p, 's> {
             | ParamOperator::Repeat => {
                 assert_num_args(&op_args, 1)?;
                 assert_num_args(&args, 1)?;
-                if let Term::Const(c) = op_args[0].as_ref() {
-                    SortError::assert_eq(&Sort::Int, &c.sort())?;
-                } else {
-                    return Err(ParserError::ExpectedIntegerConstant(op_args[0].clone()));
-                }
+                SortError::assert_eq(&Sort::Int, op_sorts[0])?;
                 if !Self::is_bv_sort(sorts[0]) {
                     return Err(ParserError::ExpectedBvSort(sorts[0].clone()));
                 }
@@ -1996,23 +1989,15 @@ impl<'p, 's> Parser<'p, 's> {
             ParamOperator::RePower => {
                 assert_num_args(&op_args, 1)?;
                 assert_num_args(&args, 1)?;
-                if let Term::Const(c) = op_args[0].as_ref() {
-                    SortError::assert_eq(&Sort::Int, &c.sort())?;
-                } else {
-                    return Err(ParserError::ExpectedIntegerConstant(op_args[0].clone()));
-                }
+                SortError::assert_eq(&Sort::Int, op_sorts[0])?;
                 SortError::assert_eq(&Sort::RegLan, sorts[0])?;
                 assert_indexed_op_args_value(&op_args, 0..)?;
             }
             ParamOperator::ReLoop => {
                 assert_num_args(&op_args, 2)?;
                 assert_num_args(&args, 1)?;
-                for arg in &op_args {
-                    if let Term::Const(c) = arg.as_ref() {
-                        SortError::assert_eq(&Sort::Int, &c.sort())?;
-                    } else {
-                        return Err(ParserError::ExpectedIntegerConstant(arg.clone()));
-                    }
+                for s in &op_sorts {
+                    SortError::assert_eq(&Sort::Int, s)?;
                 }
                 SortError::assert_eq(&Sort::RegLan, sorts[0])?;
                 assert_indexed_op_args_value(&op_args, 0..)?;
