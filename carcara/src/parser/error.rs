@@ -235,12 +235,8 @@ impl fmt::Display for SortError {
 impl SortError {
     /// Returns a sort error if `got` does not equal `expected`.
     pub(crate) fn assert_eq(expected: &Sort, got: &Sort) -> Result<(), Self> {
-        if expected == got
-            || expected.is_polymorphic()
-            || got.is_polymorphic()
-            || (*expected == Sort::ParamBitVec && got.is_bitvec())
-            || (*got == Sort::ParamBitVec && expected.is_bitvec())
-        {
+        // TODO: control this via parser option
+        if expected.is_compatible_with(got) {
             Ok(())
         } else {
             Err(Self {
@@ -260,7 +256,7 @@ impl SortError {
 
     /// Returns a sort error if `got` is not one of `possibilities`.
     pub(crate) fn assert_one_of(possibilities: &[Sort], got: &Sort) -> Result<(), Self> {
-        if possibilities.contains(got) || got.is_polymorphic() {
+        if possibilities.iter().any(|p| p.is_compatible_with(got)) {
             Ok(())
         } else {
             Err(Self {
@@ -282,29 +278,6 @@ impl SortError {
             return Self::assert_array_sort(pool, key, value, inner.as_sort().unwrap());
         }
 
-        if let Sort::ParamSort(v, head) = got {
-            if let Some(Sort::Var(name)) = head.as_sort() {
-                if name == "Array" {
-                    if v.len() != 2 {
-                        let any = pool.add(Term::Sort(any.clone()));
-                        return Err(Self {
-                            expected: vec![Sort::Array(any.clone(), any)].into_boxed_slice(),
-                            got: got.clone(),
-                        });
-                    }
-
-                    let key = &v[0].as_sort().cloned();
-                    let value = v[1].as_sort().cloned();
-                    return Self::assert_array_sort(
-                        pool,
-                        key.as_ref(),
-                        value.as_ref(),
-                        &Sort::Array(v[0].clone(), v[1].clone()),
-                    );
-                }
-            }
-        }
-
         let expected = {
             let key = pool.add(Term::Sort(key.cloned().unwrap_or_else(|| any.clone())));
             let value = pool.add(Term::Sort(value.cloned().unwrap_or_else(|| any.clone())));
@@ -313,8 +286,8 @@ impl SortError {
         let Sort::Array(got_key, got_value) = got else {
             return Err(Self { expected, got: got.clone() });
         };
-        if key.is_some_and(|k| got_key.as_sort().unwrap() != k)
-            || value.is_some_and(|v| got_value.as_sort().unwrap() != v)
+        if key.is_some_and(|k| !got_key.as_sort().unwrap().is_compatible_with(k))
+            || value.is_some_and(|v| !got_value.as_sort().unwrap().is_compatible_with(v))
         {
             return Err(Self { expected, got: got.clone() });
         }

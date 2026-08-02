@@ -155,12 +155,6 @@ pub enum Sort {
     Type,
 }
 
-impl Sort {
-    pub fn is_bitvec(&self) -> bool {
-        matches!(self, Sort::BitVec(_) | Sort::ParamBitVec)
-    }
-}
-
 /// A variable and an associated sort.
 pub type SortedVar = (String, Rc<Term>);
 
@@ -808,76 +802,6 @@ impl From<SortedVar> for Term {
     }
 }
 
-impl Sort {
-    // Whether this sort can be matched with another, i.e., whether we
-    // can find a substitution to the sort variables of `self` that
-    // will make it equal to `target`. The map argument will store the
-    // substitution
-    pub fn match_with(&self, target: &Sort, map: &mut IndexMap<String, Sort>) -> bool {
-        match (self, target) {
-            (Sort::Var(a), _) => {
-                match map.entry(a.clone()) {
-                    Entry::Vacant(e) => {
-                        e.insert(target.clone());
-                    }
-                    Entry::Occupied(e) => {
-                        return e.get() == target;
-                    }
-                }
-                true
-            }
-            (Sort::Atom(a, sorts_a), Sort::Atom(b, sorts_b)) => {
-                if a != b {
-                    false
-                } else {
-                    sorts_a.iter().zip(sorts_b.iter()).all(|(t_a, t_b)| {
-                        let s_a = t_a.as_sort().unwrap();
-                        let s_b = t_b.as_sort().unwrap();
-                        s_a.match_with(s_b, map)
-                    })
-                }
-            }
-            (Sort::Function(sorts_a), Sort::Function(sorts_b)) => {
-                sorts_a.iter().zip(sorts_b.iter()).all(|(a_t, b_t)| {
-                    let a_s = a_t.as_sort().unwrap();
-                    let b_s = b_t.as_sort().unwrap();
-                    a_s.match_with(b_s, map)
-                })
-            }
-            (Sort::Datatype(a, sorts_a), Sort::Datatype(b, sorts_b)) => {
-                if a != b {
-                    false
-                } else {
-                    sorts_a.iter().zip(sorts_b.iter()).all(|(t_a, t_b)| {
-                        let s_a = t_a.as_sort().unwrap();
-                        let s_b = t_b.as_sort().unwrap();
-                        s_a.match_with(s_b, map)
-                    })
-                }
-            }
-            (Sort::Bool, Sort::Bool)
-            | (Sort::Int, Sort::Int)
-            | (Sort::Real, Sort::Real)
-            | (Sort::String, Sort::String)
-            | (Sort::RegLan, Sort::RegLan)
-            | (Sort::ParamBitVec, Sort::ParamBitVec)
-            | (Sort::Type, Sort::Type) => true,
-            (Sort::RareList(a), Sort::RareList(b)) => {
-                a.as_sort().unwrap().match_with(b.as_sort().unwrap(), map)
-            }
-            (Sort::Array(x_a, y_a), Sort::Array(x_b, y_b)) => {
-                let s_x_a = x_a.as_sort().unwrap();
-                let s_y_a = y_a.as_sort().unwrap();
-                let s_x_b = x_b.as_sort().unwrap();
-                let s_y_b = y_b.as_sort().unwrap();
-                s_x_a.match_with(s_x_b, map) && s_y_a.match_with(s_y_b, map)
-            }
-            (Sort::BitVec(a), Sort::BitVec(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
 impl Term {
     pub fn new_bool(value: impl Into<bool>) -> Self {
         let op = match value.into() {
@@ -1266,12 +1190,95 @@ impl Constant {
 }
 
 impl Sort {
-    pub fn is_polymorphic(&self) -> bool {
-        match self {
-            Sort::Var(_) => true,
-            Sort::ParamSort(_, sort) if matches!(&**sort, Term::Sort(Sort::Var(_))) => true,
-            Sort::RareList(inner) => inner.as_sort().is_some_and(Sort::is_polymorphic),
-            _ => false,
+    pub fn is_bitvec(&self) -> bool {
+        matches!(self, Sort::BitVec(_) | Sort::ParamBitVec)
+    }
+
+    /// Whether this sort is equal to another, modulo bitvector sorts with width parameters that are
+    /// not statically known.
+    pub fn param_eq(&self, other: &Self) -> bool {
+        if let Sort::RareList(inner) = self {
+            inner.as_sort().unwrap().param_eq(other)
+        } else if let Sort::RareList(inner) = other {
+            self.param_eq(inner.as_sort().unwrap())
+        } else {
+            self == other
+                || *self == Sort::ParamBitVec && other.is_bitvec()
+                || *other == Sort::ParamBitVec && self.is_bitvec()
+        }
+    }
+
+    // TODO: merge this with `match_with`
+    pub fn is_compatible_with(&self, other: &Self) -> bool {
+        fn all_compatible<'i, I: IntoIterator<Item = &'i Rc<Term>>>(xs: I, ys: I) -> bool {
+            xs.into_iter().zip(ys).all(|(x, y)| {
+                let x = x.as_sort().unwrap();
+                let y = y.as_sort().unwrap();
+                x.is_compatible_with(y)
+            })
+        }
+
+        match (self, other) {
+            (Sort::Var(_), _) | (_, Sort::Var(_)) => true,
+            (Sort::ParamBitVec, Sort::BitVec(_) | Sort::ParamBitVec)
+            | (Sort::BitVec(_), Sort::ParamBitVec) => true,
+
+            (Sort::RareList(a), b) => a.as_sort().unwrap().is_compatible_with(b),
+            (a, Sort::RareList(b)) => a.is_compatible_with(b.as_sort().unwrap()),
+
+            (Sort::Atom(a, sorts_a), Sort::Atom(b, sorts_b)) => {
+                a == b && all_compatible(sorts_a, sorts_b)
+            }
+            (Sort::Function(sorts_a), Sort::Function(sorts_b)) => all_compatible(sorts_a, sorts_b),
+            (Sort::Datatype(a, sorts_a), Sort::Datatype(b, sorts_b)) => {
+                a == b && all_compatible(sorts_a, sorts_b)
+            }
+            (Sort::Array(x_a, y_a), Sort::Array(x_b, y_b)) => {
+                all_compatible([x_a, y_a], [x_b, y_b])
+            }
+
+            _ => self == other,
+        }
+    }
+
+    /// Whether this sort can be matched with another, i.e., whether we
+    /// can find a substitution to the sort variables of `self` that
+    /// will make it equal to `target`. The map argument will store the
+    /// substitution
+    pub fn match_with(&self, target: &Sort, map: &mut IndexMap<String, Sort>) -> bool {
+        fn match_all<'i, I>(xs: I, ys: I, map: &mut IndexMap<String, Sort>) -> bool
+        where
+            I: IntoIterator<Item = &'i Rc<Term>>,
+        {
+            xs.into_iter().zip(ys).all(|(x, y)| {
+                let x = x.as_sort().unwrap();
+                let y = y.as_sort().unwrap();
+                x.match_with(y, map)
+            })
+        }
+
+        match (self, target) {
+            (Sort::Var(a), _) => {
+                match map.entry(a.clone()) {
+                    Entry::Vacant(e) => e.insert(target.clone()),
+                    Entry::Occupied(e) => return e.get() == target,
+                };
+                true
+            }
+            (Sort::Atom(a, sorts_a), Sort::Atom(b, sorts_b)) => {
+                a == b && match_all(sorts_a, sorts_b, map)
+            }
+            (Sort::Function(sorts_a), Sort::Function(sorts_b)) => match_all(sorts_a, sorts_b, map),
+            (Sort::Datatype(a, sorts_a), Sort::Datatype(b, sorts_b)) => {
+                a == b && match_all(sorts_a, sorts_b, map)
+            }
+            (Sort::RareList(a), Sort::RareList(b)) => {
+                a.as_sort().unwrap().match_with(b.as_sort().unwrap(), map)
+            }
+            (Sort::Array(x_a, y_a), Sort::Array(x_b, y_b)) => {
+                match_all([x_a, y_a], [x_b, y_b], map)
+            }
+            _ => self.param_eq(target),
         }
     }
 }

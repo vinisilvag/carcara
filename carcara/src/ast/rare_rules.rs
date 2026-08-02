@@ -15,7 +15,7 @@ pub enum AttributeParameters {
 
 #[derive(Debug, Clone)]
 pub struct TypeParameter {
-    pub term: Rc<Term>,
+    pub sort: Rc<Term>,
     pub attribute: AttributeParameters,
 }
 
@@ -37,7 +37,7 @@ impl fmt::Display for RuleDefinition {
                 f,
                 "({} {} {}) ",
                 name,
-                param.term,
+                param.sort,
                 if param.attribute == AttributeParameters::List {
                     ":list"
                 } else {

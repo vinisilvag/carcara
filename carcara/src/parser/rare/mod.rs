@@ -1,4 +1,4 @@
-use super::{Parser, ParserError, Reserved, SortDef, Token};
+use super::{Parser, ParserError, Reserved, Token};
 use crate::ast::*;
 use crate::CarcaraResult;
 use crate::{ast::rare_rules::*, Error};
@@ -20,73 +20,30 @@ impl<'p, 's> Parser<'p, 's> {
     fn parse_rare_parameters(&mut self) -> CarcaraResult<(String, TypeParameter)> {
         self.expect_token(Token::OpenParen)?;
         let name = self.expect_symbol()?;
-        let base_term = self.parse_sort(true)?;
+        let sort = self.parse_sort()?;
 
-        let attribute = match self.current_token.clone() {
-            Token::CloseParen => {
-                self.expect_token(Token::CloseParen)?;
-                AttributeParameters::None
-            }
-            Token::Keyword(_) => {
-                let kind_of_arg = self.expect_keyword()?;
-                self.expect_token(Token::CloseParen)?;
-                if kind_of_arg == "list" {
-                    AttributeParameters::List
-                } else {
-                    return Err(Error::Parser(
-                        ParserError::InvalidRareArgAttribute(kind_of_arg),
-                        self.current_position,
-                    ));
-                }
-            }
-            token => {
-                return Err(Error::Parser(
-                    ParserError::UnexpectedToken(token),
-                    self.current_position,
-                ));
-            }
-        };
-
-        let term = if attribute == AttributeParameters::List {
-            self.pool.add(Term::Sort(Sort::RareList(base_term.clone())))
-        } else {
-            base_term.clone()
-        };
-
-        let binding_sort = if attribute == AttributeParameters::List {
-            base_term.clone()
-        } else {
-            term.clone()
-        };
-
-        self.insert_sorted_var((name.clone(), binding_sort.clone()));
-        self.state.sort_defs.insert(
-            name.clone(),
-            SortDef {
-                body: binding_sort,
-                params: Vec::default(),
-            },
-        );
-
-        // Accept both `T` and `@T` references for rare type parameters declared as `Type`.
-        // This keeps compatibility with rule files that declare `(T0 Type)` but use `@T0`.
-        if matches!(base_term.as_sort(), Some(Sort::Type)) {
-            let alias = if let Some(stripped) = name.strip_prefix('@') {
-                stripped.to_owned()
+        let attribute = if let Token::Keyword(_) = self.current_token {
+            let attribute = self.expect_keyword()?;
+            if attribute == "list" {
+                Ok(AttributeParameters::List)
             } else {
-                format!("@{}", name)
-            };
+                Err(Error::Parser(
+                    ParserError::InvalidRareArgAttribute(attribute),
+                    self.current_position,
+                ))
+            }
+        } else {
+            Ok(AttributeParameters::None)
+        }?;
+        self.expect_token(Token::CloseParen)?;
 
-            self.state
-                .sort_defs
-                .entry(alias)
-                .or_insert_with(|| SortDef {
-                    body: self.pool.add(Term::Sort(Sort::Type)),
-                    params: Vec::default(),
-                });
-        }
+        let wrapped_sort = match attribute {
+            AttributeParameters::List => self.pool.add(Term::Sort(Sort::RareList(sort.clone()))),
+            AttributeParameters::None => sort.clone(),
+        };
+        self.insert_sorted_var((name.clone(), wrapped_sort.clone()));
 
-        Ok((name, TypeParameter { term, attribute }))
+        Ok((name, TypeParameter { sort, attribute }))
     }
 
     fn parse_body(&mut self) -> CarcaraResult<Body> {
