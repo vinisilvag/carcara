@@ -37,11 +37,7 @@ impl<'p, 's> Parser<'p, 's> {
         }?;
         self.expect_token(Token::CloseParen)?;
 
-        let wrapped_sort = match attribute {
-            AttributeParameters::List => self.pool.add(Term::Sort(Sort::RareList(sort.clone()))),
-            AttributeParameters::None => sort.clone(),
-        };
-        self.insert_sorted_var((name.clone(), wrapped_sort.clone()));
+        self.insert_sorted_var((name.clone(), sort.clone()));
 
         Ok((name, TypeParameter { sort, attribute }))
     }

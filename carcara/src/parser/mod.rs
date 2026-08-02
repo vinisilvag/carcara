@@ -306,15 +306,6 @@ impl<'p, 's> Parser<'p, 's> {
         self.is_real_only_logic && self.problem.is_some()
     }
 
-    // TODO: remove this in favor of `Sort::is_bitvec`
-    fn is_bv_sort(sort: &Sort) -> bool {
-        match sort {
-            Sort::BitVec(_) | Sort::ParamBitVec => true,
-            Sort::RareList(inner) => inner.as_sort().is_some_and(Self::is_bv_sort),
-            _ => false,
-        }
-    }
-
     /// Constructs and sort checks an operation term.
     fn make_op(&mut self, op: Operator, args: Vec<Rc<Term>>) -> Result<Rc<Term>, ParserError> {
         let sorts: Vec<_> = args.iter().map(|t| self.pool.sort(t)).collect();
@@ -535,14 +526,14 @@ impl<'p, 's> Parser<'p, 's> {
             Operator::BvNot | Operator::BvNeg => {
                 assert_num_args(&args, 1)?;
                 for s in sorts {
-                    if !Self::is_bv_sort(s) {
+                    if !s.is_bitvec() {
                         return Err(ParserError::ExpectedBvSort(s.clone()));
                     }
                 }
             }
             Operator::BvSize | Operator::UBvToInt | Operator::SBvToInt => {
                 assert_num_args(&args, 1)?;
-                if !Self::is_bv_sort(sorts[0]) {
+                if !sorts[0].is_bitvec() {
                     return Err(ParserError::ExpectedBvSort(sorts[0].clone()));
                 }
             }
@@ -564,7 +555,7 @@ impl<'p, 's> Parser<'p, 's> {
             Operator::BvConcat => {
                 assert_num_args(&args, 2..)?;
                 for s in sorts {
-                    if !Self::is_bv_sort(s) {
+                    if !s.is_bitvec() {
                         return Err(ParserError::ExpectedBvSort(s.clone()));
                     }
                 }
@@ -580,7 +571,7 @@ impl<'p, 's> Parser<'p, 's> {
             | Operator::BvOr
             | Operator::BvXor => {
                 assert_num_args(&args, 2..)?;
-                if !Self::is_bv_sort(sorts[0]) {
+                if !sorts[0].is_bitvec() {
                     return Err(ParserError::ExpectedBvSort(sorts[0].clone()));
                 }
                 SortError::assert_all_eq(&sorts)?;
@@ -607,7 +598,7 @@ impl<'p, 's> Parser<'p, 's> {
             | Operator::BvSGt
             | Operator::BvSGe => {
                 assert_num_args(&args, 2)?;
-                if !Self::is_bv_sort(sorts[0]) {
+                if !sorts[0].is_bitvec() {
                     return Err(ParserError::ExpectedBvSort(sorts[0].clone()));
                 }
                 SortError::assert_all_eq(&sorts)?;
@@ -1963,7 +1954,7 @@ impl<'p, 's> Parser<'p, 's> {
                  */
                 assert_num_args(&op_args, 2)?;
                 assert_num_args(&args, 1)?;
-                if !Self::is_bv_sort(sorts[0]) {
+                if !sorts[0].is_bitvec() {
                     return Err(ParserError::ExpectedBvSort(sorts[0].clone()));
                 }
 
@@ -1999,7 +1990,7 @@ impl<'p, 's> Parser<'p, 's> {
                 assert_num_args(&op_args, 1)?;
                 assert_num_args(&args, 1)?;
                 SortError::assert_eq(&Sort::Int, op_sorts[0])?;
-                if !Self::is_bv_sort(sorts[0]) {
+                if !sorts[0].is_bitvec() {
                     return Err(ParserError::ExpectedBvSort(sorts[0].clone()));
                 }
                 assert_indexed_op_args_value(&op_args, 0..)?;
@@ -2343,10 +2334,8 @@ impl<'p, 's> Parser<'p, 's> {
                 _ => Err(ParserError::WrongNumberOfArgs(2.into(), args.len())),
             },
             "rare-list" | "RareList" => match args.as_slice() {
-                [elem] => Ok(Sort::RareList(elem.clone())),
-                [] => Ok(Sort::RareList(
-                    self.pool.add(Term::Sort(Sort::Var("T".to_owned()))),
-                )),
+                [] => Ok(Sort::Var("?".to_owned())),
+                [s] => Ok(s.as_sort().unwrap().clone()),
                 _ => Err(ParserError::WrongNumberOfArgs(1.into(), args.len())),
             },
 

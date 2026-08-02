@@ -148,9 +148,6 @@ pub enum Sort {
     /// A parametric sort, with a set of sort variables that can appear in the second argument.
     ParamSort(Vec<Rc<Term>>, Rc<Term>),
 
-    /// The sort of RARE lists, parameterized by their element sort.
-    RareList(Rc<Term>),
-
     /// The sort of sorts.
     Type,
 }
@@ -1197,15 +1194,9 @@ impl Sort {
     /// Whether this sort is equal to another, modulo bitvector sorts with width parameters that are
     /// not statically known.
     pub fn param_eq(&self, other: &Self) -> bool {
-        if let Sort::RareList(inner) = self {
-            inner.as_sort().unwrap().param_eq(other)
-        } else if let Sort::RareList(inner) = other {
-            self.param_eq(inner.as_sort().unwrap())
-        } else {
-            self == other
-                || *self == Sort::ParamBitVec && other.is_bitvec()
-                || *other == Sort::ParamBitVec && self.is_bitvec()
-        }
+        self == other
+            || *self == Sort::ParamBitVec && other.is_bitvec()
+            || *other == Sort::ParamBitVec && self.is_bitvec()
     }
 
     // TODO: merge this with `match_with`
@@ -1222,9 +1213,6 @@ impl Sort {
             (Sort::Var(_), _) | (_, Sort::Var(_)) => true,
             (Sort::ParamBitVec, Sort::BitVec(_) | Sort::ParamBitVec)
             | (Sort::BitVec(_), Sort::ParamBitVec) => true,
-
-            (Sort::RareList(a), b) => a.as_sort().unwrap().is_compatible_with(b),
-            (a, Sort::RareList(b)) => a.is_compatible_with(b.as_sort().unwrap()),
 
             (Sort::Atom(a, sorts_a), Sort::Atom(b, sorts_b)) => {
                 a == b && all_compatible(sorts_a, sorts_b)
@@ -1271,9 +1259,6 @@ impl Sort {
             (Sort::Function(sorts_a), Sort::Function(sorts_b)) => match_all(sorts_a, sorts_b, map),
             (Sort::Datatype(a, sorts_a), Sort::Datatype(b, sorts_b)) => {
                 a == b && match_all(sorts_a, sorts_b, map)
-            }
-            (Sort::RareList(a), Sort::RareList(b)) => {
-                a.as_sort().unwrap().match_with(b.as_sort().unwrap(), map)
             }
             (Sort::Array(x_a, y_a), Sort::Array(x_b, y_b)) => {
                 match_all([x_a, y_a], [x_b, y_b], map)

@@ -274,10 +274,6 @@ impl SortError {
     ) -> Result<(), Self> {
         let any = Sort::Atom("?".into(), Box::new([]));
 
-        if let Sort::RareList(inner) = got {
-            return Self::assert_array_sort(pool, key, value, inner.as_sort().unwrap());
-        }
-
         let expected = {
             let key = pool.add(Term::Sort(key.cloned().unwrap_or_else(|| any.clone())));
             let value = pool.add(Term::Sort(value.cloned().unwrap_or_else(|| any.clone())));

@@ -152,8 +152,8 @@ impl PrimitivePool {
                 | Operator::BvSMod
                 | Operator::BvAShr => 'block: {
                     for a in args {
-                        match self.unwrap_sort(a) {
-                            s @ Sort::BitVec(_) => break 'block s,
+                        match self.compute_sort(a).as_sort().unwrap() {
+                            s @ Sort::BitVec(_) => break 'block s.clone(),
                             Sort::ParamBitVec => (),
                             _ => unreachable!(),
                         }
@@ -170,7 +170,7 @@ impl PrimitivePool {
                 },
                 Operator::BvConcat => args
                     .iter()
-                    .map(|a| self.unwrap_sort(a))
+                    .map(|a| self.compute_sort(a).as_sort().unwrap().clone())
                     .reduce(|acc, sort| match (acc, sort) {
                         (Sort::BitVec(a), Sort::BitVec(b)) => Sort::BitVec(a + b),
                         (Sort::BitVec(_) | Sort::ParamBitVec, Sort::ParamBitVec)
@@ -196,12 +196,13 @@ impl PrimitivePool {
                 Operator::RealDiv | Operator::ToReal => Sort::Real,
                 Operator::IntDiv | Operator::Mod | Operator::ToInt => Sort::Int,
                 Operator::Select => {
-                    let Sort::Array(_, y) = self.unwrap_sort(&args[0]) else {
+                    let sort = self.compute_sort(&args[0]);
+                    let Sort::Array(_, y) = sort.as_sort().unwrap() else {
                         unreachable!()
                     };
                     y.as_sort().unwrap().clone()
                 }
-                Operator::Store => self.unwrap_sort(&args[0]),
+                Operator::Store => self.compute_sort(&args[0]).as_sort().unwrap().clone(),
                 Operator::StrLen | Operator::IndexOf | Operator::StrToCode | Operator::StrToInt => {
                     Sort::Int
                 }
@@ -228,14 +229,12 @@ impl PrimitivePool {
                 | Operator::ReOption
                 | Operator::ReRange
                 | Operator::ReFromAutomaton => Sort::RegLan,
-                Operator::RareList => {
-                    let element_sort = if let Some(arg) = args.first() {
-                        self.compute_sort(arg)
-                    } else {
-                        self.add(Term::Sort(Sort::Var("T".to_owned())))
-                    };
-                    Sort::RareList(element_sort)
-                }
+                Operator::RareList => match args.as_slice() {
+                    // For empty lists, we can't know the element sort, so we use a placeholder
+                    // variable sort `?`
+                    [] => Sort::Var("?".to_owned()),
+                    [arg, ..] => self.compute_sort(arg).as_sort().unwrap().clone(),
+                },
                 Operator::Pow2 | Operator::Log2 => Sort::Int,
                 Operator::IsPow2 => Sort::Bool,
             },
@@ -315,8 +314,8 @@ impl PrimitivePool {
             }
             ParamOperator::ZeroExtend | ParamOperator::SignExtend => {
                 let extension_width = op_args[0].as_integer()?.to_usize().unwrap();
-                let sort = self.unwrap_sort(&args[0]);
-                match sort {
+                let sort = self.compute_sort(&args[0]);
+                match sort.as_sort().unwrap() {
                     Sort::BitVec(bv_width) => Sort::BitVec(extension_width + bv_width),
                     Sort::ParamBitVec => return None,
                     _ => unreachable!(),
@@ -327,8 +326,8 @@ impl PrimitivePool {
             }
             ParamOperator::Repeat => {
                 let repetitions = op_args[0].as_integer()?;
-                let sort = self.unwrap_sort(&args[0]);
-                match sort {
+                let sort = self.compute_sort(&args[0]);
+                match sort.as_sort().unwrap() {
                     Sort::BitVec(bv_width) => {
                         Sort::BitVec((repetitions * bv_width).to_usize().unwrap())
                     }
@@ -454,13 +453,6 @@ impl PrimitivePool {
         };
         self.free_vars_cache.insert(term.clone(), set);
         self.free_vars_cache.get(term).unwrap().clone()
-    }
-
-    pub fn unwrap_sort(&mut self, arg: &Rc<Term>) -> Sort {
-        match self.compute_sort(arg).as_sort().unwrap().clone() {
-            Sort::RareList(inner) => inner.as_sort().unwrap().clone(),
-            sort => sort,
-        }
     }
 
     pub fn add_dt_def(&mut self, sort: &Rc<Term>, def: &DatatypeDef) {

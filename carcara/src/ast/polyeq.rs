@@ -665,7 +665,6 @@ impl PolyeqComparable for Sort {
             | (Sort::String, Sort::String)
             | (Sort::RegLan, Sort::RegLan)
             | (Sort::Type, Sort::Type) => true,
-            (Sort::RareList(a), Sort::RareList(b)) => comp.eq(a, b),
             (Sort::Array(x_a, y_a), Sort::Array(x_b, y_b)) => {
                 comp.eq(x_a, x_b) && comp.eq(y_a, y_b)
             }
