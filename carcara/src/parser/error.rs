@@ -1,7 +1,7 @@
 //! The types for parser errors.
 
 use crate::{
-    ast::{Constant, PrimitivePool, Rc, Sort, Term, TermPool},
+    ast::{Constant, Rc, Sort, Term},
     parser::Token,
     utils::Range,
 };
@@ -229,64 +229,5 @@ impl fmt::Display for SortError {
                 write!(f, " or '{}', got '{}'", last, self.got)
             }
         }
-    }
-}
-
-impl SortError {
-    /// Returns a sort error if `got` does not equal `expected`.
-    pub(crate) fn assert_eq(expected: &Sort, got: &Sort) -> Result<(), Self> {
-        // TODO: control this via parser option
-        if expected.is_compatible_with(got) {
-            Ok(())
-        } else {
-            Err(Self {
-                expected: vec![expected.clone()].into_boxed_slice(),
-                got: got.clone(),
-            })
-        }
-    }
-
-    /// Makes sure all terms in `sequence` are equal to each other, otherwise returns an error.
-    pub(crate) fn assert_all_eq(sequence: &[&Sort]) -> Result<(), Self> {
-        for i in 1..sequence.len() {
-            Self::assert_eq(sequence[i - 1], sequence[i])?;
-        }
-        Ok(())
-    }
-
-    /// Returns a sort error if `got` is not one of `possibilities`.
-    pub(crate) fn assert_one_of(possibilities: &[Sort], got: &Sort) -> Result<(), Self> {
-        if possibilities.iter().any(|p| p.is_compatible_with(got)) {
-            Ok(())
-        } else {
-            Err(Self {
-                expected: possibilities.to_vec().into_boxed_slice(),
-                got: got.clone(),
-            })
-        }
-    }
-
-    pub(crate) fn assert_array_sort(
-        pool: &mut PrimitivePool,
-        key: Option<&Sort>,
-        value: Option<&Sort>,
-        got: &Sort,
-    ) -> Result<(), Self> {
-        let any = Sort::Atom("?".into(), Box::new([]));
-
-        let expected = {
-            let key = pool.add(Term::Sort(key.cloned().unwrap_or_else(|| any.clone())));
-            let value = pool.add(Term::Sort(value.cloned().unwrap_or_else(|| any.clone())));
-            vec![Sort::Array(key, value)].into_boxed_slice()
-        };
-        let Sort::Array(got_key, got_value) = got else {
-            return Err(Self { expected, got: got.clone() });
-        };
-        if key.is_some_and(|k| !got_key.as_sort().unwrap().is_compatible_with(k))
-            || value.is_some_and(|v| !got_value.as_sort().unwrap().is_compatible_with(v))
-        {
-            return Err(Self { expected, got: got.clone() });
-        }
-        Ok(())
     }
 }

@@ -436,6 +436,7 @@ impl IntoConfig for ParsingOptions {
             parse_hole_args: self.parse_hole_args,
             allow_higher_order_indexed_ops: false,
             implicit_at_sort_alias: false,
+            relaxed_sort_checking: false,
         }
     }
 }
