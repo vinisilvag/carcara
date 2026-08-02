@@ -14,6 +14,7 @@ mod problem;
 mod proof;
 pub mod rare_rules;
 mod rc;
+mod sort;
 mod substitution;
 mod term;
 #[cfg(test)]
@@ -26,10 +27,11 @@ pub use polyeq::{alpha_equiv, polyeq, Polyeq, PolyeqComparable, PolyeqConfig};
 pub use problem::{Problem, ProblemPrelude};
 pub use proof::{AnchorArg, Proof, ProofCommand, ProofStep, Subproof};
 pub use rc::Rc;
+pub use sort::Sort;
 pub use substitution::{Substitution, SubstitutionError};
 pub use term::{
     Binder, BindingList, Constant, MatchCase, MatchPattern, NaryCase, Operator, ParamOperator,
-    QualifiedOperator, Sort, SortedVar, Term,
+    QualifiedOperator, SortedVar, Term,
 };
 
 pub(crate) use carcara_macros::match_term;
