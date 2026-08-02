@@ -47,6 +47,12 @@ pub trait TermPool {
     /// term's sort, and adds it to the sort cache.
     fn add(&mut self, term: Term) -> Rc<Term>;
 
+    /// Takes a sort and returns a possibly newly allocated `Rc` that references it.
+    ///
+    /// If the sort was not originally in the term pool, it is added to it. Otherwise, this method
+    /// just returns an `Rc` pointing to the existing allocation.
+    fn add_sort(&mut self, sort: Sort) -> Rc<Sort>;
+
     /// Takes a vector of terms and calls [`TermPool::add`] on each.
     fn add_all(&mut self, terms: Vec<Term>) -> Vec<Rc<Term>> {
         terms.into_iter().map(|t| self.add(t)).collect()
@@ -80,7 +86,8 @@ pub trait TermPool {
 /// [`PrimitivePool::sort`]) or its free variables (see [`PrimitivePool::free_vars`]).
 #[derive(Debug, Default)]
 pub struct PrimitivePool {
-    pub(crate) storage: Storage,
+    pub(crate) terms: Storage<Term>,
+    pub(crate) sorts: Storage<Sort>,
     pub(crate) free_vars_cache: IndexMap<Rc<Term>, IndexSet<Rc<Term>>>,
     pub(crate) sorts_cache: IndexMap<Rc<Term>, Rc<Term>>,
     pub(crate) binders_cache: IndexMap<(Rc<Term>, Binder), IndexSet<Rc<Term>>>,
@@ -307,7 +314,7 @@ impl PrimitivePool {
                 .unwrap_or(Sort::ParamBitVec),
             Term::AsOp(_, sort, _) => sort.as_sort().unwrap().clone(),
         };
-        let sort = self.storage.add(Term::Sort(result));
+        let sort = self.terms.add(Term::Sort(result));
         self.sorts_cache.insert(term.clone(), sort);
         self.sorts_cache[term].clone()
     }
@@ -369,7 +376,7 @@ impl PrimitivePool {
     ) -> Rc<Term> {
         for p in prior_pools {
             // If this prior pool has the term
-            if let Some(entry) = p.storage.get(&term) {
+            if let Some(entry) = p.terms.get(&term) {
                 return entry.clone();
             }
         }
@@ -507,9 +514,13 @@ impl PrimitivePool {
 
 impl TermPool for PrimitivePool {
     fn add(&mut self, term: Term) -> Rc<Term> {
-        let term = self.storage.add(term);
+        let term = self.terms.add(term);
         self.compute_sort(&term);
         term
+    }
+
+    fn add_sort(&mut self, sort: Sort) -> Rc<Sort> {
+        self.sorts.add(sort)
     }
 
     fn sort(&self, term: &Rc<Term>) -> Rc<Term> {

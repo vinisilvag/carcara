@@ -1,5 +1,5 @@
 use super::{Datatype, PrimitivePool, TermPool};
-use crate::ast::{Rc, Term};
+use crate::ast::{Rc, Sort, Term};
 use indexmap::IndexSet;
 use std::sync::{Arc, RwLock};
 
@@ -40,13 +40,22 @@ impl ContextPool {
 impl TermPool for ContextPool {
     fn add(&mut self, term: Term) -> Rc<Term> {
         // If the global pool has the term
-        if let Some(entry) = self.global_pool.storage.get(&term) {
+        if let Some(entry) = self.global_pool.terms.get(&term) {
             return entry.clone();
         }
         let mut ctx_guard = self.inner.write().unwrap();
-        let term = ctx_guard.storage.add(term);
+        let term = ctx_guard.terms.add(term);
         ctx_guard.compute_sort(&term);
         term
+    }
+
+    fn add_sort(&mut self, sort: Sort) -> Rc<Sort> {
+        // If the global pool has the sort
+        if let Some(entry) = self.global_pool.sorts.get(&sort) {
+            return entry.clone();
+        }
+        let mut ctx_guard = self.inner.write().unwrap();
+        ctx_guard.sorts.add(sort)
     }
 
     fn sort(&self, term: &Rc<Term>) -> Rc<Term> {
@@ -105,14 +114,27 @@ impl LocalPool {
 impl TermPool for LocalPool {
     fn add(&mut self, term: Term) -> Rc<Term> {
         // If there is a constant pool and has the term
-        if let Some(entry) = self.ctx_pool.global_pool.storage.get(&term) {
+        if let Some(entry) = self.ctx_pool.global_pool.terms.get(&term) {
             entry.clone()
         }
         // If this term was inserted by the context
-        else if let Some(entry) = self.ctx_pool.inner.read().unwrap().storage.get(&term) {
+        else if let Some(entry) = self.ctx_pool.inner.read().unwrap().terms.get(&term) {
             entry.clone()
         } else {
             self.inner.add(term)
+        }
+    }
+
+    fn add_sort(&mut self, sort: Sort) -> Rc<Sort> {
+        // If there is a constant pool and has the sort
+        if let Some(entry) = self.ctx_pool.global_pool.sorts.get(&sort) {
+            entry.clone()
+        }
+        // If this sort was inserted by the context
+        else if let Some(entry) = self.ctx_pool.inner.read().unwrap().sorts.get(&sort) {
+            entry.clone()
+        } else {
+            self.inner.add_sort(sort)
         }
     }
 
@@ -121,7 +143,7 @@ impl TermPool for LocalPool {
             sort.clone()
         }
         // A sort inserted by context
-        else if let Some(entry) = self.ctx_pool.inner.read().unwrap().storage.get(term) {
+        else if let Some(entry) = self.ctx_pool.inner.read().unwrap().sorts_cache.get(term) {
             entry.clone()
         } else {
             self.inner.sorts_cache[term].clone()

@@ -86,7 +86,6 @@ fn test_hash_consing() {
     //   (* 2 2)
     //   (- (- ...) (* 2 2))
     let expected = vec![
-        "Int",
         "1",
         "2",
         "(+ 1 2)",
@@ -98,7 +97,7 @@ fn test_hash_consing() {
     .into_iter()
     .collect::<IndexSet<&str>>();
 
-    let pool_terms = pool.storage.into_vec();
+    let pool_terms = pool.terms.into_vec();
     assert_eq!(pool_terms.len(), expected.len());
     for got in pool_terms {
         let formatted: &str = &format!("{:#}", got);
