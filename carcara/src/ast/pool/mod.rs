@@ -293,6 +293,7 @@ impl PrimitivePool {
             Term::ParamOp { op, op_args, args } => self
                 .compute_indexed_op_sort(*op, op_args, args)
                 .unwrap_or(Sort::ParamBitVec),
+            Term::AsOp(_, sort, _) => sort.as_sort().unwrap().clone(),
         };
         let sort = self.storage.add(Term::Sort(result));
         self.sorts_cache.insert(term.clone(), sort);
@@ -345,7 +346,6 @@ impl PrimitivePool {
             ParamOperator::BvBitOf | ParamOperator::Tester => Sort::Bool,
             ParamOperator::BvIntOf => Sort::Int,
             ParamOperator::RePower | ParamOperator::ReLoop => Sort::RegLan,
-            ParamOperator::ArrayConst => op_args[0].as_sort().unwrap().clone(),
         };
         Some(res)
     }
@@ -401,7 +401,7 @@ impl PrimitivePool {
                 }
                 set
             }
-            Term::Op(_, args) => {
+            Term::Op(_, args) | Term::ParamOp { args, .. } | Term::AsOp(_, _, args) => {
                 let mut set = IndexSet::new();
                 for a in args {
                     set.extend(self.free_vars_with_priorities(a, prior_pools).into_iter());
@@ -443,13 +443,6 @@ impl PrimitivePool {
                 set
             }
             Term::Const(_) | Term::Sort(_) => IndexSet::new(),
-            Term::ParamOp { op: _, op_args: _, args } => {
-                let mut set = IndexSet::new();
-                for a in args {
-                    set.extend(self.free_vars_with_priorities(a, prior_pools).into_iter());
-                }
-                set
-            }
         };
         self.free_vars_cache.insert(term.clone(), set);
         self.free_vars_cache.get(term).unwrap().clone()
@@ -468,7 +461,10 @@ impl PrimitivePool {
             return set.clone();
         }
         let set = match term.as_ref() {
-            Term::App(_, args) | Term::Op(_, args) | Term::ParamOp { op: _, op_args: _, args } => {
+            Term::App(_, args)
+            | Term::Op(_, args)
+            | Term::ParamOp { args, .. }
+            | Term::AsOp(_, _, args) => {
                 let mut set = IndexSet::new();
                 for a in args {
                     set.extend(self.collect_binders(a, binder).into_iter());

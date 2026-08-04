@@ -179,14 +179,24 @@ pub fn cong(RuleArgs { conclusion, premises, .. }: RuleArgs) -> RuleResult {
             },
             Term::ParamOp {
                 op: g_op,
-                args: g_args,
                 op_args: g_op_args,
+                args: g_args,
             },
         ) => {
             if f_op != g_op || f_op_args != g_op_args {
                 Err(CongruenceError::DifferentIndexedOperators(
                     (*f_op, f_op_args.clone()),
                     (*g_op, g_op_args.clone()),
+                ))
+            } else {
+                Ok((f_args, g_args))
+            }
+        }
+        (Term::AsOp(f_op, f_sort, f_args), Term::AsOp(g_op, g_sort, g_args)) => {
+            if f_op != g_op || f_sort != g_sort {
+                Err(CongruenceError::DifferentQualifiedOperators(
+                    (*f_op, f_sort.clone()),
+                    (*g_op, g_sort.clone()),
                 ))
             } else {
                 Ok((f_args, g_args))

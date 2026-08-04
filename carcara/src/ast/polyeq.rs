@@ -531,6 +531,9 @@ impl PolyeqComparable for Term {
                     args: args_b,
                 },
             ) => op_a == op_b && op_args_a == op_args_b && comp.eq(args_a, args_b),
+            (Term::AsOp(op_a, sort_a, args_a), Term::AsOp(op_b, sort_b, args_b)) => {
+                op_a == op_b && sort_a == sort_b && comp.eq(args_a, args_b)
+            }
 
             // Check the singleton case (op a) = a, where op is left-associative
             (Term::Op(op, args), other) | (other, Term::Op(op, args))

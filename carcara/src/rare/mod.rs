@@ -361,6 +361,13 @@ fn rewrite_meta_terms_inner(
                 args: new_args,
             })
         }
+        Term::AsOp(op, sort, args) => {
+            let new_args = args
+                .iter()
+                .map(|arg| rewrite_meta_terms_inner(pool, arg.clone(), rules, ctx))
+                .collect::<Vec<_>>();
+            pool.add(Term::AsOp(*op, sort.clone(), new_args))
+        }
         Term::Match(_, _) => todo!(), // TODO
     };
 

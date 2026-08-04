@@ -1,4 +1,4 @@
-use super::{Constant, Operator, ParamOperator, Rc, Term, TermPool};
+use super::{Constant, Operator, ParamOperator, QualifiedOperator, Rc, Term, TermPool};
 use rug::{Integer, Rational};
 use std::collections::{HashMap, HashSet};
 
@@ -143,6 +143,8 @@ impl Rc<Term> {
                     Value::into_term,
                 )
             }
+            // TODO: Arrays
+            Term::AsOp(QualifiedOperator::Const, ..) => self.as_ref().clone(),
 
             Term::Var(_, _)
             | Term::App(_, _)
@@ -565,8 +567,8 @@ fn eval_param_op(op: ParamOperator, op_args: &[Rc<Term>], args: &[Rc<Term>]) -> 
             Value::Integer(bit)
         }
 
-        // TODO: Strings, Arrays
-        ParamOperator::RePower | ParamOperator::ReLoop | ParamOperator::ArrayConst => return None,
+        // TODO: Strings
+        ParamOperator::RePower | ParamOperator::ReLoop => return None,
 
         ParamOperator::Tester => todo!(), // TODO
     })

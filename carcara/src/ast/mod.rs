@@ -33,7 +33,8 @@ pub use proof::*;
 pub use rc::Rc;
 pub use substitution::{Substitution, SubstitutionError};
 pub use term::{
-    Binder, BindingList, Constant, NaryCase, Operator, ParamOperator, Sort, SortedVar, Term,
+    Binder, BindingList, Constant, NaryCase, Operator, ParamOperator, QualifiedOperator, Sort,
+    SortedVar, Term,
 };
 
 #[cfg(test)]

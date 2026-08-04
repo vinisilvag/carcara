@@ -399,6 +399,16 @@ impl<'a> AlethePrinter<'a> {
                 }
                 Ok(())
             }
+            Term::AsOp(op, sort, args) => {
+                if !args.is_empty() {
+                    write!(self.inner, "(")?;
+                }
+                write!(self.inner, "(as {} {})", op, sort)?;
+                if !args.is_empty() {
+                    self.write_s_expr_tail(args)?;
+                }
+                Ok(())
+            }
         }
     }
 

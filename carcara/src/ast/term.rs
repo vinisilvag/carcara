@@ -37,19 +37,21 @@ pub enum Term {
     Match(Rc<Term>, Vec<(BindingList, Rc<Term>, Rc<Term>)>),
 
     /// A parameterized operation term, that is, an operation term whose operator receives extra
-    /// parameters.
+    /// parameters, denoted by the `(_ <op> <op_args>)` syntax.
     ///
     /// This can be either:
-    /// - An `indexed` operation term, that uses an indexed operator denoted by the `(_ ...)`
-    ///   syntax. In this case, the operator parameters must be constants.
-    /// - A `qualified` operation term, that uses a qualified operator denoted by the `(as ...)`
-    ///   syntax. In this case, the single operator parameter must be a sort.
-    /// - A `tester` of a datatype constructor `C`, denoted by `(_ is C)`.
+    /// - An *indexed* operation term, that uses an indexed operator. In this case, the operator
+    ///   parameters must be constants.
+    /// - A *tester* of a datatype constructor `C`, denoted by `(_ is C)`.
     ParamOp {
         op: ParamOperator,
         op_args: Vec<Rc<Term>>,
         args: Vec<Rc<Term>>,
     },
+
+    /// A qualified operation term, that is, an operation whose operator has a type hint, denoted
+    /// by the `(as <op> <sort>)` syntax.
+    AsOp(QualifiedOperator, Rc<Term>, Vec<Rc<Term>>),
 }
 
 /// The sort of a term.
@@ -589,9 +591,6 @@ pub enum ParamOperator {
 
     // Datatypes,
     Tester,
-
-    // Qualified operators
-    ArrayConst,
 }
 
 impl_str_conversion_traits!(Operator {
@@ -728,8 +727,6 @@ impl_str_conversion_traits!(ParamOperator {
     ReLoop: "re.loop",
 
     Tester: "is",
-
-    ArrayConst: "const",
 });
 
 impl ParamOperator {
@@ -739,19 +736,18 @@ impl ParamOperator {
             BvBitOf | BvIntOf | ZeroExtend | SignExtend | RotateLeft | RotateRight | Repeat
             | IntToBv | RePower | Tester => 1,
             BvExtract | BvConst | ReLoop => 2,
-            ArrayConst => panic!("qualified operator does not have op_args"),
-        }
-    }
-
-    pub fn is_indexed(self) -> bool {
-        use ParamOperator::*;
-        match self {
-            BvExtract | BvBitOf | BvIntOf | ZeroExtend | SignExtend | RotateLeft | RotateRight
-            | Repeat | BvConst | IntToBv | RePower | ReLoop | Tester => true,
-            ArrayConst => false,
         }
     }
 }
+
+/// An operator that can be used with the `(as <op> <sort>)` syntax
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum QualifiedOperator {
+    /// The `const` operator
+    Const,
+}
+
+impl_str_conversion_traits!(QualifiedOperator { Const: "const" });
 
 impl std::ops::Not for Binder {
     type Output = Self;

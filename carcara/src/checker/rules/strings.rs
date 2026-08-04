@@ -149,6 +149,13 @@ fn expand_string_constants(pool: &mut dyn TermPool, term: &Rc<Term>) -> Rc<Term>
                 args: new_args,
             })
         }
+        Term::AsOp(op, sort, args) => {
+            let new_args = args
+                .iter()
+                .map(|term| expand_string_constants(pool, term))
+                .collect();
+            pool.add(Term::AsOp(*op, sort.clone(), new_args))
+        }
         Term::Match(t, patterns) => {
             let new_t = expand_string_constants(pool, t);
             let new_patterns = patterns

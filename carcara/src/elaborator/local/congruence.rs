@@ -63,7 +63,10 @@ fn check_cong<'a, I: IntoIterator<Item = &'a Rc<Term>>>(
 
 fn term_args(term: &Rc<Term>) -> &[Rc<Term>] {
     match term.as_ref() {
-        Term::App(_, args) | Term::Op(_, args) | Term::ParamOp { args, .. } => args,
+        Term::App(_, args)
+        | Term::Op(_, args)
+        | Term::ParamOp { args, .. }
+        | Term::AsOp(_, _, args) => args,
         _ => panic!(),
     }
 }

@@ -305,6 +305,12 @@ pub enum CongruenceError {
         (ParamOperator, Vec<Rc<Term>>),
         (ParamOperator, Vec<Rc<Term>>),
     ),
+
+    #[error(
+        "qualified operators don't match: '(as {} {})' and '(as {} {})'",
+        (.0).0, (.0).1, (.1).0, (.1).1)
+    ]
+    DifferentQualifiedOperators((QualifiedOperator, Rc<Term>), (QualifiedOperator, Rc<Term>)),
 }
 
 /// Errors relevant to the rules dealing with quantifiers.

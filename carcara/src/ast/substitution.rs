@@ -251,12 +251,17 @@ impl Substitution {
             }
             Term::Const(_) | Term::Var(..) => term.clone(),
             Term::ParamOp { op, op_args, args } => {
+                // TODO: maybe we should also apply to op_args?
                 let new_args = apply_to_sequence!(args);
                 pool.add(Term::ParamOp {
                     op: *op,
                     op_args: op_args.clone(),
                     args: new_args,
                 })
+            }
+            Term::AsOp(op, sort, args) => {
+                let new_args = apply_to_sequence!(args);
+                pool.add(Term::AsOp(*op, sort.clone(), new_args))
             }
             Term::Sort(Sort::Atom(sort, args)) => {
                 let new_args = apply_to_sequence!(args).into_boxed_slice();

@@ -2104,7 +2104,6 @@ impl<'p, 's> Parser<'p, 's> {
                 assert_indexed_op_args_value(&op_args, 0..)?;
             }
             ParamOperator::Tester => {}
-            ParamOperator::ArrayConst => return Err(ParserError::InvalidIndexedOp(op.to_string())),
         }
         Ok(self.pool.add(Term::ParamOp { op, op_args, args }))
     }
@@ -2112,21 +2111,19 @@ impl<'p, 's> Parser<'p, 's> {
     /// Constructs and sort checks a qualified operation term
     fn make_qualified_op(
         &mut self,
-        op: ParamOperator,
-        op_sort: Rc<Term>,
+        op: QualifiedOperator,
+        sort: Rc<Term>,
         args: Vec<Rc<Term>>,
     ) -> Result<Rc<Term>, ParserError> {
         let sorts: Vec<_> = args.iter().map(|t| self.pool.sort(t)).collect();
         let sorts: Vec<_> = sorts.iter().map(|s| s.as_sort().unwrap()).collect();
-        match &op {
-            ParamOperator::ArrayConst => {
+        match op {
+            QualifiedOperator::Const => {
                 assert_num_args(&args, 1)?;
-                self.check_array_sort(None, Some(sorts[0]), op_sort.as_sort().unwrap())?;
+                self.check_array_sort(None, Some(sorts[0]), sort.as_sort().unwrap())?;
             }
-            _ => return Err(ParserError::InvalidQualifiedOp(op.to_string())),
         }
-        let op_args = vec![op_sort];
-        Ok(self.pool.add(Term::ParamOp { op, op_args, args }))
+        Ok(self.pool.add(Term::AsOp(op, sort, args)))
     }
 
     /// Parses any term that starts with `(`, that is, any term that is not a constant or a
@@ -2144,7 +2141,7 @@ impl<'p, 's> Parser<'p, 's> {
                     }
                     Reserved::As => {
                         let op_symbol = self.expect_symbol()?;
-                        if let Ok(op) = ParamOperator::from_str(op_symbol.as_str()) {
+                        if let Ok(op) = QualifiedOperator::from_str(op_symbol.as_str()) {
                             let sort = self.parse_sort()?;
                             self.expect_token(Token::CloseParen)?;
                             self.make_qualified_op(op, sort, Vec::new())
@@ -2258,7 +2255,7 @@ impl<'p, 's> Parser<'p, 's> {
                     .map_err(|err| Error::Parser(err, head_pos))
             }
             Token::Symbol(s)
-                if ParamOperator::from_str(s).is_ok_and(ParamOperator::is_indexed)
+                if ParamOperator::from_str(s).is_ok()
                     && self.config.allow_higher_order_indexed_ops =>
             {
                 let op = ParamOperator::from_str(s).unwrap();
@@ -2331,7 +2328,7 @@ impl<'p, 's> Parser<'p, 's> {
                     Token::ReservedWord(Reserved::As) => {
                         self.next_token()?;
                         let op_symbol = self.expect_symbol()?;
-                        if let Ok(op) = ParamOperator::from_str(op_symbol.as_str()) {
+                        if let Ok(op) = QualifiedOperator::from_str(op_symbol.as_str()) {
                             let sort = self.parse_sort()?;
                             self.expect_token(Token::CloseParen)?;
                             let args = self.parse_sequence(Self::parse_term, true)?;

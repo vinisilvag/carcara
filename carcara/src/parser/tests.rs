@@ -788,11 +788,11 @@ fn test_qualified_operators() {
     let cases = [("((as const (Array Int Real)) 0.0)", {
         let [int, real] = [Sort::Int, Sort::Real].map(|s| p.add(Term::Sort(s)));
         let sort = p.add(Term::Sort(Sort::Array(int, real)));
-        Term::ParamOp {
-            op: ParamOperator::ArrayConst,
-            op_args: vec![sort],
-            args: vec![p.add(Term::new_real(0))],
-        }
+        Term::AsOp(
+            QualifiedOperator::Const,
+            sort,
+            vec![p.add(Term::new_real(0))],
+        )
     })];
     run_parser_tests(&mut p, &cases);
 
