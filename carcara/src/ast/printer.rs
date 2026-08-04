@@ -139,9 +139,6 @@ impl PrintWithSharing for Rc<Term> {
                 // - Terminal terms (i.e., constants or variables) could in theory be shared,
                 // but, since they are very small, it's not worth it to give them a name.
                 self.is_const() || self.is_var()
-                // - Sorts are represented as terms, but they are not actually terms in the grammar,
-                // so we can't use the `(! ... :named ...)` syntax to give them a name.
-                || self.is_sort()
                 // - If a term is only used once in the proof, there is no reason to give it a
                 // name. We detect this case by checking if the number of references to it's `Rc` is
                 // no more than 3: one in the pool storage, one in the pool sorts cache, and one in
@@ -171,21 +168,39 @@ impl PrintWithSharing for Rc<Term> {
     }
 }
 
+impl PrintWithSharing for Rc<Sort> {
+    fn print_with_sharing(&self, p: &mut AlethePrinter) -> io::Result<()> {
+        write!(p.inner, "{}", self)
+    }
+}
+
 impl PrintWithSharing for SortedVar {
     fn print_with_sharing(&self, p: &mut AlethePrinter) -> io::Result<()> {
-        let (name, value) = self;
+        let (name, sort) = self;
         write!(p.inner, "({} ", quote_symbol(name))?;
-        value.print_with_sharing(p)?;
+        sort.print_with_sharing(p)?;
         write!(p.inner, ")")
     }
 }
 
-impl PrintWithSharing for BindingList {
+impl<T> PrintWithSharing for BindingList<T>
+where
+    (String, T): PrintWithSharing,
+{
     fn print_with_sharing(&self, p: &mut AlethePrinter) -> io::Result<()> {
         match self.as_slice() {
             [] => write!(p.inner, "()"),
             [head, tail @ ..] => p.write_s_expr(head, tail),
         }
+    }
+}
+
+impl PrintWithSharing for (String, Rc<Term>) {
+    fn print_with_sharing(&self, p: &mut AlethePrinter) -> io::Result<()> {
+        let (name, value) = self;
+        write!(p.inner, "({} ", quote_symbol(name))?;
+        value.print_with_sharing(p)?;
+        write!(p.inner, ")")
     }
 }
 
@@ -386,7 +401,6 @@ impl<'a> AlethePrinter<'a> {
                     self.write_s_expr(op, args)
                 }
             }
-            Term::Sort(sort) => write!(self.inner, "{}", sort),
             Term::Binder(binder, bindings, term) => {
                 write!(self.inner, "({} ", binder)?;
                 bindings.print_with_sharing(self)?;
@@ -599,7 +613,7 @@ impl fmt::Display for Binder {
     }
 }
 
-impl fmt::Display for BindingList {
+impl<T: fmt::Display> fmt::Display for BindingList<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.as_slice() {
             [] => write!(f, "()"),
@@ -687,7 +701,7 @@ impl fmt::Display for ProblemPrelude {
 
         for (name, sort) in &self.function_declarations {
             write!(f, "(declare-fun {} ", quote_symbol(name))?;
-            if let Sort::Function(sorts) = sort.as_sort().unwrap() {
+            if let Sort::Function(sorts) = sort.as_ref() {
                 write_s_expr(f, &sorts[0], &sorts[1..sorts.len() - 1])?;
                 writeln!(f, " {})", sorts.last().unwrap())?;
             } else {

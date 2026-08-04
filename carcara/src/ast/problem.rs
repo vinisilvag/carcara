@@ -1,4 +1,4 @@
-use super::{Rc, Term};
+use super::{Rc, Sort, Term};
 use indexmap::IndexSet;
 
 /// An SMT problem in the SMT-LIB format.
@@ -29,7 +29,7 @@ pub struct ProblemPrelude {
     pub(crate) sort_declarations: Vec<(String, usize)>,
 
     /// The function declarations, each represented by its name and sort.
-    pub(crate) function_declarations: Vec<(String, Rc<Term>)>,
+    pub(crate) function_declarations: Vec<(String, Rc<Sort>)>,
 
     /// The problem's logic string, if it exists.
     pub(crate) logic: Option<String>,

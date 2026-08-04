@@ -156,11 +156,7 @@ impl Rc<Term> {
             // TODO: Arrays
             Term::AsOp(QualifiedOperator::Const, ..) => self.as_ref().clone(),
 
-            Term::Var(_, _)
-            | Term::App(_, _)
-            | Term::Sort(_)
-            | Term::Binder(_, _, _)
-            | Term::Let(_, _) => {
+            Term::Var(_, _) | Term::App(_, _) | Term::Binder(_, _, _) | Term::Let(_, _) => {
                 cache.insert(self, self.clone());
                 return cache.get(self).unwrap();
             }

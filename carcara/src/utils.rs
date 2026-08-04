@@ -1,4 +1,4 @@
-use crate::ast::{Binder, BindingList, Rc, Term};
+use crate::ast::{Binder, BindingList, Rc, Sort, Term};
 use indexmap::{IndexMap, IndexSet};
 use rug::Integer;
 use std::{
@@ -350,11 +350,15 @@ impl TypeName for Rc<Term> {
     const NAME: &'static str = "term";
 }
 
+impl TypeName for Rc<Sort> {
+    const NAME: &'static str = "sort";
+}
+
 impl TypeName for Binder {
     const NAME: &'static str = "binder";
 }
 
-impl TypeName for BindingList {
+impl<T> TypeName for BindingList<T> {
     const NAME: &'static str = "binding list";
 }
 

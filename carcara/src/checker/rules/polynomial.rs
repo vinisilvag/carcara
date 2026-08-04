@@ -171,7 +171,7 @@ pub fn poly_simp(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
     let (mut t_norm, mut s_norm) = (Polynomial::from_term(t), Polynomial::from_term(s));
 
     // If the sort is a bitvector sort, we must take the modulo
-    if let Sort::BitVec(width) = pool.sort(t).as_sort().unwrap() {
+    if let Sort::BitVec(width) = pool.sort(t).as_ref() {
         let max = Integer::from(1) << width;
         t_norm = t_norm.modulo(&max).unwrap();
         s_norm = s_norm.modulo(&max).unwrap();
@@ -197,7 +197,7 @@ pub fn poly_simp_rel(RuleArgs { conclusion, premises, pool, .. }: RuleArgs) -> R
         = get_premise_term(&premises[0])?);
     if let Some((c1, x1, x2, c2, y1, y2)) = bitvector_case {
         let sort = pool.sort(c1);
-        let Sort::BitVec(_) = sort.as_sort().unwrap() else {
+        let Sort::BitVec(_) = sort.as_ref() else {
             unreachable!()
         };
         for c in [c1, c2] {

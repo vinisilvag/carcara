@@ -768,7 +768,7 @@ fn identity_of_op(pool: &mut dyn TermPool, op: Operator, term: &Rc<Term>) -> Opt
         Operator::And => Some(Term::new_bool(true)),
         // TODO modularize this so it's not repeated below
         Operator::Add => match term.as_ref() {
-            Term::Op(_, args) => match pool.sort(&args[0]).as_sort().unwrap() {
+            Term::Op(_, args) => match pool.sort(&args[0]).as_ref() {
                 Sort::Int => Some(Term::new_int(0)),
                 Sort::Real => Some(Term::new_real(0)),
                 _ => unreachable!(),
@@ -776,7 +776,7 @@ fn identity_of_op(pool: &mut dyn TermPool, op: Operator, term: &Rc<Term>) -> Opt
             _ => unreachable!(),
         },
         Operator::Mult => match term.as_ref() {
-            Term::Op(_, args) => match pool.sort(&args[0]).as_sort().unwrap() {
+            Term::Op(_, args) => match pool.sort(&args[0]).as_ref() {
                 Sort::Int => Some(Term::new_int(1)),
                 Sort::Real => Some(Term::new_real(1)),
                 _ => unreachable!(),
@@ -785,7 +785,7 @@ fn identity_of_op(pool: &mut dyn TermPool, op: Operator, term: &Rc<Term>) -> Opt
         },
         Operator::BvAdd | Operator::BvOr | Operator::BvXor => match term.as_ref() {
             Term::Op(_, args) => {
-                let Sort::BitVec(size) = pool.sort(&args[0]).as_sort().cloned().unwrap() else {
+                let &Sort::BitVec(size) = pool.sort(&args[0]).as_ref() else {
                     unreachable!();
                 };
                 Some(Term::new_bv(Integer::from(0), size))
@@ -794,7 +794,7 @@ fn identity_of_op(pool: &mut dyn TermPool, op: Operator, term: &Rc<Term>) -> Opt
         },
         Operator::BvMul => match term.as_ref() {
             Term::Op(_, args) => {
-                let Sort::BitVec(size) = pool.sort(&args[0]).as_sort().cloned().unwrap() else {
+                let &Sort::BitVec(size) = pool.sort(&args[0]).as_ref() else {
                     unreachable!();
                 };
                 Some(Term::new_bv(Integer::from(1), size))
@@ -803,7 +803,7 @@ fn identity_of_op(pool: &mut dyn TermPool, op: Operator, term: &Rc<Term>) -> Opt
         },
         Operator::BvAnd => match term.as_ref() {
             Term::Op(_, args) => {
-                let Sort::BitVec(size) = pool.sort(&args[0]).as_sort().cloned().unwrap() else {
+                let &Sort::BitVec(size) = pool.sort(&args[0]).as_ref() else {
                     unreachable!();
                 };
                 Some(Term::new_bv((Integer::from(1) << size) - 1, size))

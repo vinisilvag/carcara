@@ -2,8 +2,8 @@ use crate::{
     ast::{
         build_term, match_term, match_term_err,
         pool::{PrimitivePool, TermPool},
-        printer, Binder, BindingList, Operator, ProblemPrelude, ProofCommand, Rc, Substitution,
-        Term,
+        printer, Binder, BindingList, Operator, ProblemPrelude, ProofCommand, Rc, Sort,
+        Substitution, Term,
     },
     checker::{error::CheckerError, rules::RuleResult, SatRefConfig},
     external,
@@ -249,7 +249,7 @@ pub fn sat_refutation(
 
                 (k_name.clone(), pool.sort(k).clone())
             })
-            .collect::<Vec<(String, Rc<Term>)>>();
+            .collect::<Vec<(String, Rc<Sort>)>>();
         choice_const_declarations.extend(prelude.function_declarations.clone());
         ProblemPrelude {
             logic: Some("ALL".into()),

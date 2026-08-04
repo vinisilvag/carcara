@@ -75,14 +75,17 @@ pub fn ext(
     // conclusion and likewise for the rhs
 
     // check index is (choice (x I) (not (= (select a x) (select b x))))
-    let Sort::Array(index_sort, _) = pool.sort(ap).as_sort().cloned().unwrap() else {
+    let Sort::Array(index_sort, _) = pool.sort(ap).as_ref().clone() else {
         return Err(CheckerError::Explanation(format!(
             "Could not get Array sort from term {}",
             ap
         )));
     };
     let x = pool.add(Term::new_var("x", index_sort.clone()));
-    let body = build_term!(pool, (or (= {ap.clone()} {bp.clone()}) (not (= (select { ap.clone() } { x.clone() }) (select { bp.clone() } { x.clone() })))));
+    let body = build_term!(pool, (or
+        (= {ap.clone()} {bp.clone()})
+        (not (= (select { ap.clone() } { x.clone() }) (select { bp.clone() } { x.clone() })))
+    ));
     let choice = pool.add(Term::Binder(
         Binder::Choice,
         BindingList(vec![("x".to_owned(), index_sort.clone())]),
@@ -90,7 +93,7 @@ pub fn ext(
     ));
 
     let alpha_equiv_conclusion = build_term!(pool,
-                (not (= (select {ap.clone()} {choice.clone()}) (select {bp.clone()} {choice.clone()})))
+        (not (= (select {ap.clone()} {choice.clone()}) (select {bp.clone()} {choice.clone()})))
     );
 
     assert_polyeq(&conclusion[0], &alpha_equiv_conclusion, polyeq_time)

@@ -262,7 +262,7 @@ fn bv_operand_width(pool: &mut dyn TermPool, original_args: &[Rc<Term>]) -> Opti
             _ => arg,
         };
         let sort = pool.sort(probe);
-        if let Some(Sort::BitVec(width)) = sort.as_sort() {
+        if let Sort::BitVec(width) = sort.as_ref() {
             return Some(*width);
         }
     }
@@ -285,7 +285,6 @@ fn rewrite_meta_terms_inner(
     let result = match term.as_ref() {
         Term::Var(_, _) => term.clone(),
         Term::Const(_) => term.clone(),
-        Term::Sort(_) => term.clone(),
 
         Term::App(f, args) => {
             let f_prime = rewrite_meta_terms_inner(pool, f.clone(), rules, ctx);

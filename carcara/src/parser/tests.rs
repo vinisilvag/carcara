@@ -251,8 +251,8 @@ fn test_ite() {
 #[test]
 fn test_quantifiers() {
     let mut p = PrimitivePool::new();
-    let bool_sort = p.add(Term::Sort(Sort::Bool));
-    let real_sort = p.add(Term::Sort(Sort::Real));
+    let bool_sort = p.add_sort(Sort::Bool);
+    let real_sort = p.add_sort(Sort::Real);
     let cases = [
         ("(exists ((p Bool)) p)", {
             let inner = p.add(Term::new_var("p", bool_sort.clone()));
@@ -291,8 +291,8 @@ fn test_quantifiers() {
 #[test]
 fn test_choice_terms() {
     let mut p = PrimitivePool::new();
-    let bool_sort = p.add(Term::Sort(Sort::Bool));
-    let int_sort = p.add(Term::Sort(Sort::Int));
+    let bool_sort = p.add_sort(Sort::Bool);
+    let int_sort = p.add_sort(Sort::Int);
     let cases = [
         ("(choice ((p Bool)) p)", {
             let inner = p.add(Term::new_var("p", bool_sort.clone()));
@@ -321,8 +321,8 @@ fn test_choice_terms() {
 #[test]
 fn test_let_terms() {
     let mut p = PrimitivePool::new();
-    let int_sort = p.add(Term::Sort(Sort::Int));
-    let bool_sort = p.add(Term::Sort(Sort::Bool));
+    let bool_sort = p.add_sort(Sort::Bool);
+    let int_sort = p.add_sort(Sort::Int);
     let cases = [
         ("(let ((p false)) p)", {
             let inner = p.add(Term::new_var("p", bool_sort));
@@ -348,7 +348,7 @@ fn test_let_terms() {
 #[test]
 fn test_lambda_terms() {
     let mut p = PrimitivePool::new();
-    let int_sort = p.add(Term::Sort(Sort::Int));
+    let int_sort = p.add_sort(Sort::Int);
     let cases = [
         ("(lambda ((x Int)) x)", {
             let x = p.add(Term::new_var("x", int_sort.clone()));
@@ -424,7 +424,7 @@ fn test_declare_fun() {
     );
 
     let [got] = parse_terms(&mut p, "(declare-fun x () Real)", ["x"]);
-    let real_sort = p.add(Term::Sort(Sort::Real));
+    let real_sort = p.add_sort(Sort::Real);
     assert_eq!(p.add(Term::new_var("x", real_sort)), got);
 }
 
@@ -449,7 +449,7 @@ fn test_declare_sort() {
         (declare-fun x () T)",
         ["x"],
     );
-    let expected_sort = p.add(Term::Sort(Sort::Atom("T".into(), Box::new([]))));
+    let expected_sort = p.add_sort(Sort::Atom("T".into(), Box::new([])));
     assert_eq!(p.add(Term::new_var("x", expected_sort)), got);
 }
 
@@ -785,8 +785,8 @@ fn test_indexed_operators() {
 fn test_qualified_operators() {
     let mut p = PrimitivePool::new();
     let cases = [("((as const (Array Int Real)) 0.0)", {
-        let [int, real] = [Sort::Int, Sort::Real].map(|s| p.add(Term::Sort(s)));
-        let sort = p.add(Term::Sort(Sort::Array(int, real)));
+        let [int, real] = [Sort::Int, Sort::Real].map(|s| p.add_sort(s));
+        let sort = p.add_sort(Sort::Array(int, real));
         Term::AsOp(
             QualifiedOperator::Const,
             sort,

@@ -197,10 +197,16 @@ pub enum CheckerError {
     TermEquality(#[from] EqualityError<Rc<Term>>),
 
     #[error(transparent)]
+    SortEquality(#[from] EqualityError<Rc<Sort>>),
+
+    #[error(transparent)]
     QuantifierEquality(#[from] EqualityError<Binder>),
 
     #[error(transparent)]
     BindingListEquality(#[from] EqualityError<BindingList>),
+
+    #[error(transparent)]
+    BindingValueListEquality(#[from] EqualityError<BindingList<Rc<Term>>>),
 
     #[error(transparent)]
     IntegerEquality(#[from] EqualityError<Integer>),
@@ -307,7 +313,7 @@ pub enum CongruenceError {
         "qualified operators don't match: '(as {} {})' and '(as {} {})'",
         (.0).0, (.0).1, (.1).0, (.1).1)
     ]
-    DifferentQualifiedOperators((QualifiedOperator, Rc<Term>), (QualifiedOperator, Rc<Term>)),
+    DifferentQualifiedOperators((QualifiedOperator, Rc<Sort>), (QualifiedOperator, Rc<Sort>)),
 }
 
 /// Errors relevant to the rules dealing with quantifiers.

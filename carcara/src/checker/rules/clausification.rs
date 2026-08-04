@@ -26,7 +26,7 @@ pub fn distinct_elim(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult 
         }
         // If there are more than two boolean arguments to the distinct operator, the
         // second term must be `false`
-        args if pool.sort(&args[0]).as_sort().unwrap() == &Sort::Bool => {
+        args if pool.sort(&args[0]).as_ref() == &Sort::Bool => {
             if second_term.is_bool_false() {
                 Ok(())
             } else {
@@ -274,7 +274,7 @@ fn bfun_elim_first_step(
     acc: &mut Vec<Rc<Term>>,
 ) -> Result<(), SubstitutionError> {
     let var = match bindigns {
-        [.., var] if var.1.as_sort() == Some(&Sort::Bool) => pool.add(var.clone().into()),
+        [.., var] if var.1.as_ref() == &Sort::Bool => pool.add(var.clone().into()),
         [rest @ .., _] => return bfun_elim_first_step(pool, rest, term, acc),
         [] => {
             acc.push(term.clone());
@@ -298,7 +298,7 @@ fn bfun_elim_second_step(
     processed: usize,
 ) -> Rc<Term> {
     for i in processed..args.len() {
-        if pool.sort(&args[i]).as_sort().unwrap() == &Sort::Bool
+        if pool.sort(&args[i]).as_ref() == &Sort::Bool
             && !args[i].is_bool_false()
             && !args[i].is_bool_true()
         {
@@ -368,7 +368,7 @@ pub fn apply_bfun_elim(
 
             let new_bindings: Vec<_> = bindings
                 .iter()
-                .filter(|(_, sort)| *sort.as_sort().unwrap() != Sort::Bool)
+                .filter(|(_, sort)| *sort.as_ref() != Sort::Bool)
                 .cloned()
                 .collect();
             if new_bindings.is_empty() {

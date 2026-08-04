@@ -3,7 +3,9 @@
 pub mod advanced;
 mod storage;
 
-use super::{Binder, Constant, Operator, ParamOperator, Rc, Sort, SortedVar, Substitution, Term};
+use super::{
+    Binder, Constant, Operator, ParamOperator, Rc, Sort, SortSubstitution, SortedVar, Term,
+};
 use indexmap::{IndexMap, IndexSet};
 use storage::Storage;
 
@@ -61,8 +63,8 @@ pub trait TermPool {
     /// Returns the sort of the given term.
     ///
     /// This method assumes that the sorts of any subterms have already been checked, and are
-    /// correct. If `term` is itself a sort, this simply returns that sort.
-    fn sort(&self, term: &Rc<Term>) -> Rc<Term>;
+    /// correct.
+    fn sort(&self, term: &Rc<Term>) -> Rc<Sort>;
 
     /// Returns an `IndexSet` containing all the free variables in the given term.
     ///
@@ -89,7 +91,7 @@ pub struct PrimitivePool {
     pub(crate) terms: Storage<Term>,
     pub(crate) sorts: Storage<Sort>,
     pub(crate) free_vars_cache: IndexMap<Rc<Term>, IndexSet<Rc<Term>>>,
-    pub(crate) sorts_cache: IndexMap<Rc<Term>, Rc<Term>>,
+    pub(crate) sorts_cache: IndexMap<Rc<Term>, Rc<Sort>>,
     pub(crate) binders_cache: IndexMap<(Rc<Term>, Binder), IndexSet<Rc<Term>>>,
     pub(crate) datatypes: IndexMap<String, Datatype>,
 }
@@ -102,20 +104,20 @@ impl PrimitivePool {
     }
 
     /// Computes the sort of a term and adds it to the sort cache.
-    fn compute_sort(&mut self, term: &Rc<Term>) -> Rc<Term> {
+    fn compute_sort(&mut self, term: &Rc<Term>) -> Rc<Sort> {
         if let Some(sort) = self.sorts_cache.get(term) {
             return sort.clone();
         }
 
-        let result: Sort = match term.as_ref() {
-            Term::Const(c) => match c {
+        let result = match term.as_ref() {
+            Term::Const(c) => self.sorts.add(match c {
                 Constant::Integer(_) => Sort::Int,
                 Constant::Real(_) => Sort::Real,
                 Constant::String(_) => Sort::String,
                 Constant::RegLan(_, _) => Sort::RegLan,
                 Constant::BitVec(_, w) => Sort::BitVec(*w),
-            },
-            Term::Var(_, sort) => sort.as_sort().unwrap().clone(),
+            }),
+            Term::Var(_, sort) => sort.clone(),
             Term::Op(op, args) => match op {
                 Operator::True
                 | Operator::False
@@ -147,9 +149,11 @@ impl PrimitivePool {
                 | Operator::BvSGt
                 | Operator::BvSGe
                 | Operator::Cl
-                | Operator::Delete => Sort::Bool,
+                | Operator::Delete => self.sorts.add(Sort::Bool),
 
-                Operator::BvSize | Operator::UBvToInt | Operator::SBvToInt => Sort::Int,
+                Operator::BvSize | Operator::UBvToInt | Operator::SBvToInt => {
+                    self.sorts.add(Sort::Int)
+                }
 
                 Operator::BvAdd
                 | Operator::BvSub
@@ -171,59 +175,68 @@ impl PrimitivePool {
                 | Operator::BvSMod
                 | Operator::BvAShr => 'block: {
                     for a in args {
-                        match self.compute_sort(a).as_sort().unwrap() {
-                            s @ Sort::BitVec(_) => break 'block s.clone(),
+                        let s = self.compute_sort(a);
+                        match s.as_ref() {
+                            Sort::BitVec(_) => break 'block s.clone(),
                             Sort::ParamBitVec => (),
                             _ => unreachable!(),
                         }
                     }
-                    Sort::ParamBitVec
+                    self.sorts.add(Sort::ParamBitVec)
                 }
-                Operator::BvComp => Sort::BitVec(1),
-                Operator::BvBbTerm | Operator::BvPBbTerm => Sort::BitVec(args.len()),
-                Operator::BvConst => match &*args[1] {
-                    Term::Const(Constant::Integer(bvsize)) => {
-                        Sort::BitVec(bvsize.to_usize().unwrap())
-                    }
-                    _ => Sort::ParamBitVec,
-                },
-                Operator::BvConcat => args
-                    .iter()
-                    .map(|a| self.compute_sort(a).as_sort().unwrap().clone())
-                    .reduce(|acc, sort| match (acc, sort) {
-                        (Sort::BitVec(a), Sort::BitVec(b)) => Sort::BitVec(a + b),
-                        (Sort::BitVec(_) | Sort::ParamBitVec, Sort::ParamBitVec)
-                        | (Sort::ParamBitVec, Sort::BitVec(_)) => Sort::ParamBitVec,
-                        (_, Sort::ParamSort(_, _)) | (Sort::ParamSort(_, _), _) => {
-                            Sort::ParamBitVec // TODO: handle this properly
+                Operator::BvComp => self.sorts.add(Sort::BitVec(1)),
+                Operator::BvBbTerm | Operator::BvPBbTerm => {
+                    self.sorts.add(Sort::BitVec(args.len()))
+                }
+                Operator::BvConst => {
+                    let s = match &*args[1] {
+                        Term::Const(Constant::Integer(bvsize)) => {
+                            Sort::BitVec(bvsize.to_usize().unwrap())
                         }
-                        _ => unreachable!(),
-                    })
-                    .unwrap(),
-                Operator::Ite => self.compute_sort(&args[1]).as_sort().unwrap().clone(),
-                Operator::Abs => self.compute_sort(&args[0]).as_sort().unwrap().clone(),
+                        _ => Sort::ParamBitVec,
+                    };
+                    self.sorts.add(s)
+                }
+                Operator::BvConcat => {
+                    let s = args.iter().map(|a| self.compute_sort(a)).fold(
+                        Sort::BitVec(0),
+                        |acc, sort| match (acc, sort.as_ref()) {
+                            (Sort::BitVec(a), Sort::BitVec(b)) => Sort::BitVec(a + b),
+                            (Sort::BitVec(_) | Sort::ParamBitVec, Sort::ParamBitVec)
+                            | (Sort::ParamBitVec, Sort::BitVec(_)) => Sort::ParamBitVec,
+                            (_, Sort::ParamSort(_, _)) | (Sort::ParamSort(_, _), _) => {
+                                Sort::ParamBitVec // TODO: handle this properly
+                            }
+                            _ => unreachable!(),
+                        },
+                    );
+                    self.sorts.add(s)
+                }
+                Operator::Ite => self.compute_sort(&args[1]),
+                Operator::Abs => self.compute_sort(&args[0]),
                 Operator::Add | Operator::Sub | Operator::Mult => {
-                    if args
+                    let s = if args
                         .iter()
-                        .any(|a| self.compute_sort(a).as_sort().unwrap() == &Sort::Real)
+                        .any(|a| self.compute_sort(a).as_ref() == &Sort::Real)
                     {
                         Sort::Real
                     } else {
                         Sort::Int
-                    }
+                    };
+                    self.sorts.add(s)
                 }
-                Operator::RealDiv | Operator::ToReal => Sort::Real,
-                Operator::IntDiv | Operator::Mod | Operator::ToInt => Sort::Int,
+                Operator::RealDiv | Operator::ToReal => self.sorts.add(Sort::Real),
+                Operator::IntDiv | Operator::Mod | Operator::ToInt => self.sorts.add(Sort::Int),
                 Operator::Select => {
                     let sort = self.compute_sort(&args[0]);
-                    let Sort::Array(_, y) = sort.as_sort().unwrap() else {
+                    let Sort::Array(_, y) = sort.as_ref() else {
                         unreachable!()
                     };
-                    y.as_sort().unwrap().clone()
+                    y.clone()
                 }
-                Operator::Store => self.compute_sort(&args[0]).as_sort().unwrap().clone(),
+                Operator::Store => self.compute_sort(&args[0]),
                 Operator::StrLen | Operator::IndexOf | Operator::StrToCode | Operator::StrToInt => {
-                    Sort::Int
+                    self.sorts.add(Sort::Int)
                 }
                 Operator::StrConcat
                 | Operator::CharAt
@@ -233,7 +246,7 @@ impl PrimitivePool {
                 | Operator::ReplaceRe
                 | Operator::ReplaceReAll
                 | Operator::StrFromCode
-                | Operator::StrFromInt => Sort::String,
+                | Operator::StrFromInt => self.sorts.add(Sort::String),
                 Operator::StrToRe
                 | Operator::ReNone
                 | Operator::ReAll
@@ -247,46 +260,37 @@ impl PrimitivePool {
                 | Operator::ReKleeneCross
                 | Operator::ReOption
                 | Operator::ReRange
-                | Operator::ReFromAutomaton => Sort::RegLan,
+                | Operator::ReFromAutomaton => self.sorts.add(Sort::RegLan),
                 Operator::RareList => match args.as_slice() {
                     // For empty lists, we can't know the element sort, so we use a placeholder
                     // variable sort `?`
-                    [] => Sort::Var("?".to_owned()),
-                    [arg, ..] => self.compute_sort(arg).as_sort().unwrap().clone(),
+                    [] => self.sorts.add(Sort::Var("?".to_owned())),
+                    [arg, ..] => self.compute_sort(arg),
                 },
-                Operator::Pow2 | Operator::Log2 => Sort::Int,
-                Operator::IsPow2 => Sort::Bool,
+                Operator::Pow2 | Operator::Log2 => self.sorts.add(Sort::Int),
+                Operator::IsPow2 => self.sorts.add(Sort::Bool),
             },
             Term::App(f, args) => {
-                match self.compute_sort(f).as_sort().unwrap() {
-                    Sort::Function(sorts) => sorts.last().unwrap().as_sort().unwrap().clone(),
+                match self.compute_sort(f).as_ref() {
+                    Sort::Function(sorts) => sorts.last().unwrap().clone(),
                     Sort::ParamSort(_, p_sort) => {
-                        let p_function_sort = p_sort.as_sort().unwrap();
-                        if let Sort::Function(sorts) = p_function_sort {
+                        if let Sort::Function(sorts) = p_sort.as_ref() {
                             // match with sorts of args, apply the resulting substitution on the return sort
                             let mut map = IndexMap::new();
                             for i in 0..args.len() {
-                                let sort_i = sorts[i].as_sort().unwrap();
-                                let arg_sort_i =
-                                    self.compute_sort(&args[i]).as_sort().unwrap().clone();
-                                if !sort_i.match_with(&arg_sort_i, &mut map) {
+                                let arg_sort_i = self.compute_sort(&args[i]);
+                                if !sorts[i].match_with(&arg_sort_i, &mut map) {
                                     unreachable!();
                                 }
                             }
                             let substitution: IndexMap<_, _> = map
                                 .into_iter()
                                 .map(|(var_name, sort)| {
-                                    let var = Term::Sort(Sort::Var(var_name));
-                                    let sort_t = Term::Sort(sort);
-                                    (self.add(var), self.add(sort_t))
+                                    let var = Sort::Var(var_name);
+                                    (self.add_sort(var), self.add_sort(sort))
                                 })
                                 .collect();
-                            Substitution::new(self, substitution)
-                                .unwrap()
-                                .apply(self, sorts.last().unwrap())
-                                .as_sort()
-                                .unwrap()
-                                .clone()
+                            SortSubstitution::new(substitution).apply(self, sorts.last().unwrap())
                         } else {
                             unreachable!()
                         }
@@ -294,28 +298,22 @@ impl PrimitivePool {
                     _ => unreachable!(), // We assume that the function is correctly sorted
                 }
             }
-            Term::Sort(_) => Sort::Type,
-            Term::Binder(Binder::Forall | Binder::Exists, _, _) => Sort::Bool,
-            Term::Binder(Binder::Choice, v, _) => v[0].1.as_sort().unwrap().clone(),
+            Term::Binder(Binder::Forall | Binder::Exists, _, _) => self.sorts.add(Sort::Bool),
+            Term::Binder(Binder::Choice, v, _) => v[0].1.clone(),
             Term::Binder(Binder::Lambda, bindings, body) => {
                 let mut result: Vec<_> =
                     bindings.iter().map(|(_name, sort)| sort.clone()).collect();
                 result.push(self.compute_sort(body));
-                Sort::Function(result)
+                self.sorts.add(Sort::Function(result))
             }
-            Term::Let(_, inner) => self.compute_sort(inner).as_sort().unwrap().clone(),
-            Term::Match(_, cases) => self
-                .compute_sort(&cases.last().unwrap().body)
-                .as_sort()
-                .unwrap()
-                .clone(),
+            Term::Let(_, inner) => self.compute_sort(inner),
+            Term::Match(_, cases) => self.compute_sort(&cases.last().unwrap().body),
             Term::ParamOp { op, op_args, args } => self
                 .compute_indexed_op_sort(*op, op_args, args)
-                .unwrap_or(Sort::ParamBitVec),
-            Term::AsOp(_, sort, _) => sort.as_sort().unwrap().clone(),
+                .unwrap_or_else(|| self.add_sort(Sort::ParamBitVec)),
+            Term::AsOp(_, sort, _) => sort.clone(),
         };
-        let sort = self.terms.add(Term::Sort(result));
-        self.sorts_cache.insert(term.clone(), sort);
+        self.sorts_cache.insert(term.clone(), result);
         self.sorts_cache[term].clone()
     }
 
@@ -325,7 +323,7 @@ impl PrimitivePool {
         op: ParamOperator,
         op_args: &[Rc<Term>],
         args: &[Rc<Term>],
-    ) -> Option<Sort> {
+    ) -> Option<Rc<Sort>> {
         let res = match op {
             ParamOperator::BvExtract => {
                 let i = op_args[0].as_integer()?.to_usize().unwrap();
@@ -334,20 +332,18 @@ impl PrimitivePool {
             }
             ParamOperator::ZeroExtend | ParamOperator::SignExtend => {
                 let extension_width = op_args[0].as_integer()?.to_usize().unwrap();
-                let sort = self.compute_sort(&args[0]);
-                match sort.as_sort().unwrap() {
+                match self.compute_sort(&args[0]).as_ref() {
                     Sort::BitVec(bv_width) => Sort::BitVec(extension_width + bv_width),
                     Sort::ParamBitVec => return None,
                     _ => unreachable!(),
                 }
             }
             ParamOperator::RotateLeft | ParamOperator::RotateRight => {
-                self.compute_sort(&args[0]).as_sort().unwrap().clone()
+                return Some(self.compute_sort(&args[0]))
             }
             ParamOperator::Repeat => {
                 let repetitions = op_args[0].as_integer()?;
-                let sort = self.compute_sort(&args[0]);
-                match sort.as_sort().unwrap() {
+                match self.compute_sort(&args[0]).as_ref() {
                     Sort::BitVec(bv_width) => {
                         Sort::BitVec((repetitions * bv_width).to_usize().unwrap())
                     }
@@ -366,7 +362,7 @@ impl PrimitivePool {
             ParamOperator::BvIntOf => Sort::Int,
             ParamOperator::RePower | ParamOperator::ReLoop => Sort::RegLan,
         };
-        Some(res)
+        Some(self.add_sort(res))
     }
 
     fn add_with_priorities<const N: usize>(
@@ -387,7 +383,7 @@ impl PrimitivePool {
         &mut self,
         term: &Rc<Term>,
         prior_pools: [&PrimitivePool; N],
-    ) -> Rc<Term> {
+    ) -> Rc<Sort> {
         for p in prior_pools {
             if let Some(sort) = p.sorts_cache.get(term) {
                 return sort.clone();
@@ -461,7 +457,7 @@ impl PrimitivePool {
                 set.insert(term.clone());
                 set
             }
-            Term::Const(_) | Term::Sort(_) => IndexSet::new(),
+            Term::Const(_) => IndexSet::new(),
         };
         self.free_vars_cache.insert(term.clone(), set);
         self.free_vars_cache.get(term).unwrap().clone()
@@ -502,7 +498,7 @@ impl PrimitivePool {
                 }
                 set
             }
-            Term::Var(..) | Term::Const(_) | Term::Sort(_) => IndexSet::new(),
+            Term::Var(..) | Term::Const(_) => IndexSet::new(),
         };
         self.binders_cache.insert((term.clone(), binder), set);
         self.binders_cache
@@ -523,7 +519,7 @@ impl TermPool for PrimitivePool {
         self.sorts.add(sort)
     }
 
-    fn sort(&self, term: &Rc<Term>) -> Rc<Term> {
+    fn sort(&self, term: &Rc<Term>) -> Rc<Sort> {
         self.sorts_cache[term].clone()
     }
 

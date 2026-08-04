@@ -17,7 +17,7 @@ pub enum Term {
     Const(Constant),
 
     /// A variable, consisting of an identifier and a sort.
-    Var(String, Rc<Term>),
+    Var(String, Rc<Sort>),
 
     /// An application of a function to one or more terms.
     App(Rc<Term>, Vec<Rc<Term>>),
@@ -25,15 +25,12 @@ pub enum Term {
     /// An application of a built-in operator to one or more terms.
     Op(Operator, Vec<Rc<Term>>),
 
-    /// A sort.
-    Sort(Sort),
-
     /// A binder term. This can be either a quantifier term (`forall`/`exists`), a `choice` term, or
     /// a `lambda` term.
     Binder(Binder, BindingList, Rc<Term>),
 
     /// A `let` binder term.
-    Let(BindingList, Rc<Term>),
+    Let(BindingList<Rc<Term>>, Rc<Term>),
 
     /// A `match` term, consisting of a term to be matched and a
     /// sequence of (pattern,result) pairs, where each each pattern
@@ -65,11 +62,11 @@ pub enum Term {
 
     /// A qualified operation term, that is, an operation whose operator has a type hint, denoted
     /// by the `(as <op> <sort>)` syntax.
-    AsOp(QualifiedOperator, Rc<Term>, Vec<Rc<Term>>),
+    AsOp(QualifiedOperator, Rc<Sort>, Vec<Rc<Term>>),
 }
 
 /// A variable and an associated sort.
-pub type SortedVar = (String, Rc<Term>);
+pub type SortedVar = (String, Rc<Sort>);
 
 /// A constant term.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -111,13 +108,14 @@ pub enum Binder {
     Lambda,
 }
 
-/// A list of bindings, where each binding is a variable associated with a term.
+/// A list of bindings, where each binding is a variable associated with a value.
 ///
 /// Depending on the context, it can be a "sort" binding list (like the ones present in quantifier
-/// terms) where the associated term of each variable is its sort; or a "value" binding list (like
-/// the ones present in `let` terms) where the associated term of each variable is its bound value.
+/// terms) where each variable is associated with its sort; or a "value" binding list (like the
+/// ones present in `let` terms) where each variable is associated with its bound value. This is
+/// controlled by the generic parameter.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct BindingList(pub Vec<SortedVar>);
+pub struct BindingList<V = Rc<Sort>>(pub Vec<(String, V)>);
 
 /// The operator of an operation term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -835,31 +833,31 @@ impl std::ops::Not for Binder {
     }
 }
 
-impl AsRef<[SortedVar]> for BindingList {
-    fn as_ref(&self) -> &[SortedVar] {
+impl<V> AsRef<[(String, V)]> for BindingList<V> {
+    fn as_ref(&self) -> &[(String, V)] {
         &self.0
     }
 }
 
-impl Deref for BindingList {
-    type Target = Vec<SortedVar>;
+impl<V> Deref for BindingList<V> {
+    type Target = Vec<(String, V)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<'a> IntoIterator for &'a BindingList {
-    type Item = &'a SortedVar;
+impl<'a, V> IntoIterator for &'a BindingList<V> {
+    type Item = &'a (String, V);
 
-    type IntoIter = std::slice::Iter<'a, SortedVar>;
+    type IntoIter = std::slice::Iter<'a, (String, V)>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
     }
 }
 
-impl BindingList {
+impl<V: 'static> BindingList<V> {
     /// A constant empty binding list.
     pub(crate) const EMPTY: &'static Self = &BindingList(Vec::new());
 }
@@ -901,7 +899,7 @@ impl Term {
     }
 
     /// Constructs a new variable term.
-    pub fn new_var(name: impl Into<String>, sort: Rc<Term>) -> Self {
+    pub fn new_var(name: impl Into<String>, sort: Rc<Sort>) -> Self {
         Term::Var(name.into(), sort)
     }
 
@@ -910,7 +908,7 @@ impl Term {
     pub fn raw_sort(&self) -> Sort {
         let mut pool = PrimitivePool::new();
         let added = pool.add(self.clone());
-        pool.sort(&added).as_sort().unwrap().clone()
+        pool.sort(&added).as_ref().clone()
     }
 
     /// Returns `true` if the term is the empty String.
@@ -1039,38 +1037,6 @@ impl Term {
         }
     }
 
-    /// Returns `true` if the term is a sort.
-    pub fn is_sort(&self) -> bool {
-        matches!(self, Term::Sort(_))
-    }
-
-    /// Tries to extract a sort from a term. Returns `Some` if the term is a sort.
-    pub fn as_sort(&self) -> Option<&Sort> {
-        match self {
-            Term::Sort(s) => Some(s),
-            _ => None,
-        }
-    }
-
-    /// Returns `true` if the term is a user defined sort with arity zero, or a sort variable.
-    pub fn is_sort_var(&self) -> bool {
-        matches!(self, Term::Sort(Sort::Atom(_, args)) if args.is_empty())
-    }
-
-    /// Returns `true` if the term is a user defined parametric sort
-    pub fn is_sort_parametric(&self) -> bool {
-        match self {
-            Term::Sort(Sort::ParamSort(_, _)) => true,
-            Term::Sort(Sort::Datatype { args, .. }) if !args.is_empty() => true,
-            _ => false,
-        }
-    }
-
-    /// Returns `true` if the term is a user defined sort with arity zero, or a sort variable.
-    pub fn is_sort_dt(&self) -> bool {
-        matches!(self, Term::Sort(Sort::Datatype { .. }))
-    }
-
     /// Tries to unwrap an operation term, returning the `Operator` and the arguments. Returns
     /// `None` if the term is not an operation term.
     pub fn as_op(&self) -> Option<(Operator, &[Rc<Term>])> {
@@ -1100,7 +1066,7 @@ impl Term {
 
     /// Tries to unwrap a `let` term, returning the bindings and the inner term. Returns `None` if
     /// the term is not a `let` term.
-    pub fn as_let(&self) -> Option<(&BindingList, &Rc<Term>)> {
+    pub fn as_let(&self) -> Option<(&BindingList<Rc<Term>>, &Rc<Term>)> {
         match self {
             Term::Let(b, t) => Some((b, t)),
             _ => None,
@@ -1232,7 +1198,7 @@ impl Rc<Term> {
 
     /// Tries to unwrap a `let` term, returning the bindings and the inner
     /// term. Returns a `CheckerError` if the term is not a `let` term.
-    pub fn as_let_err(&self) -> Result<(&BindingList, &Rc<Term>), CheckerError> {
+    pub fn as_let_err(&self) -> Result<(&BindingList<Rc<Term>>, &Rc<Term>), CheckerError> {
         self.as_let()
             .ok_or_else(|| CheckerError::ExpectedLetTerm(self.clone()))
     }

@@ -23,14 +23,14 @@ impl EunoiaTranslator {
     /// Translates `BindingList` constructs, as used for binder terms forall, exists,
     /// choice and lambda. The "let" binder uses the same construction but assigns to
     /// it a different semantics. See `translate_let_binding_list` for its translation.
-    fn translate_binding_list(&mut self, binding_list: &BindingList) -> EunoiaTerm {
+    fn translate_binding_list(binding_list: &BindingList) -> EunoiaTerm {
         let mut ret = Vec::new();
 
         binding_list.iter().for_each(|sorted_var| {
             let (name, sort) = sorted_var;
             ret.push(EunoiaTerm::Var(
                 name.clone(),
-                Box::new(self.translate_term(sort)),
+                Box::new(EunoiaTerm::Type(EunoiaTranslator::translate_sort(sort))),
             ));
         });
 
@@ -196,14 +196,7 @@ impl VecToVecTranslator<'_> for EunoiaTranslator {
             AnchorArg::Variable((name, sort)) => {
                 // TODO: either use borrows or implement
                 // Copy trait for EunoiaTerms
-                eunoia_sort = match **sort {
-                    Term::Sort(ref actual_sort) => EunoiaTranslator::translate_sort(actual_sort),
-
-                    _ => {
-                        println!("Expected sort1, got {:?}", sort);
-                        panic!()
-                    }
-                };
+                eunoia_sort = EunoiaTranslator::translate_sort(sort);
 
                 // TODO: encapsulate variables_in_scope
                 // TODO: see how to abstract this into a single function
@@ -263,14 +256,7 @@ impl VecToVecTranslator<'_> for EunoiaTranslator {
             AnchorArg::Assign((name, sort), term) => {
                 // TODO: either use borrows or implement
                 // Copy trait for EunoiaTerms
-                eunoia_sort = match **sort {
-                    Term::Sort(ref actual_sort) => EunoiaTranslator::translate_sort(actual_sort),
-
-                    _ => {
-                        println!("Expected sort2, got {:?}", sort);
-                        panic!()
-                    }
-                };
+                eunoia_sort = EunoiaTranslator::translate_sort(sort);
 
                 let rhs: EunoiaTerm = self.translate_term(term);
 
@@ -362,8 +348,6 @@ impl VecToVecTranslator<'_> for EunoiaTranslator {
     fn translate_term(&mut self, term: &Term) -> EunoiaTerm {
         match term {
             Term::Const(constant) => EunoiaTranslator::translate_constant(constant),
-
-            Term::Sort(sort) => EunoiaTerm::Type(EunoiaTranslator::translate_sort(sort)),
 
             Term::Op(operator, operands) => {
                 let operands_eunoia = operands
@@ -457,7 +441,7 @@ impl VecToVecTranslator<'_> for EunoiaTranslator {
                 self.get_mut_translator_data()
                     .alethe_scopes
                     .open_non_context_scope();
-                let translated_bindings = self.translate_binding_list(binding_list);
+                let translated_bindings = Self::translate_binding_list(binding_list);
                 match translated_bindings {
                     EunoiaTerm::List(ref bindings) => {
                         bindings.iter().for_each(|var| match var {
@@ -575,7 +559,7 @@ impl VecToVecTranslator<'_> for EunoiaTranslator {
     /// the original list of actual values, as a `@VarList`.
     fn translate_let_binding_list(
         &mut self,
-        binding_list: &BindingList,
+        binding_list: &BindingList<Rc<Term>>,
     ) -> (Vec<EunoiaTerm>, Vec<EunoiaTerm>) {
         let mut binding_occ = Vec::new();
         let mut values = Vec::new();
@@ -668,29 +652,13 @@ impl VecToVecTranslator<'_> for EunoiaTranslator {
             Sort::Function(sorts) => {
                 assert!(sorts.len() >= 2,);
 
-                let term = sorts.last().unwrap();
-
-                let return_sort = match term.as_ref() {
-                    Term::Sort(sort) => EunoiaTranslator::translate_sort(sort),
-
-                    _ => {
-                        panic!();
-                    }
-                };
+                let return_sort = EunoiaTranslator::translate_sort(sorts.last().unwrap());
 
                 let mut sorts_params = Vec::new();
 
-                for (pos, rc_sort) in sorts.iter().enumerate() {
+                for (pos, sort) in sorts.iter().enumerate() {
                     if pos < sorts.len() - 1 {
-                        match rc_sort.as_ref() {
-                            Term::Sort(sort) => {
-                                sorts_params.push(EunoiaTranslator::translate_sort(sort));
-                            }
-
-                            _ => {
-                                panic!();
-                            }
-                        }
+                        sorts_params.push(EunoiaTranslator::translate_sort(sort));
                     }
                 }
 
@@ -988,7 +956,7 @@ impl VecToVecTranslator<'_> for EunoiaTranslator {
         function_declarations.iter().for_each(|pair| {
             eunoia_prelude.push(EunoiaCommand::DeclareConst {
                 name: pair.0.clone(),
-                eunoia_type: self.translate_term(&pair.1),
+                eunoia_type: EunoiaTerm::Type(EunoiaTranslator::translate_sort(&pair.1)),
                 attrs: Vec::new(),
             });
         });

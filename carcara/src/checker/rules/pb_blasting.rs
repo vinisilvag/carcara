@@ -8,7 +8,7 @@ use rug::Integer;
 /// Helper to get the bit width of a bitvector looking into the pool
 fn get_bit_width(x: &Rc<Term>, pool: &mut dyn TermPool) -> Result<usize, CheckerError> {
     // Get bit width of `x`
-    let Sort::BitVec(n) = pool.sort(x).as_sort().cloned().unwrap() else {
+    let Sort::BitVec(n) = pool.sort(x).as_ref().clone() else {
         return Err(CheckerError::Explanation(
             "Was not able to get the bitvector sort".into(),
         ));
@@ -462,7 +462,7 @@ pub fn pbblast_bvxor(RuleArgs { pool, conclusion, .. }: RuleArgs) -> RuleResult 
             CheckerError::Explanation(format!("Expected {z_name} to be \"z\""))
         );
         rassert!(
-            *z_type.as_sort().unwrap() == Sort::Int,
+            *z_type.as_ref() == Sort::Int,
             CheckerError::Explanation(format!("Expected {z_type} to be Sort::Int"))
         );
 
@@ -524,7 +524,7 @@ pub fn pbblast_bvand(RuleArgs { pool, conclusion, .. }: RuleArgs) -> RuleResult 
             CheckerError::Explanation(format!("Expected {z_name} to be \"z\""))
         );
         rassert!(
-            *z_type.as_sort().unwrap() == Sort::Int,
+            *z_type.as_ref() == Sort::Int,
             CheckerError::Explanation(format!("Expected {z_type} to be Sort::Int"))
         );
 

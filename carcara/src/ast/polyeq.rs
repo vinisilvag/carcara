@@ -211,10 +211,10 @@ impl Polyeq {
         self.max_depth
     }
 
-    fn compare_binder(
+    fn compare_binder<V: PolyeqComparable>(
         &mut self,
-        a_binds: &BindingList,
-        b_binds: &BindingList,
+        a_binds: &BindingList<V>,
+        b_binds: &BindingList<V>,
         a_inner: &Rc<Term>,
         b_inner: &Rc<Term>,
     ) -> bool {
@@ -566,7 +566,6 @@ impl PolyeqComparable for Term {
             (Term::Op(op_a, args_a), Term::Op(op_b, args_b)) => {
                 comp.compare_op(*op_a, args_a, *op_b, args_b)
             }
-            (Term::Sort(a), Term::Sort(b)) => comp.eq(a, b),
             (Term::Binder(q_a, binds_a, a), Term::Binder(q_b, binds_b, b)) => {
                 q_a == q_b && comp.compare_binder(binds_a, binds_b, a, b)
             }
@@ -666,9 +665,15 @@ impl PolyeqComparable for Term {
     }
 }
 
-impl PolyeqComparable for BindingList {
+impl<T: PolyeqComparable> PolyeqComparable for BindingList<T> {
     fn eq(comp: &mut Polyeq, a: &Self, b: &Self) -> bool {
         comp.eq(&a.0, &b.0)
+    }
+}
+
+impl PolyeqComparable for Rc<Sort> {
+    fn eq(comp: &mut Polyeq, a: &Self, b: &Self) -> bool {
+        a == b || comp.eq(a.as_ref(), b.as_ref())
     }
 }
 

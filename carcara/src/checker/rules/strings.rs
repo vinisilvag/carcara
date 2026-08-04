@@ -170,7 +170,7 @@ fn expand_string_constants(pool: &mut dyn TermPool, term: &Rc<Term>) -> Rc<Term>
                 .collect();
             pool.add(Term::Match(new_t, new_cases))
         }
-        Term::Var(..) | Term::Const(_) | Term::Sort(_) => term.clone(),
+        Term::Var(..) | Term::Const(_) => term.clone(),
     }
 }
 
@@ -412,13 +412,13 @@ fn re_unfold_pos_concat(
         previous_ks: &mut Vec<Rc<Term>>,
         previous_rs: &mut Vec<Rc<Term>>,
     ) -> Rc<Term> {
-        let str_sort = pool.add(Term::Sort(Sort::String));
-        let reglan_sort = pool.add(Term::Sort(Sort::RegLan));
+        let str_sort = pool.add_sort(Sort::String);
+        let reglan_sort = pool.add_sort(Sort::RegLan);
         let x = pool.add(Term::new_var("x", str_sort.clone()));
 
         let mut and_args: Vec<Rc<Term>> = Vec::new();
         let mut concat_args: Vec<Rc<Term>> = Vec::new();
-        let mut exists_binding_list: Vec<(String, Rc<Term>)> = Vec::new();
+        let mut exists_binding_list: Vec<(String, Rc<Sort>)> = Vec::new();
 
         for j in 0..i {
             let k_j = pool.add(Term::new_var(format!("k_{j}"), str_sort.clone()));
@@ -1356,7 +1356,7 @@ pub fn re_unfold_neg(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
     let term = get_premise_term(&premises[0])?;
     let (t, r) = match_term_err!((not (strinre t r)) = term)?;
 
-    let int_sort = pool.add(Term::Sort(Sort::Int));
+    let int_sort = pool.add_sort(Sort::Int);
     let l = pool.add(Term::new_var("L", int_sort.clone()));
     let pref = build_skolem_prefix(pool, t.clone(), l.clone());
     let suff = build_skolem_suffix_rem(pool, t.clone(), l.clone());

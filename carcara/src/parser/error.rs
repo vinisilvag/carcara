@@ -63,11 +63,11 @@ pub enum ParserError {
 
     /// Expected any bitvector sort.
     #[error("expected bitvector sort, got '{0}'")]
-    ExpectedBvSort(Sort),
+    ExpectedBvSort(Rc<Sort>),
 
     /// Expected any datatype sort.
     #[error("expected datatype sort, got '{0}'")]
-    ExpectedDTSort(Sort),
+    ExpectedDTSort(Rc<Sort>),
 
     /// Expected an integer constant term.
     #[error("expected integer constant, got '{0}'")]
@@ -87,11 +87,11 @@ pub enum ParserError {
 
     /// A term that is not a function was used as a function.
     #[error("'{0}' is not a function sort")]
-    NotAFunction(Sort), // TODO: This should also carry the actual function term
+    NotAFunction(Rc<Sort>), // TODO: This should also carry the actual function term
 
     /// Tried to match two incompatible sorts.
     #[error("'{0}' cannot be matched to '{1}'")]
-    IncompatibleSorts(Sort, Sort),
+    IncompatibleSorts(Rc<Sort>, Rc<Sort>),
 
     /// The parser encountered an identifier that was not defined.
     #[error("identifier '{0}' is not defined")]
@@ -221,10 +221,10 @@ where
 #[derive(Debug, Error)]
 pub struct SortError {
     /// The possible sorts that were expected.
-    pub expected: Box<[Sort]>,
+    pub expected: Box<[Rc<Sort>]>,
 
     /// The sort we got.
-    pub got: Sort,
+    pub got: Rc<Sort>,
 }
 
 impl fmt::Display for SortError {

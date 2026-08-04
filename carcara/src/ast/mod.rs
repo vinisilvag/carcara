@@ -28,7 +28,7 @@ pub use problem::{Problem, ProblemPrelude};
 pub use proof::{AnchorArg, Proof, ProofCommand, ProofStep, Subproof};
 pub use rc::Rc;
 pub use sort::Sort;
-pub use substitution::{Substitution, SubstitutionError};
+pub use substitution::{SortSubstitution, Substitution, SubstitutionError};
 pub use term::{
     Binder, BindingList, Constant, MatchCase, MatchPattern, NaryCase, Operator, ParamOperator,
     QualifiedOperator, SortedVar, Term,

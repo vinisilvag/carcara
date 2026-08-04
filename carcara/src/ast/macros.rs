@@ -33,11 +33,11 @@ macro_rules! build_term {
     ($pool:expr, true) => { $pool.bool_true() };
     ($pool:expr, false) => { $pool.bool_false() };
     ($pool:expr, (let $name:ident $sort:ident)) => {{
-        let sort = $pool.add($crate::ast::Term::Sort($crate::ast::Sort::$sort));
+        let sort = $pool.add_sort($crate::ast::Sort::$sort);
         $pool.add($crate::ast::Term::new_var(stringify!($name), sort))
     }};
     ($pool:expr, (choice (($z:literal $sort:ident)) $arg:tt)) => {{
-        let sort = $pool.add($crate::ast::Term::Sort($crate::ast::Sort::$sort));
+        let sort = $pool.add_sort($crate::ast::Sort::$sort);
         let bindings = $crate::ast::BindingList(vec![($z.into(), sort)]);
         let body = build_term!($pool, $arg);
         $pool.add(Term::Binder(Binder::Choice, bindings, body))
@@ -253,8 +253,8 @@ mod tests {
             (declare-fun q () Bool)
         ";
         let mut pool = PrimitivePool::new();
-        let bool_sort = pool.add(Term::Sort(Sort::Bool));
-        let int_sort = pool.add(Term::Sort(Sort::Int));
+        let bool_sort = pool.add_sort(Sort::Bool);
+        let int_sort = pool.add_sort(Sort::Int);
 
         let [one, two, three] = [1, 2, 3].map(|n| pool.add(Term::new_int(n)));
         let [a, b] = ["a", "b"].map(|s| pool.add(Term::new_var(s, int_sort.clone())));

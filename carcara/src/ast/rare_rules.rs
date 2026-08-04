@@ -1,6 +1,6 @@
 use crate::ast::Constant;
 
-use super::{Operator, Rc, Term};
+use super::{Operator, Rc, Sort, Term};
 use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::fmt;
@@ -15,7 +15,7 @@ pub enum AttributeParameters {
 
 #[derive(Debug, Clone)]
 pub struct TypeParameter {
-    pub sort: Rc<Term>,
+    pub sort: Rc<Sort>,
     pub attribute: AttributeParameters,
 }
 

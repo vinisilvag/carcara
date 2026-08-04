@@ -1,4 +1,4 @@
-use super::{Rc, Term};
+use super::Rc;
 use indexmap::{map::Entry, IndexMap};
 
 /// The sort of a term.
@@ -8,13 +8,13 @@ pub enum Sort {
     ///
     /// The last term indicates the return sort of the function. The remaining terms are the sorts
     /// of the parameters of the function.
-    Function(Vec<Rc<Term>>),
+    Function(Vec<Rc<Sort>>),
 
     /// A user-declared sort, from a `declare-sort` command.
     ///
     /// The associated string is the sort name, and the associated terms are the sort arguments for
     /// this sort.
-    Atom(Box<str>, Box<[Rc<Term>]>),
+    Atom(Box<str>, Box<[Rc<Sort>]>),
 
     /// A sort variable
     Var(String),
@@ -37,7 +37,7 @@ pub enum Sort {
     /// An `Array` sort.
     ///
     /// The two associated terms are the sort arguments for this sort.
-    Array(Rc<Term>, Rc<Term>),
+    Array(Rc<Sort>, Rc<Sort>),
 
     /// A `BitVec` sort with a constant width parameter.
     ///
@@ -99,21 +99,40 @@ pub enum Sort {
         name: Box<str>,
 
         /// The arguments that were provided to this sort (e.g., the `Int` in `(Option Int)`)
-        args: Vec<Rc<Term>>,
+        args: Vec<Rc<Sort>>,
     },
 
     // TODO delete this and incorporate it to function sort?
     /// A parametric sort, with a set of sort variables that can appear in the second argument.
-    ParamSort(Vec<Rc<Term>>, Rc<Term>),
+    ParamSort(Vec<Rc<Sort>>, Rc<Sort>),
 
     /// The sort of sorts.
     Type,
 }
 
 impl Sort {
+    /// Returns `true` if the sort is a sort variable.
+    pub fn is_var(&self) -> bool {
+        match self {
+            // TODO: double representation of sort vars?
+            Sort::Atom(_, args) if args.is_empty() => true,
+            Sort::Var(_) => true,
+            _ => false,
+        }
+    }
+
     /// Returns `true` if the sort is a bitvector sort of any width.
     pub fn is_bitvec(&self) -> bool {
         matches!(self, Sort::BitVec(_) | Sort::ParamBitVec)
+    }
+
+    /// Returns `true` if the sort is a datatype sort.
+    pub fn is_datatype(&self) -> bool {
+        matches!(self, Sort::Datatype { .. })
+    }
+
+    pub fn is_parametric(&self) -> bool {
+        matches!(self, Sort::ParamSort(_, _))
     }
 
     /// Whether this sort is equal to another, modulo bitvector sorts with width parameters that are
@@ -126,12 +145,8 @@ impl Sort {
 
     // TODO: merge this with `match_with`
     pub fn is_compatible_with(&self, other: &Self) -> bool {
-        fn all_compatible<'i, I: IntoIterator<Item = &'i Rc<Term>>>(xs: I, ys: I) -> bool {
-            xs.into_iter().zip(ys).all(|(x, y)| {
-                let x = x.as_sort().unwrap();
-                let y = y.as_sort().unwrap();
-                x.is_compatible_with(y)
-            })
+        fn all_compatible<'i, I: IntoIterator<Item = &'i Rc<Sort>>>(xs: I, ys: I) -> bool {
+            xs.into_iter().zip(ys).all(|(x, y)| x.is_compatible_with(y))
         }
 
         match (self, other) {
@@ -164,13 +179,9 @@ impl Sort {
     pub fn match_with(&self, target: &Sort, map: &mut IndexMap<String, Sort>) -> bool {
         fn match_all<'i, I>(xs: I, ys: I, map: &mut IndexMap<String, Sort>) -> bool
         where
-            I: IntoIterator<Item = &'i Rc<Term>>,
+            I: IntoIterator<Item = &'i Rc<Sort>>,
         {
-            xs.into_iter().zip(ys).all(|(x, y)| {
-                let x = x.as_sort().unwrap();
-                let y = y.as_sort().unwrap();
-                x.match_with(y, map)
-            })
+            xs.into_iter().zip(ys).all(|(x, y)| x.match_with(y, map))
         }
 
         match (self, target) {

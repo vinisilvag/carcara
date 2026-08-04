@@ -12,8 +12,8 @@ use crate::{
         pool::{PrimitivePool, TermPool},
         rare_rules::{RareStatements, Rules},
         AnchorArg, Binder, BindingList, Constant, Operator, ParamOperator, Problem, ProblemPrelude,
-        Proof, ProofCommand, ProofStep, QualifiedOperator, Rc, Sort, SortedVar, Subproof,
-        Substitution, Term,
+        Proof, ProofCommand, ProofStep, QualifiedOperator, Rc, Sort, SortSubstitution, SortedVar,
+        Subproof, Substitution, Term,
     },
     automata::parser::parse_automaton,
     utils::{HashCache, HashMapStack},
@@ -157,16 +157,15 @@ impl FunctionDef {
             return Ok(self.body.clone());
         }
 
-        for (arg, param) in args.iter().zip(self.params.iter()) {
-            let expected = param.1.as_sort().unwrap();
+        for (arg, (_, expected)) in args.iter().zip(self.params.iter()) {
             let got = p.sort(arg);
 
             // TODO: maybe use `is_compatible_with` instead of `param_eq` when
             // `relaxed_sort_checking` is enabled, similarly to how `Parser::compare_sort` works.
-            if !expected.param_eq(got.as_sort().unwrap()) {
+            if !expected.param_eq(got.as_ref()) {
                 return Err(SortError {
                     expected: vec![expected.clone()].into_boxed_slice(),
-                    got: got.as_sort().unwrap().clone(),
+                    got,
                 }
                 .into());
             }
@@ -194,7 +193,7 @@ impl FunctionDef {
 #[derive(Debug)]
 struct SortDef {
     params: Vec<String>,
-    body: Rc<Term>,
+    body: Rc<Sort>,
 }
 
 /// The state of the parser.
@@ -203,7 +202,7 @@ struct SortDef {
 /// pool used by the parser.
 #[derive(Default)]
 struct ParserState {
-    symbol_table: HashMapStack<HashCache<String>, Rc<Term>>,
+    symbol_table: HashMapStack<HashCache<String>, Rc<Sort>>,
     function_defs: IndexMap<String, FunctionDef>,
     sort_declarations: HashMapStack<String, usize>,
     datatype_declarations: HashMapStack<String, usize>,
@@ -269,7 +268,7 @@ impl<'p, 's> Parser<'p, 's> {
     }
 
     /// Searches the symbol table for a symbol, and, if found, returns its sort.
-    fn get_symbol(&mut self, symbol: &str) -> Option<&Rc<Term>> {
+    fn get_symbol(&mut self, symbol: &str) -> Option<&Rc<Sort>> {
         let cached = HashCache::new(symbol.to_owned());
         self.state.symbol_table.get(&cached)
     }
@@ -278,7 +277,7 @@ impl<'p, 's> Parser<'p, 's> {
     /// `Sort::Type`.
     fn has_sort_symbol(&mut self, symbol: &str) -> bool {
         self.get_symbol(symbol)
-            .is_some_and(|sort| sort.as_sort().is_some_and(|sort| *sort == Sort::Type))
+            .is_some_and(|sort| *sort.as_ref() == Sort::Type)
     }
 
     /// Compares two sorts according to the sort checking configuration. Return `true` if they are
@@ -292,32 +291,42 @@ impl<'p, 's> Parser<'p, 's> {
     }
 
     /// Returns a sort error if `got` does not equal `expected`.
-    fn check_sort_eq(&self, expected: &Sort, got: &Sort) -> Result<(), SortError> {
+    fn check_sort_eq(&mut self, expected: &Sort, got: &Rc<Sort>) -> Result<(), SortError> {
         if self.compare_sort(expected, got) {
             Ok(())
         } else {
+            let expected = self.pool.add_sort(expected.clone());
             Err(SortError {
-                expected: vec![expected.clone()].into_boxed_slice(),
+                expected: vec![expected].into_boxed_slice(),
                 got: got.clone(),
             })
         }
     }
 
     /// Makes sure all terms in `sequence` are equal to each other, otherwise returns an error.
-    fn check_sort_all_eq(&self, sequence: &[&Sort]) -> Result<(), SortError> {
+    fn check_sort_all_eq(&mut self, sequence: &[Rc<Sort>]) -> Result<(), SortError> {
         for i in 1..sequence.len() {
-            self.check_sort_eq(sequence[i - 1], sequence[i])?;
+            self.check_sort_eq(&sequence[i - 1], &sequence[i])?;
         }
         Ok(())
     }
 
     /// Returns a sort error if `got` is not one of `possibilities`.
-    fn check_sort_one_of(&self, possibilities: &[Sort], got: &Sort) -> Result<(), SortError> {
+    fn check_sort_one_of(
+        &mut self,
+        possibilities: &[Sort],
+        got: &Rc<Sort>,
+    ) -> Result<(), SortError> {
         if possibilities.iter().any(|p| self.compare_sort(p, got)) {
             Ok(())
         } else {
+            let expected: Vec<_> = possibilities
+                .iter()
+                .map(|s| self.pool.add_sort(s.clone()))
+                .collect();
+
             Err(SortError {
-                expected: possibilities.to_vec().into_boxed_slice(),
+                expected: expected.into_boxed_slice(),
                 got: got.clone(),
             })
         }
@@ -326,24 +335,21 @@ impl<'p, 's> Parser<'p, 's> {
     /// Makes sure `got` is a valid `Array` sort, with the given key and value sorts.
     fn check_array_sort(
         &mut self,
-        key: Option<&Sort>,
-        value: Option<&Sort>,
-        got: &Sort,
+        key: Option<&Rc<Sort>>,
+        value: Option<&Rc<Sort>>,
+        got: &Rc<Sort>,
     ) -> Result<(), SortError> {
-        let any = Sort::Atom("?".into(), Box::new([]));
+        let any = self.pool.add_sort(Sort::Atom("?".into(), Box::new([])));
 
         let expected = {
-            let [key, value] = [key, value].map(|s| {
-                self.pool
-                    .add(Term::Sort(s.cloned().unwrap_or_else(|| any.clone())))
-            });
-            vec![Sort::Array(key, value)].into_boxed_slice()
+            let [key, value] = [key, value].map(|s| s.cloned().unwrap_or_else(|| any.clone()));
+            vec![self.pool.add_sort(Sort::Array(key, value))].into_boxed_slice()
         };
-        let Sort::Array(got_key, got_value) = got else {
+        let Sort::Array(got_key, got_value) = got.as_ref() else {
             return Err(SortError { expected, got: got.clone() });
         };
-        if key.is_some_and(|k| !self.compare_sort(got_key.as_sort().unwrap(), k))
-            || value.is_some_and(|v| !self.compare_sort(got_value.as_sort().unwrap(), v))
+        if key.is_some_and(|k| !self.compare_sort(got_key, k))
+            || value.is_some_and(|v| !self.compare_sort(got_value, v))
         {
             return Err(SortError { expected, got: got.clone() });
         }
@@ -381,17 +387,17 @@ impl<'p, 's> Parser<'p, 's> {
     /// Constructs and sort checks an operation term.
     fn make_op(&mut self, op: Operator, args: Vec<Rc<Term>>) -> Result<Rc<Term>, ParserError> {
         let sorts: Vec<_> = args.iter().map(|t| self.pool.sort(t)).collect();
-        let sorts: Vec<_> = sorts.iter().map(|s| s.as_sort().unwrap()).collect();
+
         match op {
             Operator::True | Operator::False => assert_num_args(&args, 0)?,
             Operator::Not => {
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::Bool, sorts[0])?;
+                self.check_sort_eq(&Sort::Bool, &sorts[0])?;
             }
             Operator::Implies => {
                 assert_num_args(&args, 2..)?;
                 for s in sorts {
-                    self.check_sort_eq(&Sort::Bool, s)?;
+                    self.check_sort_eq(&Sort::Bool, &s)?;
                 }
             }
             Operator::Or | Operator::And | Operator::Xor => {
@@ -399,7 +405,7 @@ impl<'p, 's> Parser<'p, 's> {
                 // with just one argument
                 assert_num_args(&args, if self.config.strict { 2.. } else { 1.. })?;
                 for s in sorts {
-                    self.check_sort_eq(&Sort::Bool, s)?;
+                    self.check_sort_eq(&Sort::Bool, &s)?;
                 }
             }
             Operator::Equals | Operator::Distinct => {
@@ -408,8 +414,8 @@ impl<'p, 's> Parser<'p, 's> {
             }
             Operator::Ite => {
                 assert_num_args(&args, 3)?;
-                self.check_sort_eq(&Sort::Bool, sorts[0])?;
-                self.check_sort_eq(sorts[1], sorts[2])?;
+                self.check_sort_eq(&Sort::Bool, &sorts[0])?;
+                self.check_sort_eq(sorts[1].as_ref(), &sorts[2])?;
             }
             Operator::Add | Operator::Sub | Operator::Mult => {
                 // The `-` operator, in particular, can be called with only one argument, in which
@@ -424,16 +430,16 @@ impl<'p, 's> Parser<'p, 's> {
                 // Int/Real subtyping, all arguments must have the same sort
                 if self.config.allow_int_real_subtyping {
                     for s in sorts {
-                        self.check_sort_one_of(&[Sort::Int, Sort::Real], s)?;
+                        self.check_sort_one_of(&[Sort::Int, Sort::Real], &s)?;
                     }
                 } else {
-                    self.check_sort_one_of(&[Sort::Int, Sort::Real], sorts[0])?;
+                    self.check_sort_one_of(&[Sort::Int, Sort::Real], &sorts[0])?;
                     self.check_sort_all_eq(&sorts)?;
                 }
             }
             Operator::IntDiv => {
                 assert_num_args(&args, 2..)?;
-                self.check_sort_eq(&Sort::Int, sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &sorts[0])?;
                 self.check_sort_all_eq(&sorts)?;
             }
             Operator::RealDiv => {
@@ -443,10 +449,10 @@ impl<'p, 's> Parser<'p, 's> {
                 // allowing Int/Real subtyping, it may also receive Ints
                 if self.config.allow_int_real_subtyping {
                     for s in sorts {
-                        self.check_sort_one_of(&[Sort::Int, Sort::Real], s)?;
+                        self.check_sort_one_of(&[Sort::Int, Sort::Real], &s)?;
                     }
                 } else {
-                    self.check_sort_eq(&Sort::Real, sorts[0])?;
+                    self.check_sort_eq(&Sort::Real, &sorts[0])?;
                     self.check_sort_all_eq(&sorts)?;
                 }
 
@@ -456,16 +462,16 @@ impl<'p, 's> Parser<'p, 's> {
             }
             Operator::Mod => {
                 assert_num_args(&args, 2)?;
-                self.check_sort_eq(&Sort::Int, sorts[0])?;
-                self.check_sort_eq(&Sort::Int, sorts[1])?;
+                self.check_sort_eq(&Sort::Int, &sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &sorts[1])?;
             }
             Operator::Abs => {
                 assert_num_args(&args, 1)?;
                 // The argument must be Int unless we are allowing Int/Real subtyping
                 if self.config.allow_int_real_subtyping {
-                    self.check_sort_one_of(&[Sort::Int, Sort::Real], sorts[0])?;
+                    self.check_sort_one_of(&[Sort::Int, Sort::Real], &sorts[0])?;
                 } else {
-                    self.check_sort_eq(&Sort::Int, sorts[0])?;
+                    self.check_sort_eq(&Sort::Int, &sorts[0])?;
                 }
             }
             Operator::LessThan | Operator::GreaterThan | Operator::LessEq | Operator::GreaterEq => {
@@ -473,36 +479,36 @@ impl<'p, 's> Parser<'p, 's> {
                 // All the arguments must be either Int or Real sorted, but they don't need to all
                 // have the same sort
                 for s in sorts {
-                    self.check_sort_one_of(&[Sort::Int, Sort::Real], s)?;
+                    self.check_sort_one_of(&[Sort::Int, Sort::Real], &s)?;
                 }
             }
             Operator::ToReal => {
                 assert_num_args(&args, 1)?;
                 // If the logic contains reals but not integers, integer constants are interpreted
                 // as reals, so the argument might have sort Real instead of the expected Int
-                self.check_sort_one_of(&[Sort::Int, Sort::Real], sorts[0])?;
+                self.check_sort_one_of(&[Sort::Int, Sort::Real], &sorts[0])?;
             }
             Operator::ToInt | Operator::IsInt => {
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::Real, sorts[0])?;
+                self.check_sort_eq(&Sort::Real, &sorts[0])?;
             }
             Operator::Select => {
                 assert_num_args(&args, 2)?;
-                self.check_array_sort(Some(sorts[1]), None, sorts[0])?;
+                self.check_array_sort(Some(&sorts[1]), None, &sorts[0])?;
             }
             Operator::Store => {
                 assert_num_args(&args, 3)?;
-                self.check_array_sort(Some(sorts[1]), Some(sorts[2]), sorts[0])?;
+                self.check_array_sort(Some(&sorts[1]), Some(&sorts[2]), &sorts[0])?;
             }
             Operator::StrConcat => {
                 assert_num_args(&args, 2..)?;
                 for s in sorts {
-                    self.check_sort_eq(&Sort::String, s)?;
+                    self.check_sort_eq(&Sort::String, &s)?;
                 }
             }
             Operator::StrLen | Operator::StrIsDigit | Operator::StrToCode | Operator::StrToInt => {
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
             }
             Operator::StrLessThan
             | Operator::StrLessEq
@@ -511,35 +517,35 @@ impl<'p, 's> Parser<'p, 's> {
             | Operator::Contains
             | Operator::ReRange => {
                 assert_num_args(&args, 2)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
-                self.check_sort_eq(&Sort::String, sorts[1])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
+                self.check_sort_eq(&Sort::String, &sorts[1])?;
             }
             Operator::CharAt => {
                 assert_num_args(&args, 2)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
-                self.check_sort_eq(&Sort::Int, sorts[1])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &sorts[1])?;
             }
             Operator::Substring => {
                 assert_num_args(&args, 3)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
-                self.check_sort_eq(&Sort::Int, sorts[1])?;
-                self.check_sort_eq(&Sort::Int, sorts[2])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &sorts[1])?;
+                self.check_sort_eq(&Sort::Int, &sorts[2])?;
             }
             Operator::IndexOf => {
                 assert_num_args(&args, 3)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
-                self.check_sort_eq(&Sort::String, sorts[1])?;
-                self.check_sort_eq(&Sort::Int, sorts[2])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
+                self.check_sort_eq(&Sort::String, &sorts[1])?;
+                self.check_sort_eq(&Sort::Int, &sorts[2])?;
             }
             Operator::Replace | Operator::ReplaceAll => {
                 assert_num_args(&args, 3)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
-                self.check_sort_eq(&Sort::String, sorts[1])?;
-                self.check_sort_eq(&Sort::String, sorts[2])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
+                self.check_sort_eq(&Sort::String, &sorts[1])?;
+                self.check_sort_eq(&Sort::String, &sorts[2])?;
             }
             Operator::ReFromAutomaton => {
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
                 if let Term::Const(Constant::String(s)) = args[0].as_ref() {
                     let automata = match parse_automaton(s.trim()) {
                         Ok((remaining, automata)) => {
@@ -559,16 +565,16 @@ impl<'p, 's> Parser<'p, 's> {
             }
             Operator::StrFromCode | Operator::StrFromInt => {
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::Int, sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &sorts[0])?;
             }
             Operator::StrToRe => {
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
             }
             Operator::StrInRe => {
                 assert_num_args(&args, 2)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
-                self.check_sort_eq(&Sort::RegLan, sorts[1])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
+                self.check_sort_eq(&Sort::RegLan, &sorts[1])?;
             }
             Operator::ReNone | Operator::ReAll | Operator::ReAllChar => {
                 assert_num_args(&args, 0)?;
@@ -579,7 +585,7 @@ impl<'p, 's> Parser<'p, 's> {
             | Operator::ReDiff => {
                 assert_num_args(&args, 2..)?;
                 for s in sorts {
-                    self.check_sort_eq(&Sort::RegLan, s)?;
+                    self.check_sort_eq(&Sort::RegLan, &s)?;
                 }
             }
             Operator::ReKleeneClosure
@@ -587,19 +593,19 @@ impl<'p, 's> Parser<'p, 's> {
             | Operator::ReKleeneCross
             | Operator::ReOption => {
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::RegLan, sorts[0])?;
+                self.check_sort_eq(&Sort::RegLan, &sorts[0])?;
             }
             Operator::ReplaceRe | Operator::ReplaceReAll => {
                 assert_num_args(&args, 3)?;
-                self.check_sort_eq(&Sort::String, sorts[0])?;
-                self.check_sort_eq(&Sort::RegLan, sorts[1])?;
-                self.check_sort_eq(&Sort::String, sorts[2])?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
+                self.check_sort_eq(&Sort::RegLan, &sorts[1])?;
+                self.check_sort_eq(&Sort::String, &sorts[2])?;
             }
             Operator::BvNot | Operator::BvNeg => {
                 assert_num_args(&args, 1)?;
                 for s in sorts {
                     if !s.is_bitvec() {
-                        return Err(ParserError::ExpectedBvSort(s.clone()));
+                        return Err(ParserError::ExpectedBvSort(s));
                     }
                 }
             }
@@ -611,30 +617,30 @@ impl<'p, 's> Parser<'p, 's> {
             }
             Operator::BvBbTerm => {
                 assert_num_args(&args, 1..)?;
-                self.check_sort_eq(&Sort::Bool, sorts[0])?;
+                self.check_sort_eq(&Sort::Bool, &sorts[0])?;
                 self.check_sort_all_eq(&sorts)?;
             }
             Operator::BvPBbTerm => {
                 assert_num_args(&args, 1..)?;
-                self.check_sort_eq(&Sort::Int, sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &sorts[0])?;
                 self.check_sort_all_eq(&sorts)?;
             }
             Operator::BvConst => {
                 assert_num_args(&args, 2)?;
-                self.check_sort_eq(&Sort::Int, sorts[0])?;
-                self.check_sort_eq(&Sort::Int, sorts[1])?;
+                self.check_sort_eq(&Sort::Int, &sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &sorts[1])?;
             }
             Operator::BvConcat => {
                 assert_num_args(&args, 2..)?;
                 for s in sorts {
                     if !s.is_bitvec() {
-                        return Err(ParserError::ExpectedBvSort(s.clone()));
+                        return Err(ParserError::ExpectedBvSort(s));
                     }
                 }
             }
             Operator::Cl => {}
             Operator::Delete => {
-                self.check_sort_eq(&Sort::Bool, sorts[0])?;
+                self.check_sort_eq(&Sort::Bool, &sorts[0])?;
                 assert_num_args(&args, 1)?;
             }
             Operator::BvAdd
@@ -678,7 +684,7 @@ impl<'p, 's> Parser<'p, 's> {
             Operator::RareList => (),
             Operator::Pow2 | Operator::Log2 | Operator::IsPow2 => {
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::Int, sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &sorts[0])?;
             }
         }
         Ok(self.pool.add(Term::Op(op, args)))
@@ -714,41 +720,35 @@ impl<'p, 's> Parser<'p, 's> {
         let sort = self.pool.sort(&function);
         let mut param_function = false;
         let sorts = {
-            let function_sort = sort.as_sort().unwrap();
-            if let Sort::Function(sorts) = function_sort {
+            if let Sort::Function(sorts) = sort.as_ref() {
                 sorts
-            } else if let Sort::ParamSort(_, p_sort) = function_sort {
-                let p_function_sort = p_sort.as_sort().unwrap();
-                if let Sort::Function(sorts) = p_function_sort {
+            } else if let Sort::ParamSort(_, p_sort) = sort.as_ref() {
+                if let Sort::Function(sorts) = p_sort.as_ref() {
                     param_function = true;
                     sorts
                 } else {
                     // Parametric function does not have function sort
-                    return Err(ParserError::NotAFunction(p_function_sort.clone()));
+                    return Err(ParserError::NotAFunction(p_sort.clone()));
                 }
             } else {
                 // Function does not have function sort
-                return Err(ParserError::NotAFunction(function_sort.clone()));
+                return Err(ParserError::NotAFunction(sort.clone()));
             }
         };
         assert_num_args(&args, sorts.len() - 1)?;
         let mut map = IndexMap::new();
         for i in 0..args.len() {
+            let arg_sort_i = self.pool.sort(&args[i]);
             if param_function {
-                let sort_i = sorts[i].as_sort().unwrap();
-                let arg_sort_i = self.pool.sort(&args[i]).as_sort().unwrap().clone();
-                if !sort_i.match_with(&arg_sort_i, &mut map) {
+                if !sorts[i].match_with(&arg_sort_i, &mut map) {
                     return Err(ParserError::IncompatibleSorts(
-                        sort_i.clone(),
+                        sorts[i].clone(),
                         arg_sort_i.clone(),
                     ));
                 }
                 continue;
             };
-            self.check_sort_eq(
-                sorts[i].as_sort().unwrap(),
-                self.pool.sort(&args[i]).as_sort().unwrap(),
-            )?;
+            self.check_sort_eq(&sorts[i], &arg_sort_i)?;
         }
         Ok(self.pool.add(Term::App(function, args)))
     }
@@ -1294,7 +1294,7 @@ impl<'p, 's> Parser<'p, 's> {
                     (var, value, sort)
                 } else {
                     let (var, sort) = self.parse_sorted_var()?;
-                    let value = self.parse_term_expecting_sort(sort.as_sort().unwrap())?;
+                    let value = self.parse_term_expecting_sort(&sort)?;
                     (var, value, sort)
                 };
             self.insert_sorted_var((var.clone(), sort.clone()));
@@ -1309,9 +1309,9 @@ impl<'p, 's> Parser<'p, 's> {
         })
     }
 
-    /// Parses a `declare-fun` proof command. Returns the function name and a term representing its
-    /// sort. This method assumes that the `(` and `declare-fun` tokens were already consumed.
-    fn parse_declare_fun(&mut self) -> CarcaraResult<(String, Rc<Term>)> {
+    /// Parses a `declare-fun` proof command. Returns the function name and its sort. This method
+    /// assumes that the `(` and `declare-fun` tokens were already consumed.
+    fn parse_declare_fun(&mut self) -> CarcaraResult<(String, Rc<Sort>)> {
         let name = self.expect_symbol()?;
         let sort = {
             self.expect_token(Token::OpenParen)?;
@@ -1320,7 +1320,7 @@ impl<'p, 's> Parser<'p, 's> {
             if sorts.len() == 1 {
                 sorts.into_iter().next().unwrap()
             } else {
-                self.pool.add(Term::Sort(Sort::Function(sorts)))
+                self.pool.add_sort(Sort::Function(sorts))
             }
         };
         self.expect_token(Token::CloseParen)?;
@@ -1346,7 +1346,7 @@ impl<'p, 's> Parser<'p, 's> {
     fn parse_function_dec(
         &mut self,
         consume_parens: bool,
-    ) -> CarcaraResult<(String, Vec<SortedVar>, Rc<Term>)> {
+    ) -> CarcaraResult<(String, Vec<SortedVar>, Rc<Sort>)> {
         if consume_parens {
             self.expect_token(Token::OpenParen)?;
         }
@@ -1371,7 +1371,7 @@ impl<'p, 's> Parser<'p, 's> {
         for var in &params {
             self.insert_sorted_var(var.clone());
         }
-        let body = self.parse_term_expecting_sort(return_sort.as_sort().unwrap())?;
+        let body = self.parse_term_expecting_sort(&return_sort)?;
         self.state.symbol_table.pop_scope();
 
         self.expect_token(Token::CloseParen)?;
@@ -1420,13 +1420,12 @@ impl<'p, 's> Parser<'p, 's> {
 
         for (name, params, return_sort) in &declarations {
             let sort = if params.is_empty() {
-                return_sort.as_sort().unwrap().clone()
+                return_sort.clone()
             } else {
                 let mut param_sorts: Vec<_> = params.iter().map(|(_, sort)| sort.clone()).collect();
                 param_sorts.push(return_sort.clone());
-                Sort::Function(param_sorts)
+                self.pool.add_sort(Sort::Function(param_sorts))
             };
-            let sort = self.pool.add(Term::Sort(sort));
             self.insert_sorted_var((name.clone(), sort));
         }
 
@@ -1438,7 +1437,7 @@ impl<'p, 's> Parser<'p, 's> {
             for var in &params {
                 self.insert_sorted_var(var.clone());
             }
-            let body = self.parse_term_expecting_sort(return_sort.as_sort().unwrap())?;
+            let body = self.parse_term_expecting_sort(&return_sort)?;
             self.state.symbol_table.pop_scope();
 
             self.add_define_fun_rec_premise(name, params, body);
@@ -1522,7 +1521,7 @@ impl<'p, 's> Parser<'p, 's> {
     fn parse_term_expecting_sort(&mut self, expected_sort: &Sort) -> CarcaraResult<Rc<Term>> {
         let pos = self.current_position;
         let term = self.parse_term()?;
-        self.check_sort_eq(expected_sort, self.pool.sort(&term).as_sort().unwrap())
+        self.check_sort_eq(expected_sort, &self.pool.sort(&term))
             .map_err(|e| Error::Parser(e.into(), pos))?;
         Ok(term)
     }
@@ -1709,9 +1708,7 @@ impl<'p, 's> Parser<'p, 's> {
         args: Vec<Rc<Term>>,
     ) -> Result<Rc<Term>, ParserError> {
         let sorts: Vec<_> = args.iter().map(|t| self.pool.sort(t)).collect();
-        let sorts: Vec<_> = sorts.iter().map(|s| s.as_sort().unwrap()).collect();
         let op_sorts: Vec<_> = op_args.iter().map(|t| self.pool.sort(t)).collect();
-        let op_sorts: Vec<_> = op_sorts.iter().map(|s| s.as_sort().unwrap()).collect();
         match &op {
             ParamOperator::BvConst => {
                 assert_num_args(&op_args, 2)?;
@@ -1747,7 +1744,7 @@ impl<'p, 's> Parser<'p, 's> {
 
                 // j >= 0 is ensured by the parser. We need to ensure that m > i && i >= j, if they
                 // are all statically known
-                if let (Some(i), Some(j), Sort::BitVec(m)) = (i, j, sorts[0]) {
+                if let (Some(i), Some(j), Sort::BitVec(m)) = (i, j, sorts[0].as_ref()) {
                     if !(*m > i && i >= j) {
                         return Err(ParserError::InvalidExtractArgs(i, j, *m));
                     }
@@ -1756,8 +1753,8 @@ impl<'p, 's> Parser<'p, 's> {
             ParamOperator::IntToBv => {
                 assert_num_args(&op_args, 1)?;
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::Int, op_sorts[0])?;
-                self.check_sort_eq(&Sort::Int, sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &op_sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &sorts[0])?;
             }
             ParamOperator::BvBitOf
             | ParamOperator::BvIntOf
@@ -1768,7 +1765,7 @@ impl<'p, 's> Parser<'p, 's> {
             | ParamOperator::Repeat => {
                 assert_num_args(&op_args, 1)?;
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::Int, op_sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &op_sorts[0])?;
                 if !sorts[0].is_bitvec() {
                     return Err(ParserError::ExpectedBvSort(sorts[0].clone()));
                 }
@@ -1777,8 +1774,8 @@ impl<'p, 's> Parser<'p, 's> {
             ParamOperator::RePower => {
                 assert_num_args(&op_args, 1)?;
                 assert_num_args(&args, 1)?;
-                self.check_sort_eq(&Sort::Int, op_sorts[0])?;
-                self.check_sort_eq(&Sort::RegLan, sorts[0])?;
+                self.check_sort_eq(&Sort::Int, &op_sorts[0])?;
+                self.check_sort_eq(&Sort::RegLan, &sorts[0])?;
                 assert_indexed_op_args_value(&op_args, 0..)?;
             }
             ParamOperator::ReLoop => {
@@ -1787,7 +1784,7 @@ impl<'p, 's> Parser<'p, 's> {
                 for s in &op_sorts {
                     self.check_sort_eq(&Sort::Int, s)?;
                 }
-                self.check_sort_eq(&Sort::RegLan, sorts[0])?;
+                self.check_sort_eq(&Sort::RegLan, &sorts[0])?;
                 assert_indexed_op_args_value(&op_args, 0..)?;
             }
             ParamOperator::Tester => {}
@@ -1799,15 +1796,14 @@ impl<'p, 's> Parser<'p, 's> {
     fn make_qualified_op(
         &mut self,
         op: QualifiedOperator,
-        sort: Rc<Term>,
+        sort: Rc<Sort>,
         args: Vec<Rc<Term>>,
     ) -> Result<Rc<Term>, ParserError> {
         let sorts: Vec<_> = args.iter().map(|t| self.pool.sort(t)).collect();
-        let sorts: Vec<_> = sorts.iter().map(|s| s.as_sort().unwrap()).collect();
         match op {
             QualifiedOperator::Const => {
                 assert_num_args(&args, 1)?;
-                self.check_array_sort(None, Some(sorts[0]), sort.as_sort().unwrap())?;
+                self.check_array_sort(None, Some(&sorts[0]), &sort)?;
             }
         }
         Ok(self.pool.add(Term::AsOp(op, sort, args)))
@@ -1838,7 +1834,7 @@ impl<'p, 's> Parser<'p, 's> {
                                 .make_var(op_symbol.clone())
                                 .map_err(|err| Error::Parser(err, self.current_position))?;
                             let var_sort = self.pool.sort(&var);
-                            if var_sort.is_sort_parametric() {
+                            if var_sort.is_parametric() {
                                 let sort = self.parse_sort()?;
                                 self.expect_token(Token::CloseParen)?;
                                 // TODO test unification
@@ -1968,36 +1964,32 @@ impl<'p, 's> Parser<'p, 's> {
                                 .make_var(op_symbol.clone())
                                 .map_err(|err| Error::Parser(err, self.current_position))?;
                             let var_sort = self.pool.sort(&var);
-                            if var_sort.is_sort_parametric() {
-                                if let Sort::ParamSort(_, f_sort) = var_sort.as_sort().unwrap() {
-                                    if let Sort::Function(sorts) = f_sort.as_sort().unwrap() {
+                            if var_sort.is_parametric() {
+                                if let Sort::ParamSort(_, f_sort) = var_sort.as_ref() {
+                                    if let Sort::Function(sorts) = f_sort.as_ref() {
                                         let sort = self.parse_sort()?;
                                         self.expect_token(Token::CloseParen)?;
                                         // unify return sort with as_sort
-                                        let ret_sort_term = sorts.last().unwrap();
-                                        let ret_sort = ret_sort_term.as_sort().unwrap();
-                                        let as_sort = sort.as_sort().unwrap();
+                                        let ret_sort = sorts.last().unwrap();
                                         let mut map = IndexMap::<_, _>::new();
-                                        if !ret_sort.match_with(as_sort, &mut map) {
+                                        if !ret_sort.match_with(&sort, &mut map) {
                                             return Err(Error::Parser(
                                                 ParserError::IncompatibleSorts(
                                                     ret_sort.clone(),
-                                                    as_sort.clone(),
+                                                    sort.clone(),
                                                 ),
                                                 self.current_position,
                                             ));
                                         }
                                         let substitution: IndexMap<_, _> = map
                                             .into_iter()
-                                            .map(|(var_name, sort)| {
-                                                let var = Term::Sort(Sort::Var(var_name));
-                                                let sort_t = Term::Sort(sort);
-                                                (self.pool.add(var), self.pool.add(sort_t))
+                                            .map(|(var, sort)| {
+                                                let var = Sort::Var(var);
+                                                (self.pool.add_sort(var), self.pool.add_sort(sort))
                                             })
                                             .collect();
                                         // if types are unifiable, create variable with sort after applying the substitution
-                                        let result = Substitution::new(self.pool, substitution)
-                                            .unwrap()
+                                        let result = SortSubstitution::new(substitution)
                                             .apply(self.pool, &var_sort);
                                         let func = self.pool.add(Term::new_var(op_symbol, result));
                                         // now apply it to args
@@ -2031,36 +2023,36 @@ impl<'p, 's> Parser<'p, 's> {
         }
     }
 
-    fn make_sort(&mut self, name: String, args: Vec<Rc<Term>>) -> Result<Rc<Term>, ParserError> {
+    fn make_sort(&mut self, name: String, args: Vec<Rc<Sort>>) -> Result<Rc<Sort>, ParserError> {
         let sort = match name.as_str() {
             "Bool" | "Int" | "Real" | "String" | "RegLan" if !args.is_empty() => {
-                Err(ParserError::WrongNumberOfArgs(0.into(), args.len()))
+                return Err(ParserError::WrongNumberOfArgs(0.into(), args.len()))
             }
-            "Bool" => Ok(Sort::Bool),
-            "Int" => Ok(Sort::Int),
-            "Real" => Ok(Sort::Real),
-            "String" => Ok(Sort::String),
-            "RegLan" => Ok(Sort::RegLan),
-            "Type" => Ok(Sort::Type),
+            "Bool" => Sort::Bool,
+            "Int" => Sort::Int,
+            "Real" => Sort::Real,
+            "String" => Sort::String,
+            "RegLan" => Sort::RegLan,
+            "Type" => Sort::Type,
             "Array" => match args.as_slice() {
-                [x, y] => Ok(Sort::Array(x.clone(), y.clone())),
-                _ => Err(ParserError::WrongNumberOfArgs(2.into(), args.len())),
+                [x, y] => Sort::Array(x.clone(), y.clone()),
+                _ => return Err(ParserError::WrongNumberOfArgs(2.into(), args.len())),
             },
             "rare-list" | "RareList" => match args.as_slice() {
-                [] => Ok(Sort::Var("?".to_owned())),
-                [s] => Ok(s.as_sort().unwrap().clone()),
-                _ => Err(ParserError::WrongNumberOfArgs(1.into(), args.len())),
+                [] => Sort::Var("?".to_owned()),
+                [s] => return Ok(s.clone()),
+                _ => return Err(ParserError::WrongNumberOfArgs(1.into(), args.len())),
             },
 
             // Local sort parameter
-            other if self.has_sort_symbol(other) => Ok(Sort::Var(other.to_owned())),
+            other if self.has_sort_symbol(other) => Sort::Var(other.to_owned()),
 
             // Local sort parameter, but with leading `@` implicitly removed
             other
                 if self.config.implicit_at_sort_alias
                     && self.has_sort_symbol(&format!("@{}", other)) =>
             {
-                Ok(Sort::Var(other.to_owned()))
+                Sort::Var(other.to_owned())
             }
 
             // Sort definition, from `define-sort`
@@ -2080,14 +2072,12 @@ impl<'p, 's> Parser<'p, 's> {
                         .cloned()
                         .map(|name| {
                             self.pool
-                                .add(Term::Sort(Sort::Atom(name.into_boxed_str(), Box::new([]))))
+                                .add_sort(Sort::Atom(name.into_boxed_str(), Box::new([])))
                         })
                         .zip(args)
                         .collect();
 
-                    let result = Substitution::new(self.pool, substitution)
-                        .unwrap()
-                        .apply(self.pool, &def.body);
+                    let result = SortSubstitution::new(substitution).apply(self.pool, &def.body);
                     Ok(result)
                 };
             }
@@ -2096,9 +2086,9 @@ impl<'p, 's> Parser<'p, 's> {
             other if self.state.datatype_declarations.get(other).is_some() => {
                 let arity = self.state.datatype_declarations.get(other).unwrap();
                 if *arity == args.len() {
-                    Ok(Sort::Datatype { name: name.into_boxed_str(), args })
+                    Sort::Datatype { name: name.into_boxed_str(), args }
                 } else {
-                    Err(ParserError::WrongNumberOfArgs((*arity).into(), args.len()))
+                    return Err(ParserError::WrongNumberOfArgs((*arity).into(), args.len()));
                 }
             }
 
@@ -2106,23 +2096,23 @@ impl<'p, 's> Parser<'p, 's> {
             other if self.state.sort_declarations.get(other).is_some() => {
                 let arity = self.state.sort_declarations.get(other).unwrap();
                 if *arity == args.len() {
-                    Ok(Sort::Atom(name.into_boxed_str(), args.into_boxed_slice()))
+                    Sort::Atom(name.into_boxed_str(), args.into_boxed_slice())
                 } else {
-                    Err(ParserError::WrongNumberOfArgs((*arity).into(), args.len()))
+                    return Err(ParserError::WrongNumberOfArgs((*arity).into(), args.len()));
                 }
             }
 
             // Unknown
-            _ => Err(ParserError::UndefinedSort(name)),
-        }?;
-        Ok(self.pool.add(Term::Sort(sort)))
+            _ => return Err(ParserError::UndefinedSort(name)),
+        };
+        Ok(self.pool.add_sort(sort))
     }
 
     fn make_indexed_sort(
         &mut self,
         name: String,
         args: Vec<Rc<Term>>,
-    ) -> Result<Rc<Term>, ParserError> {
+    ) -> Result<Rc<Sort>, ParserError> {
         match name.as_str() {
             "BitVec" => {
                 if args.len() != 1 {
@@ -2134,14 +2124,14 @@ impl<'p, 's> Parser<'p, 's> {
                     // TODO: used to be an error. maybe still should be an error outside rare files
                     Sort::ParamBitVec
                 };
-                Ok(self.pool.add(Term::Sort(sort)))
+                Ok(self.pool.add_sort(sort))
             }
             _ => Err(ParserError::UndefinedSort(name)),
         }
     }
 
     /// Parses a sort.
-    fn parse_sort(&mut self) -> CarcaraResult<Rc<Term>> {
+    fn parse_sort(&mut self) -> CarcaraResult<Rc<Sort>> {
         let pos = self.current_position;
         let (name, args) = match self.next_token()?.0 {
             Token::Symbol(s) => (s, Vec::new()),

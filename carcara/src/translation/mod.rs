@@ -224,7 +224,7 @@ pub trait VecToVecTranslator<'a> {
     /// occurrences, and returns this coupled with the original list of actual values, as a `@VarList`.
     fn translate_let_binding_list(
         &mut self,
-        binding_list: &BindingList,
+        binding_list: &BindingList<Rc<Term>>,
     ) -> (Vec<Self::TermType>, Vec<Self::TermType>);
 
     /// Translates a given Alethe Term into its corresponding representation, possibly

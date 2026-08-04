@@ -58,12 +58,11 @@ impl TermPool for ContextPool {
         ctx_guard.sorts.add(sort)
     }
 
-    fn sort(&self, term: &Rc<Term>) -> Rc<Term> {
+    fn sort(&self, term: &Rc<Term>) -> Rc<Sort> {
         if let Some(sort) = self.global_pool.sorts_cache.get(term) {
             sort.clone()
-        }
-        // A sort inserted by context
-        else {
+        } else {
+            // A sort inserted by context
             self.inner.read().unwrap().sorts_cache[term].clone()
         }
     }
@@ -138,7 +137,7 @@ impl TermPool for LocalPool {
         }
     }
 
-    fn sort(&self, term: &Rc<Term>) -> Rc<Term> {
+    fn sort(&self, term: &Rc<Term>) -> Rc<Sort> {
         if let Some(sort) = self.ctx_pool.global_pool.sorts_cache.get(term) {
             sort.clone()
         }

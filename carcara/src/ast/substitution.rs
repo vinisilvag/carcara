@@ -73,9 +73,7 @@ impl Substitution {
         map: IndexMap<Rc<Term>, Rc<Term>>,
     ) -> SubstitutionResult<Self> {
         for (k, v) in &map {
-            let k_sort = pool.sort(k).as_sort().unwrap().clone();
-            let v_sort = pool.sort(v).as_sort().unwrap().clone();
-            if !k_sort.is_compatible_with(&v_sort) {
+            if !pool.sort(k).is_compatible_with(&pool.sort(v)) {
                 return Err(SubstitutionError::DifferentSorts(k.clone(), v.clone()));
             }
         }
@@ -101,9 +99,7 @@ impl Substitution {
         x: Rc<Term>,
         t: Rc<Term>,
     ) -> SubstitutionResult<()> {
-        let x_sort = pool.sort(&x).as_sort().unwrap().clone();
-        let t_sort = pool.sort(&t).as_sort().unwrap().clone();
-        if !x_sort.is_compatible_with(&t_sort) {
+        if !pool.sort(&x).is_compatible_with(&pool.sort(&t)) {
             return Err(SubstitutionError::DifferentSorts(x, t));
         }
 
@@ -216,8 +212,7 @@ impl Substitution {
                 self.apply_to_binder(pool, term, *binder, binding_list.as_ref(), inner)
             }
             Term::Let(binding_list, inner) => {
-                let (new_bindings, mut renaming) =
-                    self.rename_binding_list(pool, binding_list, true);
+                let (new_bindings, mut renaming) = self.rename_binding_list(pool, binding_list);
                 let new_term = if renaming.is_empty() {
                     self.apply(pool, inner)
                 } else {
@@ -234,8 +229,7 @@ impl Substitution {
                     .iter()
                     .map(|case| {
                         let (new_bindings, mut renaming) =
-                            self.rename_binding_list(pool, case.bindings(), true);
-
+                            self.rename_binding_list(pool, case.bindings());
                         let pattern = if renaming.is_empty() {
                             case.pattern.clone()
                         } else {
@@ -277,37 +271,6 @@ impl Substitution {
                 let new_args = apply_to_sequence!(args);
                 pool.add(Term::AsOp(*op, sort.clone(), new_args))
             }
-            Term::Sort(Sort::Atom(sort, args)) => {
-                let new_args = apply_to_sequence!(args).into_boxed_slice();
-                pool.add(Term::Sort(Sort::Atom(sort.clone(), new_args)))
-            }
-            Term::Sort(Sort::Function(args)) => {
-                let new_args = apply_to_sequence!(args);
-                pool.add(Term::Sort(Sort::Function(new_args)))
-            }
-            Term::Sort(Sort::Array(x, y)) => {
-                let [x, y] = [x, y].map(|s| self.apply(pool, s));
-                pool.add(Term::Sort(Sort::Array(x, y)))
-            }
-            Term::Sort(Sort::Datatype { name, args }) => {
-                let args = apply_to_sequence!(args);
-                pool.add(Term::Sort(Sort::Datatype { name: name.clone(), args }))
-            }
-            Term::Sort(Sort::ParamSort(vars, sort)) => {
-                let new_sort = self.apply(pool, sort);
-                let mut new_vars = Vec::<Rc<Term>>::new();
-                for var in vars {
-                    if !self.map.contains_key(var) {
-                        new_vars.push(var.clone());
-                    }
-                }
-                if new_vars.is_empty() {
-                    new_sort
-                } else {
-                    pool.add(Term::Sort(Sort::ParamSort(new_vars, new_sort)))
-                }
-            }
-            Term::Sort(_) => term.clone(),
         };
 
         // Since frequently a term will have more than one identical subterms, we insert the
@@ -370,7 +333,7 @@ impl Substitution {
             return original_term.clone();
         }
 
-        let (new_bindings, mut renaming) = self.rename_binding_list(pool, binding_list, false);
+        let (new_bindings, mut renaming) = self.rename_binding_list(pool, binding_list);
         let new_term = if renaming.is_empty() {
             self.apply(pool, inner)
         } else {
@@ -386,14 +349,12 @@ impl Substitution {
     /// captured by this substitution to a new, arbitrary name. Returns that substitution, and the
     /// new binding list, with the bindings renamed. If no variable needs to be renamed, this just
     /// returns a clone of the binding list and an empty substitution. The name chosen when renaming
-    /// a variable is the old name with `'` appended. If the binding list is a "value" list, like in
-    /// a `let` or `lambda` term, `is_value_list` should be true.
-    fn rename_binding_list(
+    /// a variable is the old name with `_renamed` appended.
+    fn rename_binding_list<V: BindingValue>(
         &mut self,
         pool: &mut dyn TermPool,
-        binding_list: &[SortedVar],
-        is_value_list: bool,
-    ) -> (BindingList, Self) {
+        binding_list: &[(String, V)],
+    ) -> (BindingList<V>, Self) {
         if !self.avoid_capture {
             return (BindingList(binding_list.to_vec()), Self::empty());
         }
@@ -402,18 +363,12 @@ impl Substitution {
         let new_binding_list = binding_list
             .iter()
             .map(|(var, value)| {
-                // If the binding list is a "sort" binding list, then `value` will be the variable's
-                // sort. Otherwise, we need to get the sort of `value`
-                let sort = if is_value_list {
-                    pool.sort(value)
-                } else {
-                    value.clone()
-                };
+                let sort = value.get_sort(pool);
 
                 let mut changed = false;
                 let mut new_var = var.clone();
 
-                // We keep adding `'`s to the variable name as long as it is necessary
+                // We keep adding `_renamed`s to the variable name as long as it is necessary
                 loop {
                     if !new_vars.contains(&new_var)
                         && !self.should_be_renamed.as_ref().unwrap().contains(&new_var)
@@ -436,17 +391,117 @@ impl Substitution {
                     new_vars.insert(new_var.clone());
                 }
 
-                // If the binding list is a "value" list, we need to apply the current substitution
-                // to each variable's value
-                let new_value = if is_value_list {
-                    new_substitution.apply(pool, value)
-                } else {
-                    value.clone()
-                };
+                // We also need to apply the current substitution to each variable's value
+                let new_value = value.apply_subst(pool, &mut new_substitution);
                 (new_var, new_value)
             })
             .collect();
         (BindingList(new_binding_list), new_substitution)
+    }
+}
+
+/// A trait for objects that can be the value in a binding list, namely `Rc<Term>` or `Rc<Sort>`.
+trait BindingValue: Clone {
+    fn get_sort(&self, pool: &mut dyn TermPool) -> Rc<Sort>;
+
+    fn apply_subst(&self, pool: &mut dyn TermPool, substitution: &mut Substitution) -> Self;
+}
+
+impl BindingValue for Rc<Term> {
+    fn get_sort(&self, pool: &mut dyn TermPool) -> Rc<Sort> {
+        pool.sort(self)
+    }
+
+    fn apply_subst(&self, pool: &mut dyn TermPool, substitution: &mut Substitution) -> Self {
+        substitution.apply(pool, self)
+    }
+}
+
+impl BindingValue for Rc<Sort> {
+    fn get_sort(&self, _: &mut dyn TermPool) -> Rc<Sort> {
+        self.clone()
+    }
+
+    fn apply_subst(&self, _: &mut dyn TermPool, _: &mut Substitution) -> Self {
+        self.clone()
+    }
+}
+
+/// Represents a non-capture-avoiding substitution over sorts.
+#[derive(Debug, Clone)]
+pub struct SortSubstitution {
+    /// The substitution's mappings.
+    map: IndexMap<Rc<Sort>, Rc<Sort>>,
+    cache: IndexMap<Rc<Sort>, Rc<Sort>>,
+}
+
+impl SortSubstitution {
+    /// Constructs a new substitution from an arbitrary mapping of sorts to other sorts.
+    pub fn new(map: IndexMap<Rc<Sort>, Rc<Sort>>) -> Self {
+        Self { map, cache: IndexMap::new() }
+    }
+
+    /// Applies the substitution to `sort`, and returns the result as a new sort.
+    pub fn apply(&mut self, pool: &mut dyn TermPool, sort: &Rc<Sort>) -> Rc<Sort> {
+        macro_rules! apply_to_sequence {
+            ($sequence:expr) => {
+                $sequence
+                    .iter()
+                    .map(|a| self.apply(pool, a))
+                    .collect::<Vec<_>>()
+            };
+        }
+
+        if let Some(t) = self.cache.get(sort) {
+            return t.clone();
+        }
+        if let Some(t) = self.map.get(sort) {
+            return t.clone();
+        }
+
+        let result = match sort.as_ref() {
+            Sort::Atom(sort, args) => {
+                let new_args = apply_to_sequence!(args).into_boxed_slice();
+                pool.add_sort(Sort::Atom(sort.clone(), new_args))
+            }
+            Sort::Function(args) => {
+                let new_args = apply_to_sequence!(args);
+                pool.add_sort(Sort::Function(new_args))
+            }
+            Sort::Array(x, y) => {
+                let [x, y] = [x, y].map(|s| self.apply(pool, s));
+                pool.add_sort(Sort::Array(x, y))
+            }
+            Sort::Datatype { name, args } => {
+                let new_args = apply_to_sequence!(args);
+                pool.add_sort(Sort::Datatype { name: name.clone(), args: new_args })
+            }
+            Sort::ParamSort(vars, sort) => {
+                let new_sort = self.apply(pool, sort);
+                let new_vars: Vec<_> = vars
+                    .iter()
+                    .filter(|v| !self.map.contains_key(*v))
+                    .cloned()
+                    .collect();
+                if new_vars.is_empty() {
+                    new_sort
+                } else {
+                    pool.add_sort(Sort::ParamSort(new_vars, new_sort))
+                }
+            }
+            Sort::Var(_)
+            | Sort::Bool
+            | Sort::Int
+            | Sort::Real
+            | Sort::String
+            | Sort::RegLan
+            | Sort::BitVec(_)
+            | Sort::ParamBitVec
+            | Sort::Type => sort.clone(),
+        };
+
+        self.cache.insert(sort.clone(), result.clone());
+        result
     }
 }
 

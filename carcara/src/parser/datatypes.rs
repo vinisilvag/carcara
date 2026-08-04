@@ -95,7 +95,7 @@ impl<'p, 's> Parser<'p, 's> {
             let params = self.parse_sequence(
                 |p| {
                     let name = p.expect_symbol()?;
-                    let sort = p.pool.add(Term::Sort(Sort::Type));
+                    let sort = p.pool.add_sort(Sort::Type);
                     p.insert_sorted_var((name.clone(), sort));
                     Ok(name)
                 },
@@ -143,14 +143,14 @@ impl<'p, 's> Parser<'p, 's> {
             args: datatype
                 .params
                 .iter()
-                .map(|param| self.pool.add(Term::Sort(Sort::Var(param.clone()))))
+                .map(|param| self.pool.add_sort(Sort::Var(param.clone())))
                 .collect(),
         };
-        let return_sort = self.pool.add(Term::Sort(return_sort));
+        let return_sort = self.pool.add_sort(return_sort);
         let sort_params: Vec<_> = datatype
             .params
             .iter()
-            .map(|param| self.pool.add(Term::Sort(Sort::Var(param.clone()))))
+            .map(|param| self.pool.add_sort(Sort::Var(param.clone())))
             .collect();
         for (name, cons) in &datatype.constructors {
             let inner_sort = if cons.selectors.is_empty() {
@@ -162,24 +162,22 @@ impl<'p, 's> Parser<'p, 's> {
                     .map(|(_, sort)| sort.clone())
                     .chain([return_sort.clone()])
                     .collect();
-                self.pool.add(Term::Sort(Sort::Function(sorts)))
+                self.pool.add_sort(Sort::Function(sorts))
             };
             let sort = if sort_params.is_empty() {
                 inner_sort
             } else {
                 self.pool
-                    .add(Term::Sort(Sort::ParamSort(sort_params.clone(), inner_sort)))
+                    .add_sort(Sort::ParamSort(sort_params.clone(), inner_sort))
             };
             self.insert_sorted_var((name.clone(), sort));
 
             // If we are supporting legacy tester syntax, register a function symbol named
             // `is-<cons>`, that serves the same purpose as the newer `(_ is <cons>)`.
             if self.config.allow_legacy_tester_syntax {
-                let sort = Sort::Function(vec![
-                    return_sort.clone(),
-                    self.pool.add(Term::Sort(Sort::Bool)),
-                ]);
-                let sort = self.pool.add(Term::Sort(sort));
+                let sort =
+                    Sort::Function(vec![return_sort.clone(), self.pool.add_sort(Sort::Bool)]);
+                let sort = self.pool.add_sort(sort);
                 self.insert_sorted_var((format!("is-{}", name), sort));
             }
 
@@ -202,21 +200,19 @@ impl<'p, 's> Parser<'p, 's> {
     fn register_selectors(
         &mut self,
         constructor: &DatatypeConstructor,
-        datatype_sort: &Rc<Term>,
-        sort_params: &[Rc<Term>],
+        datatype_sort: &Rc<Sort>,
+        sort_params: &[Rc<Sort>],
     ) {
         for (name, selector_sort) in &constructor.selectors {
-            let inner_sort = self.pool.add(Term::Sort(Sort::Function(vec![
+            let inner_sort = self.pool.add_sort(Sort::Function(vec![
                 datatype_sort.clone(),
                 selector_sort.clone(),
-            ])));
+            ]));
             let sort = if sort_params.is_empty() {
                 inner_sort
             } else {
-                self.pool.add(Term::Sort(Sort::ParamSort(
-                    sort_params.to_vec(),
-                    inner_sort,
-                )))
+                self.pool
+                    .add_sort(Sort::ParamSort(sort_params.to_vec(), inner_sort))
             };
             self.insert_sorted_var((name.clone(), sort));
         }
@@ -236,9 +232,9 @@ impl<'p, 's> Parser<'p, 's> {
         let head_pos = self.current_position;
         let matched_term = self.parse_term()?;
         let sort = self.pool.sort(&matched_term);
-        let Sort::Datatype { name, .. } = sort.as_sort().unwrap() else {
+        let Sort::Datatype { name, .. } = sort.as_ref() else {
             return Err(Error::Parser(
-                ParserError::ExpectedDTSort(sort.as_sort().unwrap().clone()),
+                ParserError::ExpectedDTSort(sort.clone()),
                 head_pos,
             ));
         };
@@ -254,7 +250,7 @@ impl<'p, 's> Parser<'p, 's> {
         // Check that all case bodies have the same sort
         for w in cases.windows(2) {
             let sorts = [0, 1].map(|i| self.pool.sort(&w[i].body));
-            self.check_sort_eq(sorts[0].as_sort().unwrap(), sorts[1].as_sort().unwrap())
+            self.check_sort_eq(&sorts[0], &sorts[1])
                 .map_err(|e| Error::Parser(e.into(), head_pos))?;
         }
 
@@ -282,7 +278,7 @@ impl<'p, 's> Parser<'p, 's> {
 
     fn parse_match_case(
         &mut self,
-        sort: &Rc<Term>,
+        sort: &Rc<Sort>,
         constructors: &IndexMap<String, DatatypeConstructor>,
     ) -> CarcaraResult<MatchCase> {
         self.expect_token(Token::OpenParen)?;
@@ -301,7 +297,7 @@ impl<'p, 's> Parser<'p, 's> {
 
     fn parse_match_pattern(
         &mut self,
-        sort: &Rc<Term>,
+        sort: &Rc<Sort>,
         constructors: &IndexMap<String, DatatypeConstructor>,
     ) -> CarcaraResult<MatchPattern> {
         let head_pos = self.current_position;

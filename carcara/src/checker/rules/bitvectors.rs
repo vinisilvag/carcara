@@ -6,10 +6,11 @@ use crate::{
 use rug::Integer;
 
 fn bitvector_size(pool: &mut dyn TermPool, term: &Rc<Term>) -> usize {
-    let Sort::BitVec(size) = pool.sort(term).as_sort().cloned().unwrap() else {
-        panic!("trying to get size of non-bitvector term: {}", term);
-    };
-    size
+    if let Sort::BitVec(size) = pool.sort(term).as_ref() {
+        *size
+    } else {
+        panic!("trying to get size of non-bitvector term: {}", term)
+    }
 }
 
 fn get_term_bits(term: &Rc<Term>, pool: &mut dyn TermPool) -> Vec<Rc<Term>> {
@@ -163,7 +164,7 @@ pub fn var(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
     let (x, res) = match_term_err!((= x res) = &conclusion[0])?;
 
     rassert!(
-        matches!(pool.sort(x).as_sort().unwrap(), &Sort::BitVec(_)),
+        matches!(pool.sort(x).as_ref(), &Sort::BitVec(_)),
         CheckerError::Explanation(format!(
             "Could not get BV sort out of (expected-to-be variable) term {}",
             x
@@ -527,14 +528,7 @@ pub fn concat(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
 
     let mut i = 1;
     while i < concat_args.len() {
-        let Sort::BitVec(size_i) = pool
-            .sort(&concat_args[concat_args.len() - 1 - i])
-            .as_sort()
-            .cloned()
-            .unwrap()
-        else {
-            unreachable!();
-        };
+        let size_i = bitvector_size(pool, &concat_args[concat_args.len() - 1 - i]);
         expected_res.extend(get_term_bits(&concat_args[concat_args.len() - 1 - i], pool));
 
         size += size_i;
