@@ -5,14 +5,16 @@ mod sat_refutation;
 mod shared;
 
 use crate::{
-    ast::{rare_rules::Rules, *},
+    ast::{
+        pool::PrimitivePool, rare_rules::Rules, ContextStack, Problem, ProblemPrelude, Proof,
+        ProofCommand, ProofIter, ProofStep, Rc, Term,
+    },
     benchmarking::{CollectResults, OnlineBenchmarkResults},
     external::{ExternalTool, SatTools},
     CarcaraResult, Error,
 };
 use error::CheckerError;
 use indexmap::{IndexMap, IndexSet};
-pub use parallel::{scheduler::Scheduler, ParallelProofChecker};
 use rules::{Premise, RuleArgs, RuleResult};
 use shared::{check_assume_shared, check_step_core, StepCheckContext};
 use std::{
@@ -20,6 +22,8 @@ use std::{
     fmt,
     time::{Duration, Instant},
 };
+
+pub use parallel::{scheduler::Scheduler, ParallelProofChecker};
 
 // The elaborator needs to use this function to elaborate `bfun_elim` steps
 pub(crate) use rules::clausification::apply_bfun_elim;

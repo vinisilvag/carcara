@@ -1,7 +1,7 @@
 use super::{
     assert_clause_len, assert_eq, assert_num_args, assert_num_premises, RuleArgs, RuleResult, Term,
 };
-use crate::ast::{match_term, Constant, Operator};
+use crate::ast::{build_term, match_term, match_term_err, Constant, Operator};
 use crate::checker::error::{CheckerError, EqualityError};
 use crate::checker::Rc;
 use rug::Integer;
@@ -711,12 +711,13 @@ pub fn cp_normalize(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
 mod tests {
     use rug::Integer;
 
+    use super::{flatten_addition_tree, CoeffTimesVar};
     use crate::{
-        ast::pool::{PrimitivePool, TermPool},
-        checker::rules::{
-            cutting_planes::{flatten_addition_tree, CoeffTimesVar},
-            RuleResult, Term,
+        ast::{
+            build_term,
+            pool::{PrimitivePool, TermPool},
         },
+        checker::rules::{RuleResult, Term},
         checker::Rc,
     };
 

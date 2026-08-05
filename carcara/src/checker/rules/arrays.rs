@@ -2,7 +2,7 @@ use super::{
     assert_clause_len, assert_eq, assert_num_premises, assert_polyeq, get_premise_term,
     CheckerError, RuleArgs, RuleResult,
 };
-use crate::ast::{Binder, BindingList, Sort, Term};
+use crate::ast::{build_term, match_term_err, Binder, BindingList, Sort, Term};
 
 pub fn idx(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
     assert_clause_len(conclusion, 1)?;

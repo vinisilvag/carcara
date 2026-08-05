@@ -5,27 +5,26 @@ mod lexer;
 mod rare;
 pub(crate) mod tests;
 
-use std::iter::Iterator;
-
-pub use error::{ParserError, SortError};
-pub use lexer::{Lexer, Position, Reserved, Token};
-pub use pool::DatatypeDef;
-
 use crate::{
     ast::{
+        build_term,
+        pool::{DatatypeDef, PrimitivePool, TermPool},
         rare_rules::{RareStatements, Rules},
-        *,
+        AnchorArg, Binder, BindingList, Constant, Operator, ParamOperator, Problem, ProblemPrelude,
+        Proof, ProofCommand, ProofStep, QualifiedOperator, Rc, Sort, SortedVar, Subproof,
+        Substitution, Term,
     },
     automata::parser::parse_automaton,
     utils::{HashCache, HashMapStack},
     CarcaraResult, Error,
 };
-use error::assert_num_args;
+use error::{assert_indexed_op_args_value, assert_num_args};
 use indexmap::{IndexMap, IndexSet};
 use rug::{Integer, Rational};
-use std::str::FromStr;
+use std::{iter::Iterator, str::FromStr};
 
-use self::error::assert_indexed_op_args_value;
+pub use error::{ParserError, SortError};
+pub use lexer::{Lexer, Position, Reserved, Token};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Config {

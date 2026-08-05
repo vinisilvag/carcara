@@ -3,7 +3,9 @@ use super::{
     RuleResult,
 };
 use crate::{
-    ast::*,
+    ast::{
+        build_term, match_term, match_term_err, pool::TermPool, Constant, Operator, Rc, Sort, Term,
+    },
     utils::{DedupIterator, MultiSet},
 };
 use indexmap::{IndexMap, IndexSet};

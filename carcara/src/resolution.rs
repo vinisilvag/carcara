@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::ast::{build_term, pool::TermPool, Rc, Term};
 use indexmap::{map::Entry, IndexMap, IndexSet};
 use thiserror::Error;
 

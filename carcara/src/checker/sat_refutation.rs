@@ -1,14 +1,26 @@
-use super::*;
-use crate::external::{self, ExternalTool};
-use std::collections::HashMap;
-use std::process;
-use std::{fs::File, io::Write};
+use crate::{
+    ast::{
+        build_term, match_term, match_term_err,
+        pool::{PrimitivePool, TermPool},
+        printer, Binder, BindingList, Operator, ProblemPrelude, ProofCommand, Rc, Substitution,
+        Term,
+    },
+    checker::{error::CheckerError, rules::RuleResult, SatRefConfig},
+    external,
+};
+use indexmap::IndexMap;
+use std::{
+    collections::{HashMap, HashSet},
+    fs::File,
+    io::Write,
+    process,
+};
 
 fn sat_refutation_external_check(
     pool: &mut PrimitivePool,
     cnf_path: String,
     prelude: &ProblemPrelude,
-    checker: &ExternalTool,
+    checker: &external::ExternalTool,
     lemmas: &[Rc<Term>],
     lemmas_to_th_ids: &HashMap<Rc<Term>, String>,
 ) -> RuleResult {
@@ -360,7 +372,7 @@ pub fn sat_refutation(
                 &rw_lemmas_to_th_ids,
             )
         }
-        SatRefConfig::Sat(SatTools {
+        SatRefConfig::Sat(external::SatTools {
             sat_solver,
             drat_checker,
             smt_solver,

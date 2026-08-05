@@ -1,5 +1,9 @@
 use crate::{
-    ast::*,
+    ast::{
+        build_term, match_term, match_term_err,
+        pool::{PrimitivePool, TermPool},
+        ContextStack, ProofNode, Rc, StepNode,
+    },
     elaborator::{error::ElaborationError, IdHelper},
 };
 

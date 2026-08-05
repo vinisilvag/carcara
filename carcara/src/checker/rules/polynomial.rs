@@ -1,6 +1,6 @@
 use super::{assert_clause_len, assert_eq, RuleArgs, RuleResult};
 use crate::{
-    ast::{match_term, Operator, Rc, Sort, Term},
+    ast::{match_term, match_term_err, Operator, Rc, Sort, Term},
     checker::{
         error::PolynomialError,
         rules::{assert_num_premises, get_premise_term},

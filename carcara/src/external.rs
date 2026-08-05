@@ -1,6 +1,10 @@
-use super::*;
 use crate::{
-    ast::*,
+    ast::{
+        build_term, match_term,
+        pool::{PrimitivePool, TermPool},
+        printer, Binder, Operator, Polyeq, ProblemPrelude, ProofCommand, ProofNode,
+        ProofNodeForest, Rc, StepNode, SubproofNode, Term,
+    },
     checker,
     elaborator::{IdHelper, Mutate},
     parser, CarcaraResult,
@@ -10,7 +14,7 @@ use std::{
     collections::{HashMap, HashSet},
     convert::Infallible,
     fmt, fs,
-    io::{BufRead, Write},
+    io::{self, BufRead, Write},
     process::{Command, Output, Stdio},
     str::FromStr,
 };

@@ -7,7 +7,12 @@ mod sat_refutation;
 mod uncrowding;
 
 use crate::{
-    ast::*,
+    ast::{
+        build_term, match_term,
+        pool::{PrimitivePool, TermPool},
+        ContextStack, Polyeq, Problem, ProofNode, ProofNodeForest, Rc, StepNode, SubproofNode,
+        Term,
+    },
     external::{ExternalTool, SatTools},
     Error,
 };

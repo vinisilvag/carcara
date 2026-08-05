@@ -1,25 +1,32 @@
-use super::shared::{check_assume_shared, check_step_core, StepCheckContext};
 pub mod scheduler;
 
 use super::{
     error::CheckerError,
     rules::{Premise, RuleArgs, RuleResult},
-    Config,
+    shared::{check_assume_shared, check_step_core, StepCheckContext},
+    CheckerStatistics, Config,
 };
-use crate::benchmarking::{CollectResults, OnlineBenchmarkResults};
-use crate::{ast::rare_rules::Rules, checker::CheckerStatistics};
 use crate::{
-    ast::{pool::advanced::*, *},
+    ast::{
+        pool::{
+            advanced::{ContextPool, LocalPool},
+            PrimitivePool,
+        },
+        rare_rules::Rules,
+        ContextStack, Problem, ProblemPrelude, Proof, ProofCommand, ProofStep, Rc, Term,
+    },
+    benchmarking::{CollectResults, OnlineBenchmarkResults},
     CarcaraResult, Error,
 };
 use indexmap::IndexSet;
-pub use scheduler::{Schedule, ScheduleIter, Scheduler};
 use std::{
     ops::ControlFlow,
     sync::{atomic::AtomicBool, Arc},
     thread,
     time::{Duration, Instant},
 };
+
+pub use scheduler::{Schedule, ScheduleIter, Scheduler};
 
 pub struct ParallelProofChecker<'c> {
     pool: Arc<PrimitivePool>,

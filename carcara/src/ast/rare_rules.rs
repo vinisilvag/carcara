@@ -108,7 +108,6 @@ pub enum RewriteTerm {
     Const(Constant),
 }
 
-#[macro_export]
 macro_rules! pseudo_term {
     (true) => {$crate::rare::RewriteTerm::OperatorEq($crate::ast::Operator::True, vec![])};
     (false) => {$crate::rare::RewriteTerm::OperatorEq($crate::ast::Operator::False, vec![])};
@@ -130,9 +129,10 @@ macro_rules! pseudo_term {
     }};
 }
 
-#[macro_export]
 macro_rules! build_equation {
     ($r:tt ~> $rr:tt) => {{
         (pseudo_term!($r), pseudo_term!($rr))
     }};
 }
+
+pub(crate) use {build_equation, pseudo_term};

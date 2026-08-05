@@ -1,4 +1,4 @@
-use crate::ast::*;
+use super::{pool::TermPool, AnchorArg, Rc, Substitution, Term};
 use std::sync::{atomic::AtomicUsize, Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 #[derive(Debug)]

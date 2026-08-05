@@ -3,7 +3,6 @@
 /// A variant of `match_term` that returns a `Result<_, CheckerError>` instead of an `Option`.
 ///
 /// The error returned by this macro is always `CheckerError::TermOfWrongForm`.
-#[macro_export]
 macro_rules! match_term_err {
     ($pat:tt = $var:expr) => {{
         let var = $var;
@@ -30,7 +29,6 @@ macro_rules! match_term_err {
 /// let t = build_term!(pool, (and {pool.bool_true()} (not {pool.bool_false()})));
 /// assert!(match_term!((and true (not false)) = t).is_some());
 /// ```
-#[macro_export]
 macro_rules! build_term {
     ($pool:expr, true) => { $pool.bool_true() };
     ($pool:expr, false) => { $pool.bool_false() };
@@ -127,11 +125,16 @@ macro_rules! impl_str_conversion_traits {
     }
 }
 
+pub(crate) use {build_term, impl_str_conversion_traits, match_term_err};
+
 #[cfg(test)]
 mod tests {
-    use crate::ast::{pool::PrimitivePool, *};
+    use crate::ast::{
+        build_term, match_term,
+        pool::{PrimitivePool, TermPool},
+        BindingList, Operator, Rc, Sort, Term,
+    };
     use crate::parser::tests::{parse_term, parse_terms};
-    use carcara_macros::match_term;
 
     #[test]
     fn test_match_term() {

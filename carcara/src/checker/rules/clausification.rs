@@ -3,7 +3,10 @@ use super::{
     assert_operation_len, assert_polyeq_expected, get_premise_term, CheckerError, EqualityError,
     RuleArgs, RuleResult,
 };
-use crate::ast::*;
+use crate::ast::{
+    build_term, match_term_err, pool::TermPool, Binder, BindingList, Operator, Rc, Sort, SortedVar,
+    Substitution, SubstitutionError, Term,
+};
 use indexmap::IndexMap;
 
 pub fn distinct_elim(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {

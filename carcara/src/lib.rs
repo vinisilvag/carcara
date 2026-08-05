@@ -33,7 +33,6 @@
 #![warn(clippy::unnested_or_patterns)]
 #![warn(clippy::unused_self)]
 
-#[macro_use]
 pub mod ast;
 pub mod automata;
 pub mod benchmarking;
@@ -48,7 +47,7 @@ pub mod slice;
 pub mod translation;
 mod utils;
 
-use crate::benchmarking::{CollectResults, OnlineBenchmarkResults, RunMeasurement};
+use benchmarking::{CollectResults, OnlineBenchmarkResults, RunMeasurement};
 use checker::{error::CheckerError, CheckerStatistics};
 use elaborator::error::ElaborationError;
 use parser::{ParserError, Position};
@@ -229,7 +228,7 @@ pub fn check_and_elaborate<'s>(
     elaborator_config: elaborator::Config,
     pipeline: Vec<elaborator::ElaborationPass>,
     collect_stats: bool,
-) -> Result<(bool, ast::Problem, ast::Proof, ast::PrimitivePool), Error> {
+) -> Result<(bool, ast::Problem, ast::Proof, ast::pool::PrimitivePool), Error> {
     let mut run: RunMeasurement = RunMeasurement::default();
 
     // Parsing (Complete rare rules)

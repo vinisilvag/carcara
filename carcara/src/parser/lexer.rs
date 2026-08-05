@@ -1,6 +1,9 @@
 //! A lexer for the SMT-LIB and Alethe formats.
 
-use crate::{parser::ParserError, utils::is_symbol_character, CarcaraResult, Error};
+use crate::{
+    ast::impl_str_conversion_traits, parser::ParserError, utils::is_symbol_character,
+    CarcaraResult, Error,
+};
 use rug::{ops::Pow, Integer, Rational};
 use std::{
     io,

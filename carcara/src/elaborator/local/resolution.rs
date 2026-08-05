@@ -1,4 +1,13 @@
-use crate::{ast::*, elaborator::*, resolution::*, utils::DedupIterator};
+use crate::{
+    ast::{
+        build_term, match_term,
+        pool::{PrimitivePool, TermPool},
+        ContextStack, ProofNode, Rc, StepNode,
+    },
+    elaborator::{ElaborationError, IdHelper},
+    resolution::{greedy_resolution, ResolutionTrace},
+    utils::DedupIterator,
+};
 
 pub fn resolution(
     pool: &mut PrimitivePool,

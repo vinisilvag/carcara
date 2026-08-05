@@ -114,7 +114,7 @@ fn get_instance(options: &Input) -> CliResult<(String, String, Option<String>)> 
 
 fn parse_command(
     options: ParseCommandOptions,
-) -> CliResult<(ast::Problem, ast::Proof, Rules, ast::PrimitivePool)> {
+) -> CliResult<(ast::Problem, ast::Proof, Rules, ast::pool::PrimitivePool)> {
     let (problem, proof, rules) = get_instance(&options.input)?;
     let result = parser::parse_instance(
         &problem,
@@ -157,7 +157,7 @@ fn check_command(options: CheckCommandOptions) -> CliResult<bool> {
 
 fn elaborate_command(
     options: ElaborateCommandOptions,
-) -> CliResult<(bool, ast::Problem, ast::Proof, ast::PrimitivePool)> {
+) -> CliResult<(bool, ast::Problem, ast::Proof, ast::pool::PrimitivePool)> {
     let (problem, proof, rules) = get_instance(&options.input)?;
 
     let checker_config = (options.checking, options.tools.clone()).into_config();
@@ -233,7 +233,7 @@ fn bench_command(options: BenchCommandOptions) -> CliResult<()> {
 fn slice_command(
     options: SliceCommandOptions,
     no_print_with_sharing: bool,
-) -> CliResult<(ast::Problem, ast::Proof, ast::PrimitivePool)> {
+) -> CliResult<(ast::Problem, ast::Proof, ast::pool::PrimitivePool)> {
     use std::fs;
     let (problem, proof, rules) = get_instance(&options.input)?;
     let (problem, proof, _, mut pool) = parser::parse_instance(

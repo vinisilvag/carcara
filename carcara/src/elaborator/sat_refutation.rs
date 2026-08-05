@@ -1,7 +1,16 @@
-use super::*;
-use crate::external::*;
-use std::collections::HashMap;
-use std::fs;
+use super::{Elaborator, IdHelper};
+use crate::{
+    ast::{
+        build_term,
+        pool::{PrimitivePool, TermPool},
+        Operator, ProofCommand, ProofNode, ProofStep, Rc, StepNode, Term,
+    },
+    external::*,
+};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+};
 
 fn proof_node_to_command(node: &Rc<ProofNode>) -> ProofCommand {
     match node.as_ref() {

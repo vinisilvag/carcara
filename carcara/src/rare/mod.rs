@@ -1,9 +1,10 @@
 use indexmap::{IndexMap, IndexSet};
 use rug::Integer;
 
-use crate::{
-    ast::{rare_rules::RewriteTerm, Operator, Rc, Sort, Term, TermPool},
-    build_equation, pseudo_term,
+use crate::ast::{
+    pool::TermPool,
+    rare_rules::{build_equation, pseudo_term, RewriteTerm},
+    Operator, Rc, Sort, Term,
 };
 
 #[derive(Debug, Default)]
@@ -388,7 +389,10 @@ pub fn rewrite_meta_terms(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ast::PrimitivePool, parser::*};
+    use crate::{
+        ast::pool::PrimitivePool,
+        parser::{Config, Parser},
+    };
 
     fn run_test(definitions: &str, original: &str, rule: (RewriteTerm, RewriteTerm), result: &str) {
         let mut pool = PrimitivePool::new();

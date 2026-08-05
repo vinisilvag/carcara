@@ -1,6 +1,6 @@
 use super::{assert_eq, CheckerError, RuleArgs, RuleResult};
 use crate::{
-    ast::{pool::TermPool, Operator, ParamOperator, Rc, Sort, Term},
+    ast::{build_term, match_term_err, pool::TermPool, Operator, ParamOperator, Rc, Sort, Term},
     checker::rules::assert_clause_len,
 };
 use rug::Integer;

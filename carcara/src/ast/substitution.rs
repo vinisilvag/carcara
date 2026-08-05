@@ -1,6 +1,6 @@
 //! Algorithms for creating and applying capture-avoiding substitutions over terms.
 
-use super::{Binder, BindingList, Rc, Sort, SortedVar, Term, TermPool};
+use super::{pool::TermPool, Binder, BindingList, Rc, Sort, SortedVar, Term};
 use indexmap::{IndexMap, IndexSet};
 use thiserror::Error;
 
@@ -438,8 +438,12 @@ impl Substitution {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{ast::PrimitivePool, parser::*};
+    use super::Substitution;
+    use crate::{
+        ast::pool::PrimitivePool,
+        parser::{Config, Parser},
+    };
+    use indexmap::IndexMap;
 
     fn run_test(definitions: &str, original: &str, x: &str, t: &str, result: &str) {
         let mut pool = PrimitivePool::new();

@@ -3,7 +3,10 @@ use super::{
     get_premise_term, RuleArgs, RuleResult,
 };
 use crate::{
-    ast::*,
+    ast::{
+        build_term, match_term, match_term_err, polyeq, pool::TermPool, Binder, BindingList,
+        Constant, Operator, Rc, Sort, Term,
+    },
     checker::{error::CheckerError, rules::assert_polyeq},
 };
 use std::{cmp, time::Duration};

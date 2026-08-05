@@ -1,9 +1,10 @@
-use crate::ast::*;
+use crate::ast::{build_term, match_term, pool::TermPool, Rc, Term};
 use indexmap::IndexSet;
-use std::borrow::{Borrow, BorrowMut};
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    collections::{hash_map::DefaultHasher, HashMap},
+    hash::{Hash, Hasher},
+};
 use thiserror::Error;
 
 type Literal = (bool, Rc<Term>);

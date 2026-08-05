@@ -7,7 +7,7 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::hash::Hash;
 
-use crate::ast::{Constant, Operator, Rc, Term, TermPool};
+use crate::ast::{pool::TermPool, Constant, Operator, Rc, Term};
 use crate::automata::utils::{has_overlapping_ranges, missing_ranges};
 use crate::checker::error::{CheckerError, StringError};
 

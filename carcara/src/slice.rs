@@ -1,7 +1,10 @@
 //! Backend of the slice command.
 use std::collections::{HashMap, VecDeque};
 
-use crate::ast::{PrimitivePool, Proof, ProofCommand, ProofStep, Rc, Subproof, Term, TermPool};
+use crate::ast::{
+    pool::{PrimitivePool, TermPool},
+    Proof, ProofCommand, ProofStep, Rc, Subproof, Term,
+};
 
 enum PremiseType {
     Discharge,

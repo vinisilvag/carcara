@@ -1,4 +1,11 @@
-use crate::{ast::*, checker::la_generic_partial, elaborator::error::ElaborationError};
+use crate::{
+    ast::{
+        pool::{PrimitivePool, TermPool},
+        ContextStack, ProofNode, Rc, StepNode, Term,
+    },
+    checker::la_generic_partial,
+    elaborator::error::ElaborationError,
+};
 
 pub fn bounded_farkas(
     pool: &mut PrimitivePool,

@@ -1,8 +1,11 @@
 use super::{error::ElaborationError, IdHelper};
 use crate::{
-    ast::*,
+    ast::{
+        pool::{PrimitivePool, TermPool},
+        ProofNode, Rc, StepNode, Term,
+    },
     checker::error::CheckerError,
-    resolution::*,
+    resolution::{literal_to_term, Literal, ResolutionError},
     utils::{DedupIterator, MultiSet},
 };
 use std::collections::{HashMap, HashSet};
@@ -412,7 +415,10 @@ fn reorder_premises<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::{self, parse_instance, parse_instance_with_pool};
+    use crate::{
+        ast::{compare_nodes, ProofNodeForest},
+        parser::{self, parse_instance, parse_instance_with_pool},
+    };
 
     #[test]
     fn test_uncrowd_resolution() {

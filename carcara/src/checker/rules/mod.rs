@@ -3,7 +3,9 @@ use super::{
     ContextStack,
 };
 use crate::{
-    ast::{rare_rules::Rules, *},
+    ast::{
+        alpha_equiv, polyeq, pool::TermPool, rare_rules::Rules, Operator, ProofCommand, Rc, Term,
+    },
     utils::{Range, TypeName},
 };
 use std::time::Duration;

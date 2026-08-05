@@ -1,7 +1,9 @@
-use crate::{
-    ast::{node::ProofNodeForest, pool::PrimitivePool, Polyeq, TermPool},
-    parser::tests::parse_terms,
+use super::{
+    node::ProofNodeForest,
+    pool::{PrimitivePool, TermPool},
+    Polyeq,
 };
+use crate::parser::tests::parse_terms;
 use indexmap::IndexSet;
 
 #[test]

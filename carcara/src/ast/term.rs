@@ -1,4 +1,9 @@
-use super::{match_term, PrimitivePool, Rc, TermPool};
+use super::{
+    macros::impl_str_conversion_traits,
+    match_term, match_term_err,
+    pool::{PrimitivePool, TermPool},
+    Rc,
+};
 use crate::{automata::Automaton, CheckerError};
 use indexmap::{map::Entry, IndexMap};
 use rug::{Integer, Rational};

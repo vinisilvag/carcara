@@ -1,7 +1,11 @@
 //! A pretty printer for Alethe proofs.
 
 use crate::{
-    ast::*,
+    ast::{
+        pool::{PrimitivePool, TermPool},
+        AnchorArg, Binder, BindingList, Constant, Operator, ParamOperator, ProblemPrelude, Proof,
+        ProofCommand, ProofIter, ProofStep, Rc, Sort, SortedVar, Term,
+    },
     parser::Token,
     utils::{is_symbol_character, DedupIterator},
 };

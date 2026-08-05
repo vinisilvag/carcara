@@ -2,7 +2,11 @@ use super::{
     assert_clause_len, assert_eq, assert_is_bool_constant, assert_num_args, assert_num_premises,
     CheckerError, Premise, RuleArgs, RuleResult,
 };
-use crate::{ast::*, resolution::*, utils::MultiSet};
+use crate::{
+    ast::{match_term, pool::TermPool, Rc, Term},
+    resolution::{greedy_resolution, literal_to_term, ClauseCollection, Literal, ResolutionError},
+    utils::MultiSet,
+};
 use indexmap::IndexSet;
 use std::collections::{hash_map::Entry, HashMap, VecDeque};
 

@@ -2,7 +2,14 @@ use super::{
     assert_alpha_equiv_expected, assert_clause_len, assert_eq, assert_is_expected, assert_num_args,
     assert_operation_len, CheckerError, RuleArgs, RuleResult,
 };
-use crate::{ast::*, checker::error::QuantifierError, utils::DedupIterator};
+use crate::{
+    ast::{
+        build_term, match_term, match_term_err, pool::TermPool, Binder, Operator, Rc, Sort,
+        SortedVar, Substitution, Term,
+    },
+    checker::error::QuantifierError,
+    utils::DedupIterator,
+};
 use indexmap::{IndexMap, IndexSet};
 
 pub fn forall_inst(
@@ -431,7 +438,7 @@ mod tests {
             } else {
                 pool.add(Term::Binder(
                     Binder::Forall,
-                    BindingList(bindings),
+                    crate::ast::BindingList(bindings),
                     conjunctions,
                 ))
             }
