@@ -48,12 +48,7 @@ fn run_test(
     checker::ProofChecker::new(&mut pool, &rare_rules, config.1.clone()).check(&problem, &proof)?;
 
     // Then we elaborate it
-    let elab_config = elaborator::Config {
-        lia_solver: None,
-        hole_solver: None,
-        uncrowd_rotation: true,
-        sat_ref_tools: None,
-    };
+    let elab_config = elaborator::Config::new().uncrowd_rotation(true);
     let node = ast::ProofNodeForest::from_commands(proof.commands.clone());
     let elaborated_node = elaborator::Elaborator::new(&mut pool, &problem, elab_config.clone())
         .elaborate_with_default_pipeline(node)?;

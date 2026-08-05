@@ -16,6 +16,7 @@ use crate::{
     external::{ExternalTool, SatTools},
     Error,
 };
+use carcara_macros::GenerateSetters;
 use error::ElaborationError;
 use indexmap::IndexSet;
 use polyeq::PolyeqElaborator;
@@ -24,21 +25,27 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone, GenerateSetters)]
 pub struct Config {
     /// If `Some`, enables the elaboration of `lia_generic` steps using an external solver. When
     /// checking a proof, this means calling the solver to solve the linear integer arithmetic
     /// problem, checking the proof, and discarding it. When elaborating, the proof will instead be
     /// inserted in the place of the `lia_generic` step.
-    pub lia_solver: Option<ExternalTool>,
+    lia_solver: Option<ExternalTool>,
 
     /// Enables an optimization that reorders premises when uncrowding resolution steps, in order to
     /// further minimize the number of `contraction` steps added.
-    pub uncrowd_rotation: bool,
+    uncrowd_rotation: bool,
 
-    pub hole_solver: Option<ExternalTool>,
+    hole_solver: Option<ExternalTool>,
 
-    pub sat_ref_tools: Option<SatTools>,
+    sat_ref_tools: Option<SatTools>,
+}
+
+impl Config {
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -28,6 +28,7 @@ pub use error::{ParserError, SortError};
 pub use lexer::{Lexer, Position, Reserved, Token};
 
 #[derive(Debug, Clone, Copy, Default, GenerateSetters)]
+#[const_setters]
 pub struct Config {
     /// If `true`, the parser will automatically expand function definitions introduced by
     /// `define-fun` commands in the SMT problem. If `false`, those `define-fun`s are instead

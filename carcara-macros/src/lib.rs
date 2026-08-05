@@ -586,12 +586,17 @@ pub fn get_param_op_variant(input: TokenStream) -> TokenStream {
     param_op_to_variant(&input).into()
 }
 
-#[proc_macro_derive(GenerateSetters)]
+#[proc_macro_derive(GenerateSetters, attributes(skip_setter, const_setters))]
 pub fn generate_setters(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let struct_name = &ast.ident;
     let generics = &ast.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let const_modifier = if ast.attrs.iter().any(|a| a.path().is_ident("const_setters")) {
+        quote! { const }
+    } else {
+        quote! {}
+    };
 
     let syn::Data::Struct(DataStruct { fields, .. }) = &ast.data else {
         panic!("can only be used with a struct")
@@ -601,12 +606,16 @@ pub fn generate_setters(input: TokenStream) -> TokenStream {
         let ty = f.ty.clone();
         let doc = f.attrs.iter().filter(|v| v.meta.path().is_ident("doc"));
 
-        quote! {
-            #(#doc)*
-            #[inline(always)]
-            pub const fn #field_name(mut self, val: #ty) -> Self {
-                self.#field_name = val;
-                self
+        if f.attrs.iter().any(|a| a.path().is_ident("skip_setter")) {
+            quote! {}
+        } else {
+            quote! {
+                #(#doc)*
+                #[inline(always)]
+                pub #const_modifier fn #field_name(mut self, val: #ty) -> Self {
+                    self.#field_name = val;
+                    self
+                }
             }
         }
     });

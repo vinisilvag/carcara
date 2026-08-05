@@ -13,6 +13,7 @@ use crate::{
     external::{ExternalTool, SatTools},
     CarcaraResult, Error,
 };
+use carcara_macros::GenerateSetters;
 use error::CheckerError;
 use indexmap::{IndexMap, IndexSet};
 use rules::{Premise, RuleArgs, RuleResult};
@@ -62,7 +63,7 @@ pub enum SatRefConfig {
     Sat(SatTools),
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, GenerateSetters)]
 pub struct Config {
     /// If `true`, the checker will assume that the proof is elaborated, and enforce extra
     /// restrictions when checking it.
@@ -70,22 +71,23 @@ pub struct Config {
     /// Currently, if enabled, the following rules are affected:
     /// - `assume` and `refl`: implicit reordering of equalities is not allowed
     /// - `resolution` and `th_resolution`: the pivots must be provided as arguments
-    pub elaborated: bool,
+    elaborated: bool,
 
     /// If `true`, the checker will skip any steps with rules that it does not recognize, and will
     /// consider them as holes. Normally, using an unknown rule is considered an error.
-    pub ignore_unknown_rules: bool,
+    ignore_unknown_rules: bool,
 
     /// If `true`, the checker will check resolution steps using only Reverse Unit Propagation
     /// (RUP). Normally, we use a greedy algorithm first, and use RUP as a fallback.
-    pub rup_resolution: bool,
+    rup_resolution: bool,
 
     /// A set of rule names that the checker will allow, considering them holes in the proof.
-    pub allowed_rules: HashSet<String>,
+    #[skip_setter]
+    allowed_rules: HashSet<String>,
 
-    pub rule_checkers: IndexMap<String, ExternalTool>,
+    rule_checkers: IndexMap<String, ExternalTool>,
 
-    pub sat_ref_config: SatRefConfig,
+    sat_ref_config: SatRefConfig,
 }
 
 impl Config {
@@ -93,19 +95,9 @@ impl Config {
         Self::default()
     }
 
-    pub fn elaborated(mut self, value: bool) -> Self {
-        self.elaborated = value;
-        self
-    }
-
-    pub fn ignore_unknown_rules(mut self, value: bool) -> Self {
-        self.ignore_unknown_rules = value;
-        self
-    }
-
+    /// A set of rule names that the checker will allow, considering them holes in the proof.
     pub fn allowed_rules(mut self, values: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        let values = values.into_iter().map(Into::into).collect();
-        self.allowed_rules = values;
+        self.allowed_rules = values.into_iter().map(Into::into).collect();
         self
     }
 }

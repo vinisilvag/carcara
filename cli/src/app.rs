@@ -453,14 +453,13 @@ impl IntoConfig for (CheckingOptions, ToolOptions) {
         } else {
             checker::SatRefConfig::None
         };
-        checker::Config {
-            elaborated: c.check_granularity == CheckGranularity::Elaborated,
-            ignore_unknown_rules: c.ignore_unknown_rules,
-            allowed_rules: c.allowed_rules.unwrap_or_default().into_iter().collect(),
-            rup_resolution: c.rup_resolution,
-            rule_checkers: c.rule_checkers.into_iter().collect(),
-            sat_ref_config,
-        }
+        checker::Config::new()
+            .elaborated(c.check_granularity == CheckGranularity::Elaborated)
+            .ignore_unknown_rules(c.ignore_unknown_rules)
+            .rup_resolution(c.rup_resolution)
+            .allowed_rules(c.allowed_rules.unwrap_or_default())
+            .rule_checkers(c.rule_checkers.into_iter().collect())
+            .sat_ref_config(sat_ref_config)
     }
 }
 
@@ -482,12 +481,11 @@ impl IntoConfig for (ElaborationOptions, ToolOptions) {
             })
             .collect();
 
-        let config = elaborator::Config {
-            lia_solver: t.smt_solver.clone(),
-            uncrowd_rotation: e.uncrowd_rotate,
-            hole_solver: t.smt_solver.clone(),
-            sat_ref_tools: t.into_config(),
-        };
+        let config = elaborator::Config::new()
+            .lia_solver(t.smt_solver.clone())
+            .uncrowd_rotation(e.uncrowd_rotate)
+            .hole_solver(t.smt_solver.clone())
+            .sat_ref_tools(t.into_config());
         (config, pipeline)
     }
 }
