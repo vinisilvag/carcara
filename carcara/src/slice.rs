@@ -371,7 +371,7 @@ mod tests {
     use super::*;
     use crate::{
         ast::{compare_forests, ProofNodeForest},
-        parser::{self, parse_instance, parse_instance_with_pool, Config},
+        parser::{self, parse_instance, parse_instance_with_pool},
     };
 
     const PROBLEM_STRING: &str = "
@@ -474,16 +474,11 @@ mod tests {
         ),
     ];
 
-    fn get_parser_config() -> Config {
-        let mut config = parser::Config::new();
-        config.parse_hole_args = true;
-        config
-    }
-
     #[test]
     fn test_slice() {
+        let parser_config = parser::Config::new().parse_hole_args(true);
         let (_, proof, _, mut pool) =
-            parse_instance(PROBLEM_STRING, PROOF_STRING, None, get_parser_config()).unwrap();
+            parse_instance(PROBLEM_STRING, PROOF_STRING, None, parser_config).unwrap();
 
         // Only steps that exist are sliceable
         assert!(slice(&proof, "FAKE_STEP", &mut pool, 0).is_none());
@@ -493,14 +488,9 @@ mod tests {
         assert!(slice(&proof, "a1", &mut pool, 0).is_none());
 
         for (expected, (id, d)) in PAIRS {
-            let (_, expected, _) = parse_instance_with_pool(
-                PROBLEM_STRING,
-                expected,
-                None,
-                get_parser_config(),
-                &mut pool,
-            )
-            .unwrap();
+            let (_, expected, _) =
+                parse_instance_with_pool(PROBLEM_STRING, expected, None, parser_config, &mut pool)
+                    .unwrap();
 
             let expected = ProofNodeForest::from_commands(expected.commands);
 

@@ -18,6 +18,7 @@ use crate::{
     utils::{HashCache, HashMapStack},
     CarcaraResult, Error,
 };
+use carcara_macros::GenerateSetters;
 use error::{assert_indexed_op_args_value, assert_num_args};
 use indexmap::{IndexMap, IndexSet};
 use rug::{Integer, Rational};
@@ -26,51 +27,51 @@ use std::{iter::Iterator, str::FromStr};
 pub use error::{ParserError, SortError};
 pub use lexer::{Lexer, Position, Reserved, Token};
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, GenerateSetters)]
 pub struct Config {
     /// If `true`, the parser will automatically expand function definitions introduced by
     /// `define-fun` commands in the SMT problem. If `false`, those `define-fun`s are instead
     /// interpreted as a function declaration and an `assert` command that defines the function
     /// as equal to its body (or to a lambda term, if it contains arguments). Note that function
     /// definitions in the proof are always expanded.
-    pub apply_function_defs: bool,
+    apply_function_defs: bool,
 
     /// If `true`, the parser will eliminate `let` bindings from terms during parsing. This is done
     /// by replacing any occurrence of a variable bound in the `let` binding with its corresponding
     /// value.
-    pub expand_lets: bool,
+    expand_lets: bool,
 
     /// If `true`, this relaxes the type checking rules in Carcara to allow `Int`-`Real` subtyping.
     /// That is, terms of sort `Int` will be allowed in arithmetic operations where a `Real` term
     /// was expected. Note that this only applies to predefined operators --- passing an `Int` term
     /// to a function that expects a `Real` will still be an error.
-    pub allow_int_real_subtyping: bool,
+    allow_int_real_subtyping: bool,
 
     /// Enables "strict" parsing. If `true`:
     /// - Unary `and`, `or` and `xor` terms are not allowed
     /// - Anchor arguments using the old syntax (i.e., `(:= <symbol> <term>)`) are not allowed
-    pub strict: bool,
+    strict: bool,
 
     /// If `true`, the parser will parse arguments to the `hole` rule, expecting them to be valid
     /// terms.
-    pub parse_hole_args: bool,
+    parse_hole_args: bool,
 
     /// If `true`, allow indexed operators (usually used like so: `((_ <op> <op_args>...)
     /// <args>...)`) to be used in "higher-order" fashion, that is, by omitting the `_` construction
     /// and passing the operator arguments and regular arguments together: `(<op> <op_args>...
     /// <args>...)`.
-    pub allow_higher_order_indexed_ops: bool,
+    allow_higher_order_indexed_ops: bool,
 
     /// If `true`, allow local sort parameters declared with a leading `@` character (e.g. `@T`) to
     /// also be referenced with the `@` omitted (i.e., both `T` or `@T` are accepted).
     ///
     /// This behaviour is seen in some legacy rare files.
-    pub implicit_at_sort_alias: bool,
+    implicit_at_sort_alias: bool,
 
     /// If `true`, relaxes sort checking rules such that sorts that are compatible but not identical
     /// (e.g. `(Array Int T)` and `(Array Int Real)`, where `T` is a sort variable) are considered
     /// equal for sort checking purposes.
-    pub relaxed_sort_checking: bool,
+    relaxed_sort_checking: bool,
 }
 
 impl Config {
@@ -86,46 +87,6 @@ impl Config {
             implicit_at_sort_alias: false,
             relaxed_sort_checking: false,
         }
-    }
-
-    pub const fn apply_function_defs(mut self, val: bool) -> Self {
-        self.apply_function_defs = val;
-        self
-    }
-
-    pub const fn expand_lets(mut self, val: bool) -> Self {
-        self.expand_lets = val;
-        self
-    }
-
-    pub const fn allow_int_real_subtyping(mut self, val: bool) -> Self {
-        self.allow_int_real_subtyping = val;
-        self
-    }
-
-    pub const fn strict(mut self, val: bool) -> Self {
-        self.strict = val;
-        self
-    }
-
-    pub const fn parse_hole_args(mut self, val: bool) -> Self {
-        self.parse_hole_args = val;
-        self
-    }
-
-    pub const fn allow_higher_order_indexed_ops(mut self, val: bool) -> Self {
-        self.allow_higher_order_indexed_ops = val;
-        self
-    }
-
-    pub const fn implicit_at_sort_alias(mut self, val: bool) -> Self {
-        self.implicit_at_sort_alias = val;
-        self
-    }
-
-    pub const fn relaxed_sort_checking(mut self, val: bool) -> Self {
-        self.relaxed_sort_checking = val;
-        self
     }
 }
 

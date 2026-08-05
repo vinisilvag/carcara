@@ -428,16 +428,15 @@ impl IntoConfig for ParsingOptions {
     type Output = parser::Config;
 
     fn into_config(self) -> Self::Output {
-        parser::Config {
-            apply_function_defs: self.apply_function_defs,
-            expand_lets: self.expand_let_bindings,
-            allow_int_real_subtyping: self.allow_int_real_subtyping,
-            strict: self.strict,
-            parse_hole_args: self.parse_hole_args,
-            allow_higher_order_indexed_ops: false,
-            implicit_at_sort_alias: false,
-            relaxed_sort_checking: false,
-        }
+        parser::Config::new()
+            .apply_function_defs(self.apply_function_defs)
+            .expand_lets(self.expand_let_bindings)
+            .allow_int_real_subtyping(self.allow_int_real_subtyping)
+            .strict(self.strict)
+            .parse_hole_args(self.parse_hole_args)
+            .allow_higher_order_indexed_ops(false)
+            .implicit_at_sort_alias(false)
+            .relaxed_sort_checking(false)
     }
 }
 

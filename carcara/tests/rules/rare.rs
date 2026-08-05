@@ -148,10 +148,7 @@ fn run_rare_tests(test_name: &str, definitions: &str, cases: &[(&str, bool)]) {
             definitions,
             proof,
             Some(RARE_RULES),
-            parser::Config {
-                apply_function_defs: true,
-                ..Default::default()
-            },
+            parser::Config::new().apply_function_defs(true),
         )
         .unwrap_or_else(|e| panic!("parser error during test \"{}\": {}", test_name, e));
 
@@ -218,13 +215,11 @@ fn run_rare_file_test(
         problem,
         proof,
         Some(rare_rules),
-        parser::Config {
-            apply_function_defs: true,
-            expand_lets: true,
-            allow_int_real_subtyping: true,
-            parse_hole_args: true,
-            ..Default::default()
-        },
+        parser::Config::new()
+            .apply_function_defs(true)
+            .expand_lets(true)
+            .allow_int_real_subtyping(true)
+            .parse_hole_args(true),
     )
     .unwrap_or_else(|e| panic!("parser error during test \"{}\": {}", test_name, e));
 

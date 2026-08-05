@@ -11,10 +11,7 @@ fn run_tests(test_name: &str, definitions: &str, cases: &[(&str, bool)]) {
             definitions,
             proof,
             None,
-            parser::Config {
-                apply_function_defs: true,
-                ..Default::default()
-            },
+            parser::Config::new().apply_function_defs(true),
         )
         .unwrap_or_else(|e| panic!("parser error during test \"{}\": {}", test_name, e));
 

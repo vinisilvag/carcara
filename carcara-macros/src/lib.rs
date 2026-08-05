@@ -7,7 +7,7 @@ use proc_macro2::{Delimiter, Ident, Spacing, TokenStream as TokenStream2, TokenT
 use quote::{format_ident, quote};
 use syn::{
     parse::{Parse, ParseStream},
-    parse_macro_input, Expr, Token,
+    parse_macro_input, DataStruct, DeriveInput, Expr, Token,
 };
 
 // Represents the full macro input: '<pattern> = <expr>'
@@ -584,4 +584,37 @@ pub fn get_op_variant(input: TokenStream) -> TokenStream {
 pub fn get_param_op_variant(input: TokenStream) -> TokenStream {
     let input = input.to_string();
     param_op_to_variant(&input).into()
+}
+
+#[proc_macro_derive(GenerateSetters)]
+pub fn generate_setters(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as DeriveInput);
+    let struct_name = &ast.ident;
+    let generics = &ast.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let syn::Data::Struct(DataStruct { fields, .. }) = &ast.data else {
+        panic!("can only be used with a struct")
+    };
+    let generated_setters = fields.iter().map(|f| {
+        let field_name = f.ident.clone().expect("expected the field to have a name");
+        let ty = f.ty.clone();
+        let doc = f.attrs.iter().filter(|v| v.meta.path().is_ident("doc"));
+
+        quote! {
+            #(#doc)*
+            #[inline(always)]
+            pub const fn #field_name(mut self, val: #ty) -> Self {
+                self.#field_name = val;
+                self
+            }
+        }
+    });
+
+    quote! {
+        impl #impl_generics #struct_name #ty_generics #where_clause {
+            #(#generated_setters)*
+        }
+    }
+    .into()
 }
