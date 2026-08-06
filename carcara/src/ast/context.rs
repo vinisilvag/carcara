@@ -1,9 +1,15 @@
 use super::{pool::TermPool, AnchorArg, Rc, Substitution, Term};
 use std::sync::{atomic::AtomicUsize, Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+/// A single Alethe subproof context.
 #[derive(Debug)]
 pub struct Context {
+    /// The anchor arguments that defined this context.
     pub args: Vec<AnchorArg>,
+
+    /// The cumulative substitution of this context and all outer contexts.
+    ///
+    /// This is computed by [`ContextStack`].
     pub cumulative_substitution: Option<Substitution>,
 }
 
@@ -38,6 +44,7 @@ pub struct ContextStack {
 }
 
 impl ContextStack {
+    /// Constructs a new empty context stack.
     pub fn new() -> Self {
         Default::default()
     }
@@ -59,9 +66,9 @@ impl ContextStack {
         }
     }
 
-    /// Creates an empty stack from a previous stack (starts with context infos
-    /// already instantiated).
-    pub fn from_previous(&self) -> Self {
+    /// Creates an empty stack from a previous stack (starts with context infos already
+    /// instantiated).
+    pub fn with_previous(&self) -> Self {
         Self {
             context_vec: self.context_vec.clone(),
             stack: vec![],
@@ -69,44 +76,41 @@ impl ContextStack {
         }
     }
 
+    /// Returns the number of contexts in the stack.
     pub fn len(&self) -> usize {
         self.stack.len()
     }
 
+    /// Returns `true` if the context stack contains no contexts.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Gets a read-only handle to the top context in the stack.
     pub fn last(&self) -> Option<RwLockReadGuard<'_, Option<Context>>> {
         self.stack
             .last()
             .map(|id| self.context_vec[*id].1.read().unwrap())
     }
 
+    /// Gets a mutable handle to the top context in the stack.
     pub fn last_mut(&mut self) -> Option<RwLockWriteGuard<'_, Option<Context>>> {
         self.stack
             .last_mut()
             .map(|id| self.context_vec[*id].1.write().unwrap())
     }
 
-    /// A function used to force the creation of a new context at the end of the
-    /// `context_vec`. This function should be called before a
-    /// `ContextStack::push` in a single thread operation. Since a single
-    /// thread doesn't require a schedule balancing, then there is no info about
-    /// how many contexts there are in the proof (and it's not needed since we
-    /// can always add a new context at the end of the vector just like an usual
-    /// stack)
-    fn force_new_context(&mut self) -> usize {
+    /// Pushes a new context to the stack.
+    ///
+    /// This should only be used in single-threaded operation.
+    pub fn push(&mut self, args: &[AnchorArg]) {
         let ctx_vec = Arc::get_mut(&mut self.context_vec).unwrap();
         ctx_vec.push((AtomicUsize::new(1), RwLock::new(None)));
-        ctx_vec.len() - 1
-    }
-
-    pub fn push(&mut self, args: &[AnchorArg]) {
-        let id = self.force_new_context();
+        let id = ctx_vec.len() - 1;
         self.push_with_id(args, id);
     }
 
+    /// Pushes the context specified by `context_id` to the stack.
     pub fn push_with_id(&mut self, args: &[AnchorArg], context_id: usize) {
         // The write guard was yielded to this thread
         if let Ok(mut ctx_write_guard) = self.context_vec[context_id].1.try_write() {
@@ -124,6 +128,7 @@ impl ContextStack {
         self.stack.push(context_id);
     }
 
+    /// Pops the top context from the stack.
     pub fn pop(&mut self) {
         use std::sync::atomic::Ordering;
 
@@ -146,6 +151,7 @@ impl ContextStack {
             std::cmp::min(self.num_cumulative_calculated, self.stack.len());
     }
 
+    /// Computes the cumulative substitution of all contexts up to the given index `up_to`.
     fn catch_up_cumulative(&mut self, pool: &mut dyn TermPool, up_to: usize) {
         for i in self.num_cumulative_calculated..std::cmp::max(up_to + 1, self.len()) {
             // Requires read guard. Since the i-th context will be mutated far
@@ -201,6 +207,9 @@ impl ContextStack {
         }
     }
 
+    /// Apply the immediately previous context to a term.
+    ///
+    /// This applies the cumulative substitution of all contexts in the stack, except for the top one.
     pub fn apply_previous(&mut self, pool: &mut dyn TermPool, term: &Rc<Term>) -> Rc<Term> {
         if self.len() < 2 {
             term.clone()
@@ -220,6 +229,9 @@ impl ContextStack {
         }
     }
 
+    /// Apply the current context to a term.
+    ///
+    /// This applies the cumulative substitution of all contexts in the stack.
     pub fn apply(&mut self, pool: &mut dyn TermPool, term: &Rc<Term>) -> Rc<Term> {
         if self.is_empty() {
             term.clone()

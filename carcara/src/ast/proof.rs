@@ -16,7 +16,13 @@ pub struct Proof {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProofCommand {
     /// An `assume` command.
-    Assume { id: String, term: Rc<Term> },
+    Assume {
+        /// The command id.
+        id: String,
+
+        /// The assumed term.
+        term: Rc<Term>,
+    },
 
     /// A `step` command.
     Step(ProofStep),

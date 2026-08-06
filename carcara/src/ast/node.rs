@@ -13,8 +13,13 @@ use super::*;
 pub enum ProofNode {
     /// An `assume` command.
     Assume {
+        /// The command id.
         id: String,
+
+        /// The command's depth.
         depth: usize,
+
+        /// The assumed term.
         term: Rc<Term>,
     },
 
@@ -106,6 +111,12 @@ impl ProofNode {
 }
 
 impl Rc<ProofNode> {
+    /// Constructs a new `Rc<ProofNode>`.
+    ///
+    /// Since we do not store proof nodes in a pool, like we do with [`Term`]s, this does not
+    /// guarantee that two identical proof nodes will have the same allocation. Because of this,
+    /// two nodes which were not cloned from each other will not be considered equal by the
+    /// [`PartialEq`] trait, and will not share the same hash.
     pub fn new(value: ProofNode) -> Self {
         // SAFETY: In the case of proof nodes, we don't care about creating identical nodes in
         // different allocations. It is safe to assume that nodes that were not `clone`d from each
@@ -240,14 +251,19 @@ pub struct SubproofNode {
     pub extra_steps: Vec<Rc<ProofNode>>,
 }
 
+/// A set (or "forest") of multiple proof nodes.
+///
+/// This is used to represent an entire proof, including steps that are not required to conclude the
+/// final step.
 pub struct ProofNodeForest(pub Vec<Rc<ProofNode>>);
 
 impl ProofNodeForest {
-    /// Creates a forest of proof nodes from a list of commands.
+    /// Creates a `ProofNodeForest` from a vector of [`ProofCommand`]s.
     pub fn from_commands(commands: Vec<ProofCommand>) -> Self {
         proof_list_to_nodes(commands)
     }
 
+    /// Converts a `ProofNodeForest` into a vector of [`ProofCommand`]s.
     pub fn into_commands(&self) -> Vec<ProofCommand> {
         proof_nodes_to_list(self)
     }

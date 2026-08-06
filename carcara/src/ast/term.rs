@@ -42,15 +42,25 @@ pub enum Term {
     Match(Rc<Term>, Vec<(BindingList, Rc<Term>, Rc<Term>)>),
 
     /// A parameterized operation term, that is, an operation term whose operator receives extra
-    /// parameters, denoted by the `(_ <op> <op_args>)` syntax.
+    /// arguments (besides the regular operation arguments), denoted by the `((_ <op> <op_args>)
+    /// <args>)` syntax.
     ///
     /// This can be either:
     /// - An *indexed* operation term, that uses an indexed operator. In this case, the operator
     ///   parameters must be constants.
     /// - A *tester* of a datatype constructor `C`, denoted by `(_ is C)`.
     ParamOp {
+        /// The operator.
         op: ParamOperator,
+
+        /// The arguments given to the operator itself.
+        ///
+        /// These are the `<op_args>` in the syntax `((_ <op> <op_args>) <args>)`.
         op_args: Vec<Rc<Term>>,
+
+        /// The arguments provided for the operation as a whole.
+        ///
+        /// These are the `<args>` in the syntax `((_ <op> <op_args>) <args>)`.
         args: Vec<Rc<Term>>,
     },
 
@@ -74,7 +84,7 @@ pub enum Sort {
     /// this sort.
     Atom(Box<str>, Box<[Rc<Term>]>),
 
-    // A sort variable
+    /// A sort variable
     Var(String),
 
     /// The `Bool` primitive sort.
@@ -287,6 +297,15 @@ pub enum Operator {
     /// The `is_int` operator.
     IsInt,
 
+    /// The `int.pow2` operator.
+    Pow2,
+
+    /// The `int.ispow2` operator.
+    IsPow2,
+
+    /// The `int.log2` operator.
+    Log2,
+
     // Arrays
     /// The `select` operator.
     Select,
@@ -399,72 +418,159 @@ pub enum Operator {
     ReFromAutomaton,
 
     // BV operators (unary)
+    /// The `bvnot` operator.
     BvNot,
+
+    /// The `bvneg` operator.
     BvNeg,
+
     // BV operators (binary, left-assoc)
+    /// The `bvand` operator.
     BvAnd,
+
+    /// The `bvor` operator.
     BvOr,
+
+    /// The `bvadd` operator.
     BvAdd,
+
+    /// The `bvmul` operator.
     BvMul,
+
     // BV operators (binary)
+    /// The `bvudiv` operator.
     BvUDiv,
+
+    /// The `bvurem` operator.
     BvURem,
+
+    /// The `bvshl` operator.
     BvShl,
+
+    /// The `bvlshr` operator.
     BvLShr,
+
+    /// The `bvult` operator.
     BvULt,
 
+    /// The `concat` operator.
     BvConcat,
+
+    /// The `bvnand` operator.
     BvNAnd,
+
+    /// The `bvnor` operator.
     BvNOr,
+
+    /// The `bvxor` operator.
     BvXor,
+
+    /// The `bvxnor` operator.
     BvXNor,
+
+    /// The `bvcomp` operator.
     BvComp,
+
+    /// The `bvsub` operator.
     BvSub,
+
+    /// The `bvsdiv` operator.
     BvSDiv,
+
+    /// The `bvsrem` operator.
     BvSRem,
+
+    /// The `bvsmod` operator.
     BvSMod,
+
+    /// The `bvashr` operator.
     BvAShr,
 
+    /// The `bvule` operator.
     BvULe,
+
+    /// The `bvugt` operator.
     BvUGt,
+
+    /// The `bvuge` operator.
     BvUGe,
+
+    /// The `bvslt` operator.
     BvSLt,
+
+    /// The `bvsle` operator.
     BvSLe,
+
+    /// The `bvsgt` operator.
     BvSGt,
+
+    /// The `bvsge` operator.
     BvSGe,
 
+    /// The `ubv_to_int` operator.
     UBvToInt,
+
+    /// The `sbv_to_int` operator.
     SBvToInt,
 
+    /// The `@pbbterm` operator.
     BvPBbTerm,
-    BvBbTerm,
-    BvConst,
-    BvSize,
 
-    // power of 2 to x, and whether x is a power of 2
-    Pow2,
-    IsPow2,
-    // logarithm in base 2 of x
-    Log2,
+    /// The `@bbterm` operator.
+    BvBbTerm,
+
+    /// The `@bv` operator.
+    BvConst,
+
+    /// The `@bvsize` operator.
+    BvSize,
 
     // Misc.
     /// The `rare-list` operator, used to represent RARE lists.
     RareList,
 
     // The clausal operators
+    /// The `cl` operator.
     Cl,
+
+    /// The `@d` operator.
     Delete,
 }
 
+/// Represents the behaviour of an (otherwise binary) operator when applied to more than two
+/// arguments.
+///
+/// This corresponds to SMT-LIB's function symbol annotation, which can be: `:chainable`,
+/// `:left-assoc`, `:right-assoc` or `:pairwise`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NaryCase {
+    /// `:chainable` operators.
+    ///
+    /// This means `(op a_1 ... a_n)` is syntax sugar for `(and (op a_1 a_2) ... (op a_n-1 a_n))`
     Chainable,
-    RightAssoc,
+
+    /// `:left-assoc` operators.
+    ///
+    /// This means `(op a_1 ... a_n)` is syntax sugar for `(op (op a_1 ... a_n-1) a_n)`,
+    /// recursively.
     LeftAssoc,
+
+    /// `:right-assoc` operators.
+    ///
+    /// This means `(op a_1 ... a_n)` is syntax sugar for `(op a_1 (op a_2 ... a_n))`, recursively.
+    RightAssoc,
+
+    /// `:pairwise` operators.
+    ///
+    /// This means `(op a_1 ... a_n)` is syntax sugar for `(and (op a_1 a_2) ... (op a_1 a_n) ...
+    /// (op a_n-1 a_n))`. That is, a conjunction of `op` applied to all possible pairs of `a_i`,
+    /// `a_j`, with i != j.
     Pairwise,
 }
 
 impl Operator {
+    /// If this is a binary operator that can be applied to multiple arguments, returns an
+    /// `[NaryCase]` representing its behaviour in that situation. Otherwise, returns `None`.
     pub fn nary_case(&self) -> Option<NaryCase> {
         // We avoid using the wildcard pattern (i.e. `_`) in this match expression so that when
         // someone adds a new operator, they are reminded to add it to this match
@@ -576,25 +682,48 @@ impl Operator {
     }
 }
 
+/// The operator of a parameterized operation term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParamOperator {
     // Indexed operators
+    /// The `extract` operator.
     BvExtract,
+
+    /// The `@bit_of` operator.
     BvBitOf,
+
+    /// The `@int_of` operator.
     BvIntOf,
+
+    /// The `zero_extend` operator.
     ZeroExtend,
+
+    /// The `sign_extend` operator.
     SignExtend,
+
+    /// The `rotate_left` operator.
     RotateLeft,
+
+    /// The `rotate_right` operator.
     RotateRight,
+
+    /// The `repeat` operator.
     Repeat,
+
+    /// The `bv` operator.
     BvConst,
 
+    /// The `int_to_bv` operator.
     IntToBv,
 
+    /// The `re.^` operator.
     RePower,
+
+    /// The `re.loop` operator.
     ReLoop,
 
-    // Datatypes,
+    // Datatypes
+    /// The `is` tester for datatypes.
     Tester,
 }
 
@@ -625,6 +754,9 @@ impl_str_conversion_traits!(Operator {
     ToReal: "to_real",
     ToInt: "to_int",
     IsInt: "is_int",
+    Pow2: "int.pow2",
+    IsPow2: "int.ispow2",
+    Log2: "int.log2",
 
     Select: "select",
     Store: "store",
@@ -705,10 +837,6 @@ impl_str_conversion_traits!(Operator {
     BvConst: "@bv",
     BvSize: "@bvsize",
 
-    Pow2: "int.pow2",
-    IsPow2: "int.ispow2",
-    Log2: "int.log2",
-
     RareList: "rare-list",
 
     Cl: "cl",
@@ -735,6 +863,7 @@ impl_str_conversion_traits!(ParamOperator {
 });
 
 impl ParamOperator {
+    /// Returns the number of "op args" the operator receives.
     pub fn num_op_args(&self) -> usize {
         use ParamOperator::*;
         match self {
@@ -791,7 +920,8 @@ impl<'a> IntoIterator for &'a BindingList {
 }
 
 impl BindingList {
-    pub const EMPTY: &'static Self = &BindingList(Vec::new());
+    /// A constant empty binding list.
+    pub(crate) const EMPTY: &'static Self = &BindingList(Vec::new());
 }
 
 impl From<SortedVar> for Term {
@@ -801,6 +931,7 @@ impl From<SortedVar> for Term {
 }
 
 impl Term {
+    /// Constructs a new boolean term.
     pub fn new_bool(value: impl Into<bool>) -> Self {
         let op = match value.into() {
             true => Operator::True,
@@ -1179,6 +1310,8 @@ impl Constant {
         }
     }
 
+    /// If this is an integer constant, returns its value as an [`Integer`]. Otherwise, returns
+    /// `None`.
     pub fn as_integer(&self) -> Option<Integer> {
         match self {
             Constant::Integer(i) => Some(i.clone()),
@@ -1188,6 +1321,7 @@ impl Constant {
 }
 
 impl Sort {
+    /// Returns `true` if the sort is a bitvector sort of any width.
     pub fn is_bitvec(&self) -> bool {
         matches!(self, Sort::BitVec(_) | Sort::ParamBitVec)
     }

@@ -14,6 +14,7 @@ pub struct Problem {
 }
 
 impl Problem {
+    /// Constructs a new empty `Problem`.
     pub fn new() -> Self {
         Self::default()
     }
@@ -35,6 +36,7 @@ pub struct ProblemPrelude {
 }
 
 impl ProblemPrelude {
+    /// Constructs a new empty `ProblemPrelude`.
     pub fn new() -> Self {
         Self::default()
     }

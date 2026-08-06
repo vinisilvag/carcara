@@ -40,12 +40,12 @@ pub enum ParserError {
     #[error("invalid Unicode value: 0x'{0}'")]
     InvalidUnicode(String),
 
-    /// The lexer encountered a bitvector literal with no actual digits. This
-    /// happens when the bitvector literal is just `#`, `#b` or `#x`.
+    /// The lexer encountered a bitvector literal with no actual digits. This happens when the
+    /// bitvector literal is just `#`, `#b` or `#x`.
     #[error("empty bitvector literal")]
     EmptyBitvector,
 
-    /// Bitvector literal is too large.
+    /// A bitvector literal was too large.
     #[error("bitvector literal is too large")]
     TooLargeBitvector,
 
@@ -53,7 +53,7 @@ pub enum ParserError {
     #[error("unexpected token: '{0}'")]
     UnexpectedToken(Token),
 
-    /// The parser parsed an empty sequence where only non-empty sequences are allowed.
+    /// The parser encountered an empty sequence where only non-empty sequences are allowed.
     #[error("expected non-empty sequence")]
     EmptySequence,
 
@@ -61,35 +61,35 @@ pub enum ParserError {
     #[error("sort error: {0}")]
     SortError(#[from] SortError),
 
-    /// Expected `BvSort`
+    /// Expected any bitvector sort.
     #[error("expected bitvector sort, got '{0}'")]
     ExpectedBvSort(Sort),
 
-    /// Expected `DatatypeSort`
+    /// Expected any datatype sort.
     #[error("expected datatype sort, got '{0}'")]
     ExpectedDTSort(Sort),
 
-    // Expected Constant::Integer, got other Term
+    /// Expected an integer constant term.
     #[error("expected integer constant, got '{0}'")]
     ExpectedIntegerConstant(Rc<Term>),
 
-    /// Pattern in match is not valid
+    /// Pattern in `match` term is not valid.
     #[error("invalid pattern '{0}'")]
     InvalidPattern(Rc<Term>),
 
-    /// Results in match do not have the same type
+    /// Results in `match` term do not have the same type.
     #[error("invalid match results (different types) '{0} and {1}'")]
     InvalidMatchResults(Rc<Term>, Rc<Term>),
 
-    /// Results in match do not have the same type
-    #[error("Patterns in match statement do not have variable or do not cover all constructors")]
-    InvalidPatterns,
+    /// Patterns in `match` term do not cover all constructors.
+    #[error("Patterns in match statement do not cover all constructors")]
+    NonExhaustivePatterns,
 
     /// A term that is not a function was used as a function.
     #[error("'{0}' is not a function sort")]
     NotAFunction(Sort), // TODO: This should also carry the actual function term
 
-    /// A term that is not a function was used as a function.
+    /// Tried to match two incompatible sorts.
     #[error("'{0}' cannot be matched to '{1}'")]
     IncompatibleSorts(Sort, Sort),
 
@@ -113,6 +113,7 @@ pub enum ParserError {
     #[error("expected argument value to be greater than {0}, got {1}")]
     WrongValueOfArgs(Range<Integer>, Integer),
 
+    /// Constant arguments given to `extract` do not follow required restrictions.
     #[error("extract arguments do not follow restrictions. Expected: {2} > {0} and {0} >= {1} and {1} >= 0")]
     InvalidExtractArgs(usize, usize, usize),
 
@@ -160,21 +161,17 @@ pub enum ParserError {
     #[error("not a valid format for the argument: '{0}'")]
     InvalidRareArgFormat(String),
 
-    /// The parser encountered an unknown qualified operator.
-    #[error("not a valid qualified argument: '{0}'")]
+    /// The parser encountered an invalid Rare argument attribute.
+    #[error("not a valid argument attribute: '{0}'")]
     InvalidRareArgAttribute(String),
 
-    /// The parser encountered an unknown rare rule attribute.
+    /// The parser encountered an invalid Rare rule attribute.
     #[error("not a valid rule attribute: '{0}'")]
-    InvalidRareFunctionAttribute(String),
+    InvalidRareRuleAttribute(String),
 
-    /// The parser encountered an unknown rare rule attribute.
+    /// The parser encountered a Rare ruel with no conclusion.
     #[error("the rule '{0}' has no conclusion")]
     UndefinedRareConclusion(String),
-
-    /// The parser encountered an unknown rare rule attribute.
-    #[error("the rule '{0}' has to start with the arguments first")]
-    ExpectArgsFirst(String),
 }
 
 /// Returns an error if the length of `sequence` is not in the `expected` range.

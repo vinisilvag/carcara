@@ -5,10 +5,7 @@ use crate::{
     CarcaraResult, Error,
 };
 use rug::{ops::Pow, Integer, Rational};
-use std::{
-    io,
-    str::{Chars, FromStr},
-};
+use std::str::{Chars, FromStr};
 
 /// A token in the SMT-LIB and Alethe formats.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -19,10 +16,12 @@ pub enum Token {
     /// The `)` token.
     CloseParen,
 
-    /// A symbol, that can be either simple or quoted. A simple symbol is a non-empty sequence of
-    /// letters, digits, or any of these characters: `+`, `-`, `/`, `*`, `=`, `%`, `?`, `!`, `.`,
-    /// `$`, `_`, `~`, `&`, `^`, `<`, `>`, or `@`. A quoted symbol is any sequence of characters
-    /// that starts and ends with `|`, and does not contain `|` or `\`.
+    /// A symbol, that can be either simple or quoted.
+    ///
+    /// A simple symbol is a non-empty sequence of letters, digits, or any of these characters: `+`,
+    /// `-`, `/`, `*`, `=`, `%`, `?`, `!`, `.`, `$`, `_`, `~`, `&`, `^`, `<`, `>`, or `@`. A quoted
+    /// symbol is any sequence of characters that starts and ends with `|`, and does not contain `|`
+    /// or `\`.
     Symbol(String),
 
     /// A keyword, which is a simple symbol preceded by `:`. This has the leading `:` character
@@ -35,8 +34,8 @@ pub enum Token {
     /// A decimal numeral literal.
     Decimal(Rational),
 
-    /// A bitvector literal.
-    Bitvector { value: Integer, width: usize },
+    /// A bitvector literal, represented by its integer value and width.
+    Bitvector(Integer, usize),
 
     /// A string literal.
     String(String),
@@ -99,13 +98,13 @@ pub enum Reserved {
     /// The `declare-sort` reserved word.
     DeclareSort,
 
-    // The `declare-datatype` reserved word.
+    /// The `declare-datatype` reserved word.
     DeclareDatatype,
 
-    // The `declare-datatypes` reserved word.
+    /// The `declare-datatypes` reserved word.
     DeclareDatatypes,
 
-    // The `par` reserved word.
+    /// The `par` reserved word.
     Par,
 
     /// The `define-fun` reserved word.
@@ -129,7 +128,7 @@ pub enum Reserved {
     /// The `set-logic` reserved word.
     SetLogic,
 
-    // From rare Rules
+    /// The `declare-rare-rule` reserved word.
     DeclareRareRule,
 }
 
@@ -166,6 +165,7 @@ impl_str_conversion_traits!(Reserved {
 /// Represents a position (line and column numbers) in the source input.
 pub type Position = (usize, usize);
 
+/// A lexer for the SMT-LIB, Alethe and Rare lexicons.
 pub struct Lexer<'s> {
     chars: Chars<'s>,
     line_start: usize,
@@ -174,17 +174,15 @@ pub struct Lexer<'s> {
 }
 
 impl<'s> Lexer<'s> {
-    /// Constructs a new `Lexer` from a type that implements `BufRead`.
-    ///
-    /// This operation can fail if there is an IO error on the first token.
-    pub fn new(input: &'s str) -> io::Result<Self> {
+    /// Constructs a new `Lexer` from a source string.
+    pub fn new(input: &'s str) -> Self {
         let input_len = input.len();
-        Ok(Self {
+        Self {
             chars: input.chars(),
             line_start: 0,
             lines_read: 0,
             input_len,
-        })
+        }
     }
 
     /// Advances the lexer by one character, and returns the previous `current_char`.
@@ -206,16 +204,17 @@ impl<'s> Lexer<'s> {
         // Then read the \n char itself
         if self.current() == Some('\n') {
             self.next_char();
-            // self.chars.next();
-            // self.lines_read += 1;
-            // self.line_start = self.input_len - self.chars.as_str().len();
         }
     }
 
+    /// Returns the current character.
+    ///
+    /// If the lexer is at the end of the input, returns `None`.
     fn current(&self) -> Option<char> {
         self.chars.clone().next()
     }
 
+    /// Returns the position of the current character.
     fn position(&self) -> Position {
         let raw = self.input_len - self.chars.as_str().len();
         (self.lines_read, raw - self.line_start)
@@ -363,7 +362,7 @@ impl<'s> Lexer<'s> {
 
         let width = s.len() * bits_per_char;
         let value = Integer::from_str_radix(&s, base).unwrap();
-        Ok(Token::Bitvector { value, width })
+        Ok(Token::Bitvector(value, width))
     }
 
     /// Reads an integer or decimal numerical literal.
@@ -441,9 +440,10 @@ impl<'s> Lexer<'s> {
         Ok(Token::String(result))
     }
 
+    /// Reads a unicode escape sequence encountered in a string literal, denoted by `\uXXXX` or
+    /// `\u{...}`.
     fn read_unicode_escape_sequence(&mut self, result: &mut String) -> CarcaraResult<()> {
         // At this point, '\' and 'u' have already been read
-        // <<<<<<< HEAD
         match self.current() {
             Some('{') => {
                 self.next_char();
@@ -531,12 +531,11 @@ mod tests {
     use super::*;
 
     fn lex_one(input: &str) -> CarcaraResult<Token> {
-        let mut lex = Lexer::new(input)?;
-        lex.next_token().map(|(tk, _)| tk)
+        Lexer::new(input).next_token().map(|(tk, _)| tk)
     }
 
     fn lex_all(input: &str) -> Vec<Token> {
-        let mut lex = Lexer::new(input).expect("lexer error during test");
+        let mut lex = Lexer::new(input);
         let mut result = Vec::new();
         loop {
             let tk = lex.next_token().expect("lexer error during test").0;
@@ -648,13 +647,10 @@ mod tests {
     fn test_bitvectors() {
         let input = "#b101010 #xdeadbeef #b1 #x0";
         let expected = vec![
-            Token::Bitvector { value: 42.into(), width: 6 },
-            Token::Bitvector {
-                value: 0xdeadbeefu64.into(),
-                width: 32,
-            },
-            Token::Bitvector { value: 1.into(), width: 1 },
-            Token::Bitvector { value: 0.into(), width: 4 },
+            Token::Bitvector(42.into(), 6),
+            Token::Bitvector(0xdeadbeefu64.into(), 32),
+            Token::Bitvector(1.into(), 1),
+            Token::Bitvector(0.into(), 4),
         ];
         assert_eq!(expected, lex_all(input));
 

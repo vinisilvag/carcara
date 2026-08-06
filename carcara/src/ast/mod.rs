@@ -19,7 +19,6 @@ mod term;
 #[cfg(test)]
 mod tests;
 
-pub use context::{Context, ContextStack};
 pub use evaluate::Value;
 pub use iter::ProofIter;
 pub use node::{ProofNode, ProofNodeForest, StepNode, SubproofNode};
@@ -34,6 +33,7 @@ pub use term::{
 };
 
 pub(crate) use carcara_macros::match_term;
+pub(crate) use context::ContextStack;
 pub(crate) use macros::{build_term, impl_str_conversion_traits, match_term_err};
 
 #[cfg(test)]

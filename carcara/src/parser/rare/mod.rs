@@ -66,7 +66,7 @@ impl<'p, 's> Parser<'p, 's> {
                 Ok(Body::Premise(terms))
             }
             _ => Err(Error::Parser(
-                ParserError::InvalidRareFunctionAttribute(qualified_arg),
+                ParserError::InvalidRareRuleAttribute(qualified_arg),
                 self.current_position,
             )),
         }

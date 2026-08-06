@@ -2,14 +2,24 @@ use super::{pool::TermPool, Constant, Operator, ParamOperator, QualifiedOperator
 use rug::{Integer, Rational};
 use std::collections::{HashMap, HashSet};
 
-/// A representation of the value of an SMT-LIB/Alethe term. This is constructed by evaluating a
-/// term (see [`Rc::<Term>::evaluate`]).
+/// A representation of the value of an SMT-LIB/Alethe term.
+///
+/// This is constructed by evaluating a term (see [`Rc::<Term>::evaluate`]).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Value {
+    /// A boolean value.
     Bool(bool),
+
+    /// An integer value.
     Integer(Integer),
+
+    /// A real value.
     Real(Rational),
+
+    /// A string value.
     String(String),
+
+    /// A bitvector value, represented by its integer value and width.
     BitVec(Integer, usize),
 }
 

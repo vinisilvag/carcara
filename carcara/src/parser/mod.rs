@@ -25,8 +25,9 @@ use rug::{Integer, Rational};
 use std::{iter::Iterator, str::FromStr};
 
 pub use error::{ParserError, SortError};
-pub use lexer::{Lexer, Position, Reserved, Token};
+pub use lexer::{Position, Reserved, Token};
 
+/// Configuration for [`Parser`].
 #[derive(Debug, Clone, Copy, Default, GenerateSetters)]
 #[const_setters]
 pub struct Config {
@@ -76,6 +77,7 @@ pub struct Config {
 }
 
 impl Config {
+    /// Concstructs a new `Config`, with default settings.
     pub const fn new() -> Self {
         // I can't just call `default()` because it is not const :/
         Self {
@@ -92,10 +94,9 @@ impl Config {
 }
 
 /// Parses an SMT problem instance (in the SMT-LIB format) and its associated proof (in the Alethe
-/// format).
+/// format). If the optional argument `rules` is provided, also parses a set of Rare rewrite rules.
 ///
-/// This returns the parsed proof, as well as the `TermPool` used in parsing. Can take any type that
-/// implements `BufRead`.
+/// This returns the parsed problem, proof, and rules, as well as the `TermPool` used in parsing.
 pub fn parse_instance<'s>(
     problem: &'s str,
     proof: &'s str,
@@ -107,6 +108,11 @@ pub fn parse_instance<'s>(
         .map(|(prelude, proof, rules)| (prelude, proof, rules, pool))
 }
 
+/// Given an existing [`PrimitivePool`], parses an SMT problem instance (in the SMT-LIB format) and
+/// its associated proof (in the Alethe format). If the optional argument `rules` is provided, also
+/// parses a set of Rare rewrite rules.
+///
+/// This returns the parsed problem, proof, and rules.
 pub fn parse_instance_with_pool<'s>(
     problem: &'s str,
     proof: &'s str,
@@ -203,7 +209,7 @@ struct ParserState {
 pub struct Parser<'p, 's> {
     pool: &'p mut PrimitivePool,
     config: Config,
-    lexer: Lexer<'s>,
+    lexer: lexer::Lexer<'s>,
     current_token: Token,
     current_position: Position,
     state: ParserState,
@@ -216,7 +222,7 @@ impl<'p, 's> Parser<'p, 's> {
     ///
     /// This operation can fail if there is an IO or lexer error on the first token.
     pub fn new(pool: &'p mut PrimitivePool, config: Config, input: &'s str) -> CarcaraResult<Self> {
-        let mut lexer = Lexer::new(input)?;
+        let mut lexer = lexer::Lexer::new(input);
         let (current_token, current_position) = lexer.next_token()?;
         Ok(Parser {
             pool,
@@ -233,7 +239,7 @@ impl<'p, 's> Parser<'p, 's> {
     /// Resets the parser position and sets its input to `input`. This keeps the parser state,
     /// including all function, constant and sort declarations.
     pub fn reset(&mut self, input: &'s str) -> CarcaraResult<()> {
-        let mut lexer = Lexer::new(input)?;
+        let mut lexer = lexer::Lexer::new(input);
         let (current_token, current_position) = lexer.next_token()?;
         self.lexer = lexer;
         self.current_token = current_token;
@@ -835,7 +841,7 @@ impl<'p, 's> Parser<'p, 's> {
                 Token::Symbol(_)
                 | Token::Numeral(_)
                 | Token::Decimal(_)
-                | Token::Bitvector { .. }
+                | Token::Bitvector(_, _)
                 | Token::String(_)
                 | Token::ReservedWord(_) => {
                     self.next_token()?;
@@ -1752,7 +1758,7 @@ impl<'p, 's> Parser<'p, 's> {
     /// Parses a term.
     pub fn parse_term(&mut self) -> CarcaraResult<Rc<Term>> {
         let term = match self.next_token()? {
-            (Token::Bitvector { value, width }, _) => Term::new_bv(value, width),
+            (Token::Bitvector(value, width), _) => Term::new_bv(value, width),
             (Token::Numeral(n), _) if self.interpret_ints_as_reals() => Term::new_real(n),
             (Token::Numeral(n), _) => Term::new_int(n),
             (Token::Decimal(r), _) => Term::new_real(r),
@@ -1779,9 +1785,10 @@ impl<'p, 's> Parser<'p, 's> {
         Ok(self.pool.add(term))
     }
 
-    pub fn parse_constant(&mut self) -> CarcaraResult<Constant> {
+    /// Parses a constant.
+    fn parse_constant(&mut self) -> CarcaraResult<Constant> {
         let constant = match self.next_token()? {
-            (Token::Bitvector { value, width }, _) => Constant::BitVec(value, width),
+            (Token::Bitvector(value, width), _) => Constant::BitVec(value, width),
             (Token::Numeral(n), _) if self.interpret_ints_as_reals() => Constant::Real(n.into()),
             (Token::Numeral(n), _) => Constant::Integer(n),
             (Token::Decimal(r), _) => Constant::Real(r),
@@ -2175,7 +2182,10 @@ impl<'p, 's> Parser<'p, 's> {
                                 i += 1;
                             }
                             if !has_pattern_var && patterns_conss.len() < dt_def.cons_map.len() {
-                                return Err(Error::Parser(ParserError::InvalidPatterns, head_pos));
+                                return Err(Error::Parser(
+                                    ParserError::NonExhaustivePatterns,
+                                    head_pos,
+                                ));
                             }
                             self.expect_token(Token::CloseParen)?;
                             return Ok(self.pool.add(Term::Match(term, match_patterns)));

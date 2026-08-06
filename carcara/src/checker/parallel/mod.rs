@@ -66,7 +66,7 @@ impl<'c> ParallelProofChecker<'c> {
             pool: self.pool.clone(),
             config: self.config.clone(),
             prelude: self.prelude,
-            context: ContextStack::from_previous(&self.context),
+            context: ContextStack::with_previous(&self.context),
             reached_empty_clause: false,
             is_holey: false,
             stack_size: self.stack_size,

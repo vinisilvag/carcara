@@ -40,6 +40,7 @@ fn to_concat(args: &[Rc<Term>]) -> Vec<Concat> {
 /// A trait that represents objects that can be compared for equality modulo reordering of
 /// equalities or alpha equivalence.
 pub trait PolyeqComparable {
+    /// Compares two objects with a given [`Polyeq`]. Returns `true` if they are equivalent.
     fn eq(comp: &mut Polyeq, a: &Self, b: &Self) -> bool;
 }
 
@@ -70,24 +71,31 @@ pub fn alpha_equiv(a: &Rc<Term>, b: &Rc<Term>, time: &mut Duration) -> bool {
 
 /// Configuration for a `Polyeq`.
 ///
-/// - If `is_mod_reordering` is `true`, the comparator will compare terms modulo reordering of
-///   equalities.
-//  - If `is_alpha_equivalence` is `true`, the comparator will compare terms for alpha
-///   equivalence.
-/// - If `is_mod_nary` is `true`, the comparator will compare terms modulo the expansion of
-///   n-ary operators.
-/// - If `is_mod_string_concat` is `true`, the comparator will compare terms modulo the collection of
-///
-/// String constants arguments in the String concatenation.
+/// This controls how the comparison is performed and which families of terms are considered
+/// equivalent.
 #[derive(Default)]
 pub struct PolyeqConfig {
+    /// If set to true, term comparison will be done modulo reordering of equalities. That is, the
+    /// terms `(= a b)` and `(= b a)` will be considered equivalent.
     pub is_mod_reordering: bool,
+
+    /// If set to true, terms will be compared for alpha equivalence. That is, terms that can be
+    /// made equal by renaming bound variables will be considered equivalent.
     pub is_alpha_equivalence: bool,
+
+    /// If set to true, term comparison will be done modulo the expansion of n-ary operators. That
+    /// is, the syntax sugar around n-ary operators will be expanded before comparison, such that
+    /// the terms `(and a b c)` and `(and (and a b) c)` will be considered equivalent.
     pub is_mod_nary: bool,
+
+    /// If set to true, term comparison will be done modulo the collection of string constant
+    /// arguments in the `str.++` operator. That is, the terms `(str.++ "ab" "c")` and `(str.++ "a"
+    /// "bc")` will be considered equivalent.
     pub is_mod_string_concat: bool,
 }
 
 impl PolyeqConfig {
+    /// Constructs a new `PolyeqConfig`, with all options set to `false`.
     pub fn new() -> Self {
         Self::default()
     }
@@ -135,12 +143,12 @@ impl Default for Polyeq {
 }
 
 impl Polyeq {
-    /// Constructs a new `Polyeq` with default configuration.
+    /// Constructs a new `Polyeq` with the default configuration.
     pub fn new() -> Self {
         Self::with_config(PolyeqConfig::new())
     }
 
-    /// Constructs a new `Polyeq`.
+    /// Constructs a new `Polyeq` with the provided configuration.
     pub fn with_config(config: PolyeqConfig) -> Self {
         Self {
             cache: HashMapStack::new(),
@@ -153,26 +161,31 @@ impl Polyeq {
         }
     }
 
+    /// Controls whether to compare terms modulo the reordering of equalities.
     pub fn mod_reordering(mut self, value: bool) -> Self {
         self.is_mod_reordering = value;
         self
     }
 
+    /// Controls whether to compare terms for alpha equivalence.
     pub fn alpha_equiv(mut self, value: bool) -> Self {
         self.de_bruijn_map = value.then(DeBruijnMap::new);
         self
     }
 
+    /// Controls whether to compare terms modulo the expansion of n-ary operators.
     pub fn mod_nary(mut self, value: bool) -> Self {
         self.is_mod_nary = value;
         self
     }
 
+    /// Controls whether to compare terms modulo the concatenation of string constants.
     pub fn mod_string_concat(mut self, value: bool) -> Self {
         self.is_mod_string_concat = value;
         self
     }
 
+    /// Compares two `[PolyeqComparable]` objects, and returns `true` if they are equivalent.
     pub fn eq<T>(&mut self, a: &T, b: &T) -> bool
     where
         T: PolyeqComparable + ?Sized,
@@ -180,6 +193,9 @@ impl Polyeq {
         PolyeqComparable::eq(self, a, b)
     }
 
+    /// Compares two `[PolyeqComparable]` objects, and returns `true` if they are equivalent.
+    /// Additionally, records how long the comparison took, and adds that time to the given `time`
+    /// argument.
     pub fn eq_with_time<T>(&mut self, a: &T, b: &T, time: &mut Duration) -> bool
     where
         T: PolyeqComparable + ?Sized,
@@ -190,6 +206,7 @@ impl Polyeq {
         result
     }
 
+    /// The maximum term depth this `Polyeq` reached when performing a comparison.
     pub fn max_depth(&self) -> usize {
         self.max_depth
     }

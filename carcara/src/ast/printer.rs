@@ -36,7 +36,11 @@ pub fn print_proof(
     AlethePrinter::new(pool, prelude, use_sharing, &mut stdout).write_proof(proof)
 }
 
-// Like print_proof, but to writes to some destination, not necessarily stdout
+/// Writes a proof to the provided destination.
+///
+/// If `use_sharing` is `true`, terms that are used multiple times will make use of sharing. The
+/// first time a novel term appears, it receives a unique name using the `:named` attribute. After
+/// that, any occurrence of that term will simply use this name, instead of printing the whole term.
 pub fn write_proof_to_dest(
     pool: &mut PrimitivePool,
     prelude: &ProblemPrelude,
@@ -47,9 +51,9 @@ pub fn write_proof_to_dest(
     AlethePrinter::new(pool, prelude, use_sharing, dest).write_proof(proof)
 }
 
-/// Given the conclusion clause of a `lia_generic` step, this method will write to `dest` the
-/// corresponding SMT problem instance.
-pub fn write_lia_smt_instance(
+/// Given the conclusion clause of a step, writes to `dest` an SMT-LIB problem that corresponds to
+// the negation of that clause.
+pub(crate) fn write_clause_smt_problem(
     pool: &mut PrimitivePool,
     prelude: &ProblemPrelude,
     dest: &mut dyn io::Write,
@@ -60,13 +64,13 @@ pub fn write_lia_smt_instance(
     // We have to override the default prefix "@p_" because symbols starting with "@" are reserved
     // in SMT-LIB.
     printer.term_sharing_variable_prefix = "p_".to_owned();
-    // Since we are printing an SMT-LIB problem, we have to be
-    // compliant. For Carcara, this means that arithmetic constants
-    // cannot use the GMP notation
+    // Since we are printing an SMT-LIB problem, we have to be compliant. For Carcara, this means
+    // that arithmetic constants cannot use the GMP notation
     printer.smt_lib_strict = true;
-    printer.write_lia_smt_instance(clause)
+    printer.write_clause_smt_problem(clause)
 }
 
+/// Writes the assertions of an SMT-LIB problem to the provided destination.
 pub fn write_asserts<'a, I: IntoIterator<Item = &'a Rc<Term>>>(
     pool: &mut PrimitivePool,
     prelude: &ProblemPrelude,
@@ -91,7 +95,8 @@ pub fn write_asserts<'a, I: IntoIterator<Item = &'a Rc<Term>>>(
     Ok(())
 }
 
-pub fn write_term(
+/// Writes a term to the provided destination.
+pub(crate) fn write_term(
     pool: &mut PrimitivePool,
     prelude: &ProblemPrelude,
     dest: &mut dyn io::Write,
@@ -146,7 +151,7 @@ impl PrintWithSharing for Rc<Term> {
                 || Rc::strong_count(self) <= 3
                 // - Terms which are not closed, that is, terms which have free variables besides
                 // the global variables, cannot be shared
-                || !self.is_closed(p.pool, &p.global_vars);
+                || !self.is_closed(p.pool, &p.global_variables);
 
             if !cannot_use_sharing {
                 return if let Some(i) = indices.get(self) {
@@ -202,12 +207,13 @@ impl PrintWithSharing for ParamOperator {
     }
 }
 
+/// A pretty printer for Alethe proofs.
 pub struct AlethePrinter<'a> {
     pool: &'a mut PrimitivePool,
     inner: &'a mut dyn io::Write,
     term_indices: Option<IndexMap<Rc<Term>, usize>>,
     term_sharing_variable_prefix: String,
-    global_vars: HashSet<Rc<Term>>,
+    global_variables: HashSet<Rc<Term>>,
     defined_constants: HashMap<Rc<Term>, String>,
     smt_lib_strict: bool,
     use_sharing: bool,
@@ -278,6 +284,11 @@ impl PrintProof for AlethePrinter<'_> {
 }
 
 impl<'a> AlethePrinter<'a> {
+    /// Constructs a new `AlethePrinter`.
+    ///
+    /// If `use_sharing` is `true`, terms that are used multiple times will make use of sharing. The
+    /// problem prelude is required to know the proof's global variables, and thus know which terms
+    /// are closed.
     pub fn new(
         pool: &'a mut PrimitivePool,
         prelude: &ProblemPrelude,
@@ -298,7 +309,7 @@ impl<'a> AlethePrinter<'a> {
             inner: dest,
             term_indices: use_sharing.then(IndexMap::new),
             term_sharing_variable_prefix: "@p_".to_owned(),
-            global_vars: global_variables,
+            global_variables,
             defined_constants: HashMap::new(),
             smt_lib_strict: false,
             use_sharing,
@@ -323,7 +334,7 @@ impl<'a> AlethePrinter<'a> {
         write!(self.inner, ")")
     }
 
-    pub fn write_raw_term(&mut self, term: &Term) -> io::Result<()> {
+    fn write_raw_term(&mut self, term: &Term) -> io::Result<()> {
         match term {
             Term::Const(c) => {
                 if self.smt_lib_strict {
@@ -462,7 +473,7 @@ impl<'a> AlethePrinter<'a> {
         Ok(())
     }
 
-    fn write_lia_smt_instance(&mut self, clause: &[Rc<Term>]) -> io::Result<()> {
+    fn write_clause_smt_problem(&mut self, clause: &[Rc<Term>]) -> io::Result<()> {
         for term in clause.iter().dedup() {
             write!(self.inner, "(assert (not ")?;
             term.print_with_sharing(self)?;
@@ -528,7 +539,7 @@ impl fmt::Display for Term {
             inner: &mut buf,
             term_indices: use_sharing.then(IndexMap::new),
             term_sharing_variable_prefix: "@p_".to_owned(),
-            global_vars: HashSet::new(),
+            global_variables: HashSet::new(),
             defined_constants: HashMap::new(),
             smt_lib_strict: false,
             use_sharing,
@@ -626,7 +637,7 @@ impl fmt::Display for Token {
             Token::Keyword(k) => write!(f, ":{}", k),
             Token::Numeral(n) => write!(f, "{}", n),
             Token::Decimal(r) => write!(f, "{}", r),
-            Token::Bitvector { value, width } => {
+            Token::Bitvector(value, width) => {
                 write!(f, "#b{v:0>w$b}", v = value, w = { *width })
             }
             Token::String(s) => write!(f, "\"{}\"", escape_string(s)),
