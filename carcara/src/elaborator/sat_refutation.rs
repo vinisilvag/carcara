@@ -142,7 +142,7 @@ fn get_resolution_refutation(
             }
         })
         .collect();
-    // We traverse the LRAT proof in reverse. Since it is comming from DRAT-trim, all clauses must
+    // We traverse the LRAT proof in reverse. Since it is coming from DRAT-trim, all clauses must
     // be useful, which should be guaranteed by the construction downstream of the proof for the
     // empty clause.
     let mut empty_clause_id = 0;

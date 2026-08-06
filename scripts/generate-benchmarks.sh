@@ -11,7 +11,7 @@ USAGE:
     generate-benchmarks.sh [OPTIONS]
 
 OPTIONS:
-    -h, --help      Show this mesage.
+    -h, --help      Show this message.
     --full          Download and solve all benchmarks from the SMT-LIB
                     repositories. This may take a very long time.
     --clean         After running, remove all .smt2 files for which a proof

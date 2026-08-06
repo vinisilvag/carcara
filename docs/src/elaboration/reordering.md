@@ -4,8 +4,8 @@ reordering steps can be challenging to deal with. With that in mind, Carcara has
 that can completely remove all `reordering` steps from a proof.
 
 This is done by replacing the `reordering` step with its premise and, anytime it is used as a
-premise in another step, recomputing the clause of the step that used it. As an exmple, consider the
-following proof:
+premise in another step, recomputing the clause of the step that used it. As an example, consider
+the following proof:
 ```
 (step t1 (cl a b c) :rule hole)
 (step t2 (cl b a c) :rule reordering :premises (t1))
@@ -23,4 +23,4 @@ be recomputed, and these changes will propagate down the proof.
 
 [^1]: Strictly speaking, the step would not be invalid according to the semantics of Alethe, which
 are entirely agnostic to clause ordering. However, when elaborating a proof, we aim to ensure a more
-strict semantics, in which clause ordering is maitained in rules such as `weakening`.
+strict semantics, in which clause ordering is maintained in rules such as `weakening`.

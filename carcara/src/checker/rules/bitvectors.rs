@@ -674,12 +674,12 @@ fn bitblast_udiv_urem_rec(
     n: usize,
 ) -> (Vec<Rc<Term>>, Vec<Rc<Term>>) {
     fn shift_right(pool: &mut dyn TermPool, v: &mut [Rc<Term>]) {
-        v.rotate_left(1); // Rust and SMT-LIB disagree on endianess
+        v.rotate_left(1); // Rust and SMT-LIB disagree on endianness
         *v.last_mut().unwrap() = pool.bool_false();
     }
 
     fn shift_left(pool: &mut dyn TermPool, v: &mut [Rc<Term>]) {
-        v.rotate_right(1); // Rust and SMT-LIB disagree on endianess
+        v.rotate_right(1); // Rust and SMT-LIB disagree on endianness
         *v.first_mut().unwrap() = pool.bool_false();
     }
 

@@ -96,7 +96,6 @@ fn sat_refutation_external_check(
     if res == b"true\n" {
         return Ok(());
     }
-    println!("{:?}\n", String::from_utf8(res.to_vec()));
     Err(CheckerError::Explanation(format!(
         "External checker {} did not validate step",
         checker
@@ -191,7 +190,7 @@ pub fn sat_refutation(
                 //  (forall ((x1 T1) ... (xn Tn)) (=> (exists ((v T)) F[v, x1,...,xn]) (F[k, x1,...,xn])))
                 //
                 // to properly define k, where the variables x1...xn are created to stand-in for the
-                // choice terms that occur in the definition of k. We replace them by the intruduced
+                // choice terms that occur in the definition of k. We replace them by the introduced
                 // variables.
                 //
                 // The rationale is that we want to define k for all values it may depend on, not
@@ -232,16 +231,16 @@ pub fn sat_refutation(
                 let var = pool.add(Term::from(bindings[0].clone()));
                 let mut s = Substitution::single(pool, var.clone(), k.clone()).unwrap();
                 s.set_capture_avoidance(false);
-                let constant_definding_form = s.apply(pool, &choice_body_norm);
+                let constant_defining_form = s.apply(pool, &choice_body_norm);
                 let assert = if !univ_vars.is_empty() {
-                    let inner_assert = build_term!(pool, (=> {exists} {constant_definding_form}));
+                    let inner_assert = build_term!(pool, (=> {exists} {constant_defining_form}));
                     pool.add(Term::Binder(
                         Binder::Forall,
                         BindingList(forall_bindings),
                         inner_assert,
                     ))
                 } else {
-                    build_term!(pool, (=> {exists} {constant_definding_form}))
+                    build_term!(pool, (=> {exists} {constant_defining_form}))
                 };
                 choice_assertions.push(assert.clone());
 

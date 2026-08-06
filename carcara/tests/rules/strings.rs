@@ -1231,7 +1231,7 @@ fn re_unfold_neg() {
             r#"(assume h1 (not (str.in_re y (re.++ c d))))
                (step t1 (cl (forall ((L Int)) (or (< L 0) (< (str.len y) L) (not (str.in_re (str.substr y 0 L) c)) (not (or false (str.in_re (str.substr y L (- (str.len y) L)) d)))))) :rule re_unfold_neg :premises (h1))"#: false,
         }
-        "Conclusion is not fo the form (and (not (= t \"\")) (forall ... (or (<= l 0) (< (str.len t) l) (not (str.in_re pref r_1)) (not (str.in_re suff r)))))))" {
+        "Conclusion is not of the form (and (not (= t \"\")) (forall ... (or (<= l 0) (< (str.len t) l) (not (str.in_re pref r_1)) (not (str.in_re suff r)))))))" {
             r#"(assume h1 (not (str.in_re x (re.* a))))
                (step t1 (cl (or (not (= x "")) (forall ((L Int)) (or (<= L 0) (< (str.len x) L) (not (str.in_re (str.substr x 0 L) a)) (not (str.in_re (str.substr x L (- (str.len x) L)) (re.* a))))))) :rule re_unfold_neg :premises (h1))"#: false,
             r#"(assume h1 (not (str.in_re x (re.* a))))

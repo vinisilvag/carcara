@@ -224,10 +224,9 @@ impl<'c> ParallelProofChecker<'c> {
                             (reached, holey) = (reached | local_reached, holey | local_holey);
                         }
                         Err(e) => {
-                            // Since we want the statistics of the whole run
-                            // (even in a error case) we cannot abort at this
-                            // point, since we can have more threads to be
-                            // evaluated and their statistics colleted
+                            // Since we want the statistics of the whole run (even in a error case)
+                            // we cannot abort at this point, since we can have more threads to be
+                            // evaluated and their statistics collected
                             err = Err(e);
                         }
                     }

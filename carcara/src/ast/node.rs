@@ -2,7 +2,7 @@ use super::*;
 
 /// An alternative, graph-based representation for an Alethe proof.
 ///
-/// Instead of storing steps in a vector like [[Proof]], steps in this representaion are nodes in a
+/// Instead of storing steps in a vector like [`Proof`], steps in this representation are nodes in a
 /// directed acyclic graph, and each step holds a reference-counted pointer to each of its premises.
 ///
 /// By definition, this representation implicitly prunes the proof of unused steps. Since we

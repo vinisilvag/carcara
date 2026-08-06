@@ -166,18 +166,18 @@ impl Scheduler {
                     tmp.0
                 }
             };
-            // If this step needs the context of the subproof oppening step
-            // but it was not assigned to this schedule yet
+            // If this step needs the context of the subproof opening step but it was not assigned
+            // to this schedule yet
             while initial_layer + i <= depth {
-                let subproof_oppening = stack[initial_layer + i].pre_req.unwrap();
+                let subproof_opening = stack[initial_layer + i].pre_req.unwrap();
                 let last_inserted = *loads[load_index].last().unwrap_or(&(usize::MAX, 0));
 
-                if last_inserted != subproof_oppening {
-                    loads[load_index].push(subproof_oppening);
-                    stack[subproof_oppening.0].used_by.insert(load_index);
+                if last_inserted != subproof_opening {
+                    loads[load_index].push(subproof_opening);
+                    stack[subproof_opening.0].used_by.insert(load_index);
 
                     // Now this subproof is used by another schedule
-                    let subproof_id = match &stack[subproof_oppening.0].cmds[subproof_oppening.1] {
+                    let subproof_id = match &stack[subproof_opening.0].cmds[subproof_opening.1] {
                         ProofCommand::Subproof(s) => s.context_id,
                         _ => unreachable!(),
                     };

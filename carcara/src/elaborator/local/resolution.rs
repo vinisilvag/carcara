@@ -136,8 +136,8 @@ pub fn resolution(
             ..Default::default()
         }));
 
-        // Finally, we add a new resolution step, refering to the preivous three, and concluding the
-        // original resolution step's conclusion
+        // Finally, we add a new resolution step, referring to the previous three, and concluding
+        // the original resolution step's conclusion
         let args = [c, pool.bool_true(), quadruple_not_c, pool.bool_true()]
             .into_iter()
             .collect();

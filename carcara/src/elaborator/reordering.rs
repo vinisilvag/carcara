@@ -32,7 +32,7 @@ type RecomputationFunc = fn(&StepNode) -> Result<Vec<Rc<Term>>, ElaborationError
 
 fn get_recomputation_func(rule: &str) -> Option<RecomputationFunc> {
     Some(match rule {
-        // Weakening and contraction recomputation is infallibe, so we have to wrap in `Ok`
+        // Weakening and contraction recomputation is infallible, so we have to wrap in `Ok`
         "weakening" => |step| Ok(recompute_weakening(step)),
         "contraction" => |step| Ok(recompute_contraction(step)),
         "resolution" | "th_resolution" | "strict_resolution" => recompute_resolution,

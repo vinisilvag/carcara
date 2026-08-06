@@ -286,7 +286,8 @@ fn get_slice_body(
                             panic!("Expected subproof")
                         };
                         sp.commands.append(&mut popped_frame.commands);
-                        // We need to artifically make the inner subproofs a premise of the outer subproof.
+                        // We need to artificially make the inner subproofs a premise of the outer
+                        // subproof.
                         if have_seen_target {
                             child =
                                 Some((stack.len() - 1, stack.last().unwrap().commands.len() - 1));

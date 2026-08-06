@@ -1349,9 +1349,6 @@ pub fn re_concat_unfold_pos(RuleArgs { premises, conclusion, pool, .. }: RuleArg
         _ => Err(CheckerError::TermOfWrongForm("(re.++ ...)", r.clone())),
     }?;
 
-    println!("concluded: {}", &conclusion[0]);
-    println!("epxanded: {}", &expanded);
-
     assert_eq(&conclusion[0], &expanded)
 }
 

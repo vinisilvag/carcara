@@ -11,7 +11,7 @@ polyequality. The following step is valid:
 ```
 
 The `polyeq` elaboration pass can be used to remove all such instances where polyequality reasoning
-is required. For exemple, calling `carcara elaborate --pipeline polyeq` on the above step will
+is required. For example, calling `carcara elaborate --pipeline polyeq` on the above step will
 transform it into the following steps:
 ```
 (step t1.t1 (cl (= (= a b) (= b a))) :rule eq_symmetric)

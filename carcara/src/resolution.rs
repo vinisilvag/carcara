@@ -57,7 +57,7 @@ impl<'a> ClauseCollection<'a> for IndexSet<Literal<'a>> {
     }
 }
 
-/// Transformas a `Literal` into an `Rc<Term>`, by undoing the transformation done by
+/// Transforms a `Literal` into an `Rc<Term>`, undoing the transformation done by
 /// `Rc<Term>::remove_all_negations`.
 pub fn literal_to_term(pool: &mut dyn TermPool, (n, term): Literal) -> Rc<Term> {
     let mut term = term.clone();

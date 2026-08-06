@@ -8,7 +8,7 @@ pub struct Context {
 }
 
 impl Context {
-    /// Builds a new context form the arguments to an `anchor`. This does not initalize the
+    /// Builds a new context form the arguments to an `anchor`. This does not initialize the
     /// `cumulative_substitution` field.
     fn new(args: Vec<AnchorArg>) -> Self {
         Self { args, cumulative_substitution: None }
@@ -184,7 +184,7 @@ impl ContextStack {
                     AnchorArg::Assign(var, value) => {
                         let var_term = pool.add(var.clone().into());
                         let new_value = substitution.apply(pool, value);
-                        // It is safe to unwrap here because we ensure by contruction that
+                        // It is safe to unwrap here because we ensure by construction that
                         // `var_term` is a variable term, with he same sort as `value`
                         substitution
                             .insert(pool, var_term, new_value.clone())

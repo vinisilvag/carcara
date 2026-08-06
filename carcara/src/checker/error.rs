@@ -221,9 +221,6 @@ pub enum CheckerError {
     #[error("parameter {0} wasn't not found")]
     RareArgumentNotFound(String),
 
-    #[error("expected premise {0} to be '{1}' but instead it is a '{2}'")]
-    RareMisMatchTypes(String, Rc<Term>, Rc<Term>),
-
     #[error("the list {0} contains unequal sorts: {1} and {2}")]
     RareListNotSortUniform(Rc<Term>, Rc<Term>, Rc<Term>),
 

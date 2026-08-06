@@ -25,7 +25,7 @@ use std::{fmt, hash::Hash, ops::Deref, sync};
 /// Note: when using this struct, it's important to avoid constructing terms with `Rc::new` and
 /// instead prefer to construct them by adding them to a `TermPool`. This is because `Rc::new` will
 /// create a brand new allocation for that term, instead of reusing the existing allocation if that
-/// term was already added to the pool. Two indentical terms created independently with `Rc::new`
+/// term was already added to the pool. Two identical terms created independently with `Rc::new`
 /// will not compare as equal.
 #[derive(Eq)]
 pub struct Rc<T: ?Sized>(sync::Arc<T>);
