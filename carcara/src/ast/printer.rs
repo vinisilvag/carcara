@@ -17,6 +17,8 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+/// A global variable that controls whether the default implementation of [`fmt::Display`] should
+/// make use of term sharing or not.
 pub static USE_SHARING_IN_TERM_DISPLAY: AtomicBool = AtomicBool::new(false);
 
 /// Prints a proof to the standard output.
@@ -89,7 +91,6 @@ pub fn write_asserts<'a, I: IntoIterator<Item = &'a Rc<Term>>>(
     Ok(())
 }
 
-#[allow(unused)] // TODO
 pub fn write_term(
     pool: &mut PrimitivePool,
     prelude: &ProblemPrelude,

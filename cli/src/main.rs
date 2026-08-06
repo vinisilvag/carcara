@@ -24,13 +24,14 @@ fn main() {
     let cli = Cli::parse();
     let colors_enabled = !cli.no_color && std::io::stderr().is_terminal();
 
-    ast::USE_SHARING_IN_TERM_DISPLAY.store(!cli.no_print_with_sharing, atomic::Ordering::Relaxed);
+    ast::printer::USE_SHARING_IN_TERM_DISPLAY
+        .store(!cli.no_print_with_sharing, atomic::Ordering::Relaxed);
 
     logger::init(cli.log_level.into(), colors_enabled);
 
     let result = match cli.command {
         Command::Parse(options) => parse_command(options).and_then(|(pb, pf, _rules, mut pool)| {
-            ast::print_proof(&mut pool, &pb.prelude, &pf, !cli.no_print_with_sharing)?;
+            ast::printer::print_proof(&mut pool, &pb.prelude, &pf, !cli.no_print_with_sharing)?;
             Ok(())
         }),
         Command::Check(options) => {
@@ -52,14 +53,14 @@ fn main() {
                 } else {
                     println!("valid");
                 }
-                ast::print_proof(&mut pool, &pb.prelude, &pf, !cli.no_print_with_sharing)?;
+                ast::printer::print_proof(&mut pool, &pb.prelude, &pf, !cli.no_print_with_sharing)?;
                 Ok(())
             })
         }
         Command::Bench(options) => bench_command(options),
         Command::Slice(options) => {
             slice_command(options, cli.no_print_with_sharing).and_then(|(pb, pf, mut pool)| {
-                ast::print_proof(&mut pool, &pb.prelude, &pf, !cli.no_print_with_sharing)?;
+                ast::printer::print_proof(&mut pool, &pb.prelude, &pf, !cli.no_print_with_sharing)?;
                 Ok(())
             })
         }
@@ -259,7 +260,7 @@ fn slice_command(
             sliced_problem_file
                 .write_all(format!("{}", problem.prelude).as_bytes())
                 .unwrap();
-            ast::write_asserts(
+            ast::printer::write_asserts(
                 &mut pool,
                 &problem.prelude,
                 &mut sliced_problem_file,
@@ -270,7 +271,7 @@ fn slice_command(
             sliced_problem_file.write_all(b"(exit)\n")?;
 
             let mut sliced_proof_file = fs::File::create(sliced_proof_file_name)?;
-            ast::write_proof_to_dest(
+            ast::printer::write_proof_to_dest(
                 &mut pool,
                 &problem.prelude,
                 &sliced_proof,

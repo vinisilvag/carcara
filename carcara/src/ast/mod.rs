@@ -24,7 +24,6 @@ pub use evaluate::Value;
 pub use iter::ProofIter;
 pub use node::{ProofNode, ProofNodeForest, StepNode, SubproofNode};
 pub use polyeq::{alpha_equiv, polyeq, Polyeq, PolyeqComparable, PolyeqConfig};
-pub use printer::{print_proof, write_asserts, write_proof_to_dest, USE_SHARING_IN_TERM_DISPLAY};
 pub use problem::{Problem, ProblemPrelude};
 pub use proof::{AnchorArg, Proof, ProofCommand, ProofStep, Subproof};
 pub use rc::Rc;
