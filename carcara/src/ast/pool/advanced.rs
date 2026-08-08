@@ -1,5 +1,5 @@
-use super::super::{Rc, Term};
-use super::{DatatypeDef, PrimitivePool, TermPool};
+use super::{Datatype, PrimitivePool, TermPool};
+use crate::ast::{Rc, Term};
 use indexmap::IndexSet;
 use std::sync::{Arc, RwLock};
 
@@ -66,8 +66,8 @@ impl TermPool for ContextPool {
             .free_vars_with_priorities(term, [&self.global_pool])
     }
 
-    fn dt_def(&self, sort: &Rc<Term>) -> &DatatypeDef {
-        self.global_pool.dt_def(sort)
+    fn get_datatype(&self, name: &str) -> &Datatype {
+        self.global_pool.get_datatype(name)
     }
 }
 
@@ -138,7 +138,7 @@ impl TermPool for LocalPool {
         )
     }
 
-    fn dt_def(&self, sort: &Rc<Term>) -> &DatatypeDef {
-        self.inner.dt_def(sort)
+    fn get_datatype(&self, name: &str) -> &Datatype {
+        self.inner.get_datatype(name)
     }
 }

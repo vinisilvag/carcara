@@ -1,6 +1,8 @@
 //! Algorithms for creating and applying capture-avoiding substitutions over terms.
 
-use super::{pool::TermPool, Binder, BindingList, Rc, Sort, SortedVar, Term};
+use super::{
+    pool::TermPool, Binder, BindingList, MatchCase, MatchPattern, Rc, Sort, SortedVar, Term,
+};
 use indexmap::{IndexMap, IndexSet};
 use thiserror::Error;
 
@@ -226,28 +228,40 @@ impl Substitution {
                 };
                 pool.add(Term::Let(new_bindings, new_term))
             }
-            Term::Match(term, patterns) => {
+            Term::Match(term, cases) => {
                 let new_term = self.apply(pool, term);
-                let new_patterns = patterns
+                let new_cases = cases
                     .iter()
-                    .map(|(binding_list, pattern, res)| {
+                    .map(|case| {
                         let (new_bindings, mut renaming) =
-                            self.rename_binding_list(pool, binding_list, true);
-                        let new_pattern = if renaming.is_empty() {
-                            pattern.clone()
+                            self.rename_binding_list(pool, case.bindings(), true);
+
+                        let pattern = if renaming.is_empty() {
+                            case.pattern.clone()
                         } else {
-                            renaming.apply(pool, pattern)
+                            // To apply the renaming to the pattern, we just use the renamed
+                            // bindings returned by `rename_binding_list`
+                            match &case.pattern {
+                                MatchPattern::Wildcard => MatchPattern::Wildcard,
+                                MatchPattern::Variable(_) => {
+                                    MatchPattern::Variable(new_bindings.last().unwrap().clone())
+                                }
+                                MatchPattern::Cons(cons, _) => {
+                                    MatchPattern::Cons(cons.clone(), new_bindings.0)
+                                }
+                            }
                         };
-                        let new_res = if renaming.is_empty() {
-                            self.apply(pool, res)
+
+                        let body = if renaming.is_empty() {
+                            self.apply(pool, &case.body)
                         } else {
-                            let renamed = renaming.apply(pool, res);
+                            let renamed = renaming.apply(pool, &case.body);
                             self.apply(pool, &renamed)
                         };
-                        (new_bindings, new_pattern, new_res)
+                        MatchCase { pattern, body }
                     })
                     .collect();
-                pool.add(Term::Match(new_term, new_patterns))
+                pool.add(Term::Match(new_term, new_cases))
             }
             Term::Const(_) | Term::Var(..) => term.clone(),
             Term::ParamOp { op, op_args, args } => {
@@ -275,9 +289,9 @@ impl Substitution {
                 let [x, y] = [x, y].map(|s| self.apply(pool, s));
                 pool.add(Term::Sort(Sort::Array(x, y)))
             }
-            Term::Sort(Sort::Datatype(sort, args)) => {
-                let new_args = apply_to_sequence!(args);
-                pool.add(Term::Sort(Sort::Datatype(sort.clone(), new_args)))
+            Term::Sort(Sort::Datatype { name, args }) => {
+                let args = apply_to_sequence!(args);
+                pool.add(Term::Sort(Sort::Datatype { name: name.clone(), args }))
             }
             Term::Sort(Sort::ParamSort(vars, sort)) => {
                 let new_sort = self.apply(pool, sort);

@@ -3,18 +3,25 @@
 pub mod advanced;
 mod storage;
 
-use super::{Binder, Operator, Rc, Sort, Substitution, Term};
-use crate::ast::{Constant, ParamOperator};
+use super::{Binder, Constant, Operator, ParamOperator, Rc, Sort, SortedVar, Substitution, Term};
 use indexmap::{IndexMap, IndexSet};
 use storage::Storage;
 
-/// A `step` command.
+/// A user-defined datatype.
 #[derive(Debug, Clone)]
-pub struct DatatypeDef {
-    /// The datatype name
-    pub name: String,
-    // For each constructor, its selectors and tester
-    pub cons_map: IndexMap<Rc<Term>, (Vec<Rc<Term>>, Rc<Term>)>,
+pub struct Datatype {
+    /// The datatype parameters
+    pub params: Vec<String>,
+
+    /// The constructors, indexed by their name.
+    pub constructors: IndexMap<String, DatatypeConstructor>,
+}
+
+/// A constructor for a datatype.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DatatypeConstructor {
+    /// The constructor selectors.
+    pub selectors: Vec<SortedVar>,
 }
 
 pub trait TermPool {
@@ -39,22 +46,27 @@ pub trait TermPool {
     /// just returns an `Rc` pointing to the existing allocation. This method also computes the
     /// term's sort, and adds it to the sort cache.
     fn add(&mut self, term: Term) -> Rc<Term>;
+
     /// Takes a vector of terms and calls [`TermPool::add`] on each.
     fn add_all(&mut self, terms: Vec<Term>) -> Vec<Rc<Term>> {
         terms.into_iter().map(|t| self.add(t)).collect()
     }
+
     /// Returns the sort of the given term.
     ///
     /// This method assumes that the sorts of any subterms have already been checked, and are
     /// correct. If `term` is itself a sort, this simply returns that sort.
     fn sort(&self, term: &Rc<Term>) -> Rc<Term>;
+
     /// Returns an `IndexSet` containing all the free variables in the given term.
     ///
     /// This method uses a cache, so there is no additional cost to computing the free variables of
     /// a term multiple times.
     fn free_vars(&mut self, term: &Rc<Term>) -> IndexSet<Rc<Term>>;
 
-    fn dt_def(&self, sort: &Rc<Term>) -> &DatatypeDef;
+    /// Searches the pool for a defined datatype with the given name. Panics if no datatype is
+    /// found.
+    fn get_datatype(&self, name: &str) -> &Datatype;
 }
 
 /// A structure to store and manage all allocated terms.
@@ -72,7 +84,7 @@ pub struct PrimitivePool {
     pub(crate) free_vars_cache: IndexMap<Rc<Term>, IndexSet<Rc<Term>>>,
     pub(crate) sorts_cache: IndexMap<Rc<Term>, Rc<Term>>,
     pub(crate) binders_cache: IndexMap<(Rc<Term>, Binder), IndexSet<Rc<Term>>>,
-    pub(crate) dt_defs: IndexMap<Rc<Term>, DatatypeDef>,
+    pub(crate) datatypes: IndexMap<String, Datatype>,
 }
 
 impl PrimitivePool {
@@ -285,8 +297,8 @@ impl PrimitivePool {
                 Sort::Function(result)
             }
             Term::Let(_, inner) => self.compute_sort(inner).as_sort().unwrap().clone(),
-            Term::Match(_, patterns) => self
-                .compute_sort(&patterns.last().unwrap().2)
+            Term::Match(_, cases) => self
+                .compute_sort(&cases.last().unwrap().body)
                 .as_sort()
                 .unwrap()
                 .clone(),
@@ -425,11 +437,11 @@ impl PrimitivePool {
                 }
                 vars
             }
-            Term::Match(term, patterns) => {
+            Term::Match(term, cases) => {
                 let mut vars = self.free_vars_with_priorities(term, prior_pools);
-                for (bindings, _, res) in patterns {
-                    let mut res_vars = self.free_vars_with_priorities(res, prior_pools);
-                    for bound_var in bindings {
+                for case in cases {
+                    let mut res_vars = self.free_vars_with_priorities(&case.body, prior_pools);
+                    for bound_var in case.bindings() {
                         let term = self.add_with_priorities(bound_var.clone().into(), prior_pools);
                         res_vars.swap_remove(&term);
                     }
@@ -448,12 +460,8 @@ impl PrimitivePool {
         self.free_vars_cache.get(term).unwrap().clone()
     }
 
-    pub fn add_dt_def(&mut self, sort: &Rc<Term>, def: &DatatypeDef) {
-        if !sort.is_sort_dt() {
-            // return Err(ParserError::ExpectedDTSort(sort.clone()));
-            unreachable!();
-        }
-        self.dt_defs.insert(sort.clone(), def.clone());
+    pub fn add_datatype(&mut self, name: String, datatype: Datatype) {
+        self.datatypes.insert(name, datatype);
     }
 
     pub fn collect_binders(&mut self, term: &Rc<Term>, binder: Binder) -> IndexSet<Rc<Term>> {
@@ -480,10 +488,10 @@ impl PrimitivePool {
                 set
             }
             Term::Let(_, inner) => self.collect_binders(inner, binder),
-            Term::Match(term, patterns) => {
+            Term::Match(term, cases) => {
                 let mut set = self.collect_binders(term, binder);
-                for (_, _, res) in patterns {
-                    set.extend(self.collect_binders(res, binder).into_iter());
+                for case in cases {
+                    set.extend(self.collect_binders(&case.body, binder).into_iter());
                 }
                 set
             }
@@ -512,11 +520,7 @@ impl TermPool for PrimitivePool {
         self.free_vars_with_priorities(term, [])
     }
 
-    fn dt_def(&self, sort: &Rc<Term>) -> &DatatypeDef {
-        if !sort.is_sort_dt() {
-            // return Err(ParserError::ExpectedDTSort(sort.clone()));
-            unreachable!();
-        }
-        &self.dt_defs[sort]
+    fn get_datatype(&self, name: &str) -> &Datatype {
+        &self.datatypes[name]
     }
 }

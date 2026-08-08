@@ -126,6 +126,20 @@ pub enum ParserError {
     #[error("{0} is not a valid sort arity")]
     InvalidSortArity(Integer),
 
+    /// The number of datatype declarations given in a `declare-datatypes` command didn't match the
+    /// number of sorts declared beforehand.
+    #[error("expected {0} datatype declarations, got {1}")]
+    WrongNumberOfDatatypeDeclarations(usize, usize),
+
+    /// The number of parameters of a datatype in a `declare-datatypes` command didn't match the
+    /// arity declared beforehand.
+    #[error("expected {0} parameters for datatype based on declared arity, got {1}")]
+    WrongNumberOfDatatypeParams(usize, usize),
+
+    /// A `match` pattern contained an unknown constructor
+    #[error("unknown datatype constructor: {0}")]
+    UnknownConstructor(String),
+
     /// The parser encountered an empty subproof
     #[error("subproof '{0}' is empty")]
     EmptySubproof(String),

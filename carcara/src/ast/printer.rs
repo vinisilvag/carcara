@@ -3,8 +3,8 @@
 use crate::{
     ast::{
         pool::{PrimitivePool, TermPool},
-        AnchorArg, Binder, BindingList, Constant, Operator, ParamOperator, ProblemPrelude, Proof,
-        ProofCommand, ProofIter, ProofStep, Rc, Sort, SortedVar, Term,
+        AnchorArg, Binder, BindingList, Constant, MatchCase, MatchPattern, Operator, ParamOperator,
+        ProblemPrelude, Proof, ProofCommand, ProofIter, ProofStep, Rc, Sort, SortedVar, Term,
     },
     parser::Token,
     utils::{is_symbol_character, DedupIterator},
@@ -207,6 +207,14 @@ impl PrintWithSharing for ParamOperator {
     }
 }
 
+impl PrintWithSharing for MatchCase {
+    fn print_with_sharing(&self, p: &mut AlethePrinter) -> io::Result<()> {
+        write!(p.inner, "({} ", self.pattern)?;
+        self.body.print_with_sharing(p)?;
+        write!(p.inner, ")")
+    }
+}
+
 /// A pretty printer for Alethe proofs.
 pub struct AlethePrinter<'a> {
     pool: &'a mut PrimitivePool,
@@ -397,10 +405,10 @@ impl<'a> AlethePrinter<'a> {
                 term.print_with_sharing(self)?;
                 write!(self.inner, ")")
             }
-            Term::Match(term, patterns) => {
+            Term::Match(term, cases) => {
                 write!(self.inner, "(match {} (", term)?;
-                for (_, pattern, res) in patterns {
-                    write!(self.inner, "({} {})", pattern, res)?;
+                for case in cases {
+                    case.print_with_sharing(self)?;
                 }
                 write!(self.inner, ")")
             }
@@ -483,7 +491,11 @@ impl<'a> AlethePrinter<'a> {
     }
 }
 
-fn write_s_expr<H, T>(f: &mut fmt::Formatter, head: H, tail: &[T]) -> fmt::Result
+fn write_s_expr<H, T>(
+    f: &mut fmt::Formatter,
+    head: H,
+    tail: impl IntoIterator<Item = T>,
+) -> fmt::Result
 where
     H: fmt::Display,
     T: fmt::Display,
@@ -617,13 +629,31 @@ impl fmt::Display for Sort {
             Sort::Real => write!(f, "Real"),
             Sort::String => write!(f, "String"),
             Sort::RegLan => write!(f, "RegLan"),
-            Sort::Datatype(name, args) => write_s_expr(f, quote_symbol(name), args),
+            Sort::Datatype { name, args, .. } => write_s_expr(f, quote_symbol(name), args),
             Sort::Var(name) => write!(f, "{}", name),
-            Sort::ParamSort(args, s) => write!(f, "(par {:?} {})", args, s),
-            Sort::Array(x, y) => write_s_expr(f, "Array", &[x, y]),
+            Sort::ParamSort(args, s) => {
+                write!(f, "(par ")?;
+                write_s_expr(f, &args[0], &args[1..])?;
+                write!(f, " {})", s)
+            }
+            Sort::Array(x, y) => write_s_expr(f, "Array", [x, y]),
             Sort::BitVec(w) => write!(f, "(_ BitVec {})", w),
             Sort::ParamBitVec => write!(f, "(_ BitVec ?)"),
             Sort::Type => write!(f, "Type"),
+        }
+    }
+}
+
+impl fmt::Display for MatchPattern {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MatchPattern::Wildcard => write!(f, "_"),
+            MatchPattern::Variable((var, _)) => write!(f, "{}", quote_symbol(var)),
+            MatchPattern::Cons(cons, args) => write_s_expr(
+                f,
+                quote_symbol(cons),
+                args.iter().map(|(var, _)| quote_symbol(var)),
+            ),
         }
     }
 }

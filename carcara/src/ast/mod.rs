@@ -28,8 +28,8 @@ pub use proof::{AnchorArg, Proof, ProofCommand, ProofStep, Subproof};
 pub use rc::Rc;
 pub use substitution::{Substitution, SubstitutionError};
 pub use term::{
-    Binder, BindingList, Constant, NaryCase, Operator, ParamOperator, QualifiedOperator, Sort,
-    SortedVar, Term,
+    Binder, BindingList, Constant, MatchCase, MatchPattern, NaryCase, Operator, ParamOperator,
+    QualifiedOperator, Sort, SortedVar, Term,
 };
 
 pub(crate) use carcara_macros::match_term;

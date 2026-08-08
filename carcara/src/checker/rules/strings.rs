@@ -159,19 +159,16 @@ fn expand_string_constants(pool: &mut dyn TermPool, term: &Rc<Term>) -> Rc<Term>
                 .collect();
             pool.add(Term::AsOp(*op, sort.clone(), new_args))
         }
-        Term::Match(t, patterns) => {
+        Term::Match(t, cases) => {
             let new_t = expand_string_constants(pool, t);
-            let new_patterns = patterns
+            let new_cases = cases
                 .iter()
-                .map(|(vars, pattern, res)| {
-                    (
-                        vars.clone(),
-                        pattern.clone(),
-                        expand_string_constants(pool, res),
-                    )
+                .map(|case| crate::ast::MatchCase {
+                    pattern: case.pattern.clone(),
+                    body: expand_string_constants(pool, &case.body),
                 })
                 .collect();
-            pool.add(Term::Match(new_t, new_patterns))
+            pool.add(Term::Match(new_t, new_cases))
         }
         Term::Var(..) | Term::Const(_) | Term::Sort(_) => term.clone(),
     }

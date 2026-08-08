@@ -39,7 +39,7 @@ pub enum Term {
     /// A `match` term, consisting of a term to be matched and a
     /// sequence of (pattern,result) pairs, where each each pattern
     /// binds a number of variables
-    Match(Rc<Term>, Vec<(BindingList, Rc<Term>, Rc<Term>)>),
+    Match(Rc<Term>, Vec<MatchCase>),
 
     /// A parameterized operation term, that is, an operation term whose operator receives extra
     /// arguments (besides the regular operation arguments), denoted by the `((_ <op> <op_args>)
@@ -158,8 +158,17 @@ pub enum Sort {
     // TODO: actually perform this extra type checking
     ParamBitVec,
 
-    /// A datatype sort only has its name and its type parameters
-    Datatype(String, Vec<Rc<Term>>),
+    /// A datatype sort, specified by its name and the provided sort arguments.
+    ///
+    /// The actual contents of the datatype (that is, its constructors) are stored in the term pool,
+    /// indexed by the datatype name.
+    Datatype {
+        /// The unique name of this sort.
+        name: Box<str>,
+
+        /// The arguments that were provided to this sort (e.g., the `Int` in `(Option Int)`)
+        args: Vec<Rc<Term>>,
+    },
 
     // TODO delete this and incorporate it to function sort?
     /// A parametric sort, with a set of sort variables that can appear in the second argument.
@@ -535,6 +544,47 @@ pub enum Operator {
 
     /// The `@d` operator.
     Delete,
+}
+
+/// A case for a `match` term.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct MatchCase {
+    /// The case pattern.
+    pub pattern: MatchPattern,
+
+    /// The case body.
+    pub body: Rc<Term>,
+}
+
+impl MatchCase {
+    /// Returns a slice of variables bound by the case pattern.
+    pub fn bindings(&self) -> &[SortedVar] {
+        self.pattern.bindings()
+    }
+}
+
+/// A pattern for a `match` term.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum MatchPattern {
+    /// The `_` pattern.
+    Wildcard,
+
+    /// A single named variable.
+    Variable(SortedVar),
+
+    /// A constructor applied to a set of variables.
+    Cons(String, Vec<SortedVar>),
+}
+
+impl MatchPattern {
+    /// Returns a slice of variables bound by the pattern.
+    pub fn bindings(&self) -> &[SortedVar] {
+        match self {
+            MatchPattern::Wildcard => &[],
+            MatchPattern::Variable(var) => std::slice::from_ref(var),
+            MatchPattern::Cons(_, args) => args,
+        }
+    }
 }
 
 /// Represents the behaviour of an (otherwise binary) operator when applied to more than two
@@ -1121,14 +1171,14 @@ impl Term {
     pub fn is_sort_parametric(&self) -> bool {
         match self {
             Term::Sort(Sort::ParamSort(_, _)) => true,
-            Term::Sort(Sort::Datatype(_, args)) if !args.is_empty() => true,
+            Term::Sort(Sort::Datatype { args, .. }) if !args.is_empty() => true,
             _ => false,
         }
     }
 
     /// Returns `true` if the term is a user defined sort with arity zero, or a sort variable.
     pub fn is_sort_dt(&self) -> bool {
-        matches!(self, Term::Sort(Sort::Datatype(_, _)))
+        matches!(self, Term::Sort(Sort::Datatype { .. }))
     }
 
     /// Tries to unwrap an operation term, returning the `Operator` and the arguments. Returns
@@ -1353,9 +1403,12 @@ impl Sort {
                 a == b && all_compatible(sorts_a, sorts_b)
             }
             (Sort::Function(sorts_a), Sort::Function(sorts_b)) => all_compatible(sorts_a, sorts_b),
-            (Sort::Datatype(a, sorts_a), Sort::Datatype(b, sorts_b)) => {
-                a == b && all_compatible(sorts_a, sorts_b)
-            }
+            // The datatype name and arguments are sufficient to uniquely specify a datatype sort,
+            // so we don't need to look at the constructors
+            (
+                Sort::Datatype { name: name_a, args: args_a, .. },
+                Sort::Datatype { name: name_b, args: args_b, .. },
+            ) => name_a == name_b && all_compatible(args_a, args_b),
             (Sort::Array(x_a, y_a), Sort::Array(x_b, y_b)) => {
                 all_compatible([x_a, y_a], [x_b, y_b])
             }
@@ -1392,9 +1445,13 @@ impl Sort {
                 a == b && match_all(sorts_a, sorts_b, map)
             }
             (Sort::Function(sorts_a), Sort::Function(sorts_b)) => match_all(sorts_a, sorts_b, map),
-            (Sort::Datatype(a, sorts_a), Sort::Datatype(b, sorts_b)) => {
-                a == b && match_all(sorts_a, sorts_b, map)
-            }
+
+            // The datatype name and arguments are sufficient to uniquely specify a datatype sort,
+            // so we don't need to look at the constructors
+            (
+                Sort::Datatype { name: name_a, args: args_a, .. },
+                Sort::Datatype { name: name_b, args: args_b, .. },
+            ) => name_a == name_b && match_all(args_a, args_b, map),
             (Sort::Array(x_a, y_a), Sort::Array(x_b, y_b)) => {
                 match_all([x_a, y_a], [x_b, y_b], map)
             }
