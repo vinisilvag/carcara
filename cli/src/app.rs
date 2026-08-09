@@ -157,6 +157,11 @@ pub struct ParsingOptions {
     /// at the cost of increased memory usage.
     #[clap(long)]
     pub buffer_entire_file: bool,
+
+    /// Enables parsing of the old (SMT-LIB versions < 2.6) syntax for datatype testers, namely
+    /// `is-cons` instead of `(_ is cons)`.
+    #[clap(long)]
+    pub allow_legacy_tester_syntax: bool,
 }
 
 #[derive(ArgEnum, Clone, Copy, PartialEq, Eq)]
@@ -437,6 +442,7 @@ impl IntoConfig for ParsingOptions {
             .allow_higher_order_indexed_ops(false)
             .implicit_at_sort_alias(false)
             .relaxed_sort_checking(false)
+            .allow_legacy_tester_syntax(self.allow_legacy_tester_syntax)
     }
 }
 

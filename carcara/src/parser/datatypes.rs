@@ -171,6 +171,18 @@ impl<'p, 's> Parser<'p, 's> {
                     .add(Term::Sort(Sort::ParamSort(sort_params.clone(), inner_sort)))
             };
             self.insert_sorted_var((name.clone(), sort));
+
+            // If we are supporting legacy tester syntax, register a function symbol named
+            // `is-<cons>`, that serves the same purpose as the newer `(_ is <cons>)`.
+            if self.config.allow_legacy_tester_syntax {
+                let sort = Sort::Function(vec![
+                    return_sort.clone(),
+                    self.pool.add(Term::Sort(Sort::Bool)),
+                ]);
+                let sort = self.pool.add(Term::Sort(sort));
+                self.insert_sorted_var((format!("is-{}", name), sort));
+            }
+
             self.register_selectors(cons, &return_sort, &sort_params);
         }
     }

@@ -75,6 +75,10 @@ pub struct Config {
     /// (e.g. `(Array Int T)` and `(Array Int Real)`, where `T` is a sort variable) are considered
     /// equal for sort checking purposes.
     relaxed_sort_checking: bool,
+
+    /// If `true`, allow old (SMT-LIB versions < 2.6) syntax for datatype testers, namely `is-cons`
+    /// instead of `(_ is cons)`.
+    allow_legacy_tester_syntax: bool,
 }
 
 impl Config {
@@ -90,6 +94,7 @@ impl Config {
             allow_higher_order_indexed_ops: false,
             implicit_at_sort_alias: false,
             relaxed_sort_checking: false,
+            allow_legacy_tester_syntax: false,
         }
     }
 }
