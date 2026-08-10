@@ -9,6 +9,7 @@ use crate::{
     checker::{error::CongruenceError, rules::assert_operation_len},
     utils::{MultiSet, MultiSetDifference},
 };
+use std::collections::HashMap;
 
 pub fn reordering(RuleArgs { conclusion, premises, .. }: RuleArgs) -> RuleResult {
     assert_num_premises(premises, 1)?;
@@ -232,6 +233,83 @@ fn la_mult_generic(conclusion: &[Rc<Term>], is_pos: bool) -> RuleResult {
 
     assert_eq(l, l_1)?;
     assert_eq(r, r_2)
+}
+
+pub fn la_mult_sign(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Comparison {
+        Less,
+        Greater,
+        NotEq,
+    }
+
+    assert_clause_len(conclusion, 1)?;
+    let (comparisons, right) = match_term_err!((=> left right) = &conclusion[0])?;
+    let comparisons = match comparisons.as_ref() {
+        Term::Op(Operator::And, args) => args.as_slice(),
+        _ => std::slice::from_ref(comparisons),
+    };
+    let map: HashMap<_, _> = comparisons
+        .iter()
+        .map(|comp| {
+            if let Some(var) = match_term!((< var 0) = comp) {
+                Ok((var, Comparison::Less))
+            } else if let Some(var) = match_term!((> var 0) = comp) {
+                Ok((var, Comparison::Greater))
+            } else if let Some(var) = match_term!((not (= var 0)) = comp) {
+                Ok((var, Comparison::NotEq))
+            } else {
+                Err(CheckerError::ExpectedComparisonOp(comp.clone()))
+            }
+        })
+        .collect::<Result<_, _>>()?;
+
+    let (monomial, monomial_comp) = {
+        if let Some(var) = match_term!((< mono 0) = right) {
+            (var, Comparison::Less)
+        } else if let Some(var) = match_term!((> mono 0) = right) {
+            (var, Comparison::Greater)
+        } else {
+            return Err(CheckerError::ExpectedComparisonOp(right.clone()));
+        }
+    };
+    let monomial = match monomial.as_ref() {
+        Term::Op(Operator::Mult, args) => args.as_slice(),
+        _ => std::slice::from_ref(monomial),
+    };
+    let multiset: MultiSet<_> = monomial.iter().collect();
+
+    // We interate directly on the underlying hashmap of the multiset (`.0`), so we can get at the
+    // (term, quantity) pairs.
+    let got = multiset
+        .0
+        .into_iter()
+        .map(|(var, quantity)| {
+            let Some(comp) = map.get(var) else { todo!() };
+            // The contribution for this variable will always be `>` if its power is even
+            if quantity % 2 == 0 {
+                Comparison::Greater
+            } else {
+                *comp
+            }
+        })
+        .reduce(|a, b| match (a, b) {
+            // negative * negative = negative
+            (Comparison::Less, Comparison::Less) => Comparison::Greater,
+
+            // positive * whatever = whatever
+            (Comparison::Greater, other) | (other, Comparison::Greater) => other,
+
+            // otherwise we don't know the sign
+            (Comparison::NotEq, _) | (_, Comparison::NotEq) => Comparison::NotEq,
+        })
+        .unwrap();
+
+    if got == monomial_comp {
+        Ok(())
+    } else {
+        Err(CheckerError::LaMultSignWrongRelation(right.clone()))
+    }
 }
 
 pub fn mod_simplify(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {

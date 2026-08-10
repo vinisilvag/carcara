@@ -316,6 +316,7 @@ pub fn get_rule(
         "bind_let" => extras::bind_let,
         "la_mult_pos" => extras::la_mult_pos,
         "la_mult_neg" => extras::la_mult_neg,
+        "la_mult_sign" => extras::la_mult_sign,
         "mod_simplify" => extras::mod_simplify,
         "evaluate" => extras::evaluate,
         "beta_equiv" => extras::beta_equiv,

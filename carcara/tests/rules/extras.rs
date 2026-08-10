@@ -331,6 +331,48 @@ fn la_mult_neg() {
 }
 
 #[test]
+fn la_mult_sign() {
+    test_cases! {
+        definitions = "
+            (declare-fun a () Real)
+            (declare-fun b () Real)
+            (declare-fun c () Real)
+            (declare-fun d () Real)
+        ",
+        "Simple working examples" {
+            "(step t1 (cl (=> (> a 0.0) (> a 0.0))) :rule la_mult_sign)": true,
+
+            "(step t1 (cl (=>
+                (and (> a 0.0) (< b 0.0) (> c 0.0))
+                (< (* a b c) 0.0))
+            ) :rule la_mult_sign)": true,
+        }
+        "Even powers" {
+            "(step t1 (cl (=> (not (= a 0.0)) (> (* a a) 0.0))) :rule la_mult_sign)": true,
+        }
+        "Not using some variables" {
+            "(step t1 (cl (=>
+                (and (> a 0.0) (< b 0.0) (> c 0.0) (> d 0.0))
+                (< (* a b b b) 0.0))
+            ) :rule la_mult_sign)": true,
+        }
+        "Wrong relation" {
+            "(step t1 (cl (=>
+                (and (> a 0.0) (< b 0.0) (> c 0.0))
+                (> (* a b c) 0.0))
+            ) :rule la_mult_sign)": false,
+        }
+        "Could not calculate sign" {
+            // this is technically sound, but still an error
+            "(step t1 (cl (=>
+                (and (> a 0.0) (not (= b 0.0)) (> c 0.0))
+                (not (= (* a b c) 0.0)))
+            ) :rule la_mult_sign)": false,
+        }
+    }
+}
+
+#[test]
 fn mod_simplify() {
     test_cases! {
         definitions = "",

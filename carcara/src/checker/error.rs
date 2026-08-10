@@ -113,6 +113,12 @@ pub enum CheckerError {
     #[error("cannot evaluate term: '{0}'")]
     CannotEvaluateTerm(Rc<Term>),
 
+    #[error("expected comparison operation, got: '{0}'")]
+    ExpectedComparisonOp(Rc<Term>),
+
+    #[error("monomial relation does not match expected, got: '{0}'")]
+    LaMultSignWrongRelation(Rc<Term>),
+
     // General errors
     #[error("expected {0} premises, got {1}")]
     WrongNumberOfPremises(Range, usize),
