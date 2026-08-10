@@ -645,7 +645,7 @@ impl fmt::Display for Sort {
             Sort::RegLan => write!(f, "RegLan"),
             Sort::Datatype { name, args, .. } => write_s_expr(f, quote_symbol(name), args),
             Sort::Var(name) => write!(f, "{}", name),
-            Sort::ParamSort(args, s) => {
+            Sort::Par(args, s) => {
                 write!(f, "(par ")?;
                 write_s_expr(f, &args[0], &args[1..])?;
                 write!(f, " {})", s)

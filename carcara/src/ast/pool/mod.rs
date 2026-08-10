@@ -204,9 +204,6 @@ impl PrimitivePool {
                             (Sort::BitVec(a), Sort::BitVec(b)) => Sort::BitVec(a + b),
                             (Sort::BitVec(_) | Sort::ParamBitVec, Sort::ParamBitVec)
                             | (Sort::ParamBitVec, Sort::BitVec(_)) => Sort::ParamBitVec,
-                            (_, Sort::ParamSort(_, _)) | (Sort::ParamSort(_, _), _) => {
-                                Sort::ParamBitVec // TODO: handle this properly
-                            }
                             _ => unreachable!(),
                         },
                     );
@@ -273,7 +270,7 @@ impl PrimitivePool {
             Term::App(f, args) => {
                 match self.compute_sort(f).as_ref() {
                     Sort::Function(sorts) => sorts.last().unwrap().clone(),
-                    Sort::ParamSort(_, p_sort) => {
+                    Sort::Par(_, p_sort) => {
                         if let Sort::Function(sorts) = p_sort.as_ref() {
                             // match with sorts of args, apply the resulting substitution on the return sort
                             let mut map = IndexMap::new();
@@ -283,14 +280,7 @@ impl PrimitivePool {
                                     unreachable!();
                                 }
                             }
-                            let substitution: IndexMap<_, _> = map
-                                .into_iter()
-                                .map(|(var_name, sort)| {
-                                    let var = Sort::Var(var_name);
-                                    (self.add_sort(var), self.add_sort(sort))
-                                })
-                                .collect();
-                            SortSubstitution::new(substitution).apply(self, sorts.last().unwrap())
+                            SortSubstitution::new(map).apply(self, sorts.last().unwrap())
                         } else {
                             unreachable!()
                         }

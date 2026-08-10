@@ -147,11 +147,6 @@ impl<'p, 's> Parser<'p, 's> {
                 .collect(),
         };
         let return_sort = self.pool.add_sort(return_sort);
-        let sort_params: Vec<_> = datatype
-            .params
-            .iter()
-            .map(|param| self.pool.add_sort(Sort::Var(param.clone())))
-            .collect();
         for (name, cons) in &datatype.constructors {
             let inner_sort = if cons.selectors.is_empty() {
                 return_sort.clone()
@@ -164,11 +159,11 @@ impl<'p, 's> Parser<'p, 's> {
                     .collect();
                 self.pool.add_sort(Sort::Function(sorts))
             };
-            let sort = if sort_params.is_empty() {
+            let sort = if datatype.params.is_empty() {
                 inner_sort
             } else {
                 self.pool
-                    .add_sort(Sort::ParamSort(sort_params.clone(), inner_sort))
+                    .add_sort(Sort::Par(datatype.params.clone(), inner_sort))
             };
             self.insert_sorted_var((name.clone(), sort));
 
@@ -181,7 +176,7 @@ impl<'p, 's> Parser<'p, 's> {
                 self.insert_sorted_var((format!("is-{}", name), sort));
             }
 
-            self.register_selectors(cons, &return_sort, &sort_params);
+            self.register_selectors(cons, &return_sort, &datatype.params);
         }
     }
 
@@ -201,7 +196,7 @@ impl<'p, 's> Parser<'p, 's> {
         &mut self,
         constructor: &DatatypeConstructor,
         datatype_sort: &Rc<Sort>,
-        sort_params: &[Rc<Sort>],
+        sort_params: &[String],
     ) {
         for (name, selector_sort) in &constructor.selectors {
             let inner_sort = self.pool.add_sort(Sort::Function(vec![
@@ -212,7 +207,7 @@ impl<'p, 's> Parser<'p, 's> {
                 inner_sort
             } else {
                 self.pool
-                    .add_sort(Sort::ParamSort(sort_params.to_vec(), inner_sort))
+                    .add_sort(Sort::Par(sort_params.to_vec(), inner_sort))
             };
             self.insert_sorted_var((name.clone(), sort));
         }

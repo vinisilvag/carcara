@@ -204,7 +204,7 @@ struct SortDef {
 struct ParserState {
     symbol_table: HashMapStack<HashCache<String>, Rc<Sort>>,
     function_defs: IndexMap<String, FunctionDef>,
-    sort_declarations: HashMapStack<String, usize>,
+    sort_declarations: IndexMap<String, usize>,
     datatype_declarations: HashMapStack<String, usize>,
     sort_defs: IndexMap<String, SortDef>,
     step_ids: HashMapStack<HashCache<String>, usize>,
@@ -722,7 +722,7 @@ impl<'p, 's> Parser<'p, 's> {
         let sorts = {
             if let Sort::Function(sorts) = sort.as_ref() {
                 sorts
-            } else if let Sort::ParamSort(_, p_sort) = sort.as_ref() {
+            } else if let Sort::Par(_, p_sort) = sort.as_ref() {
                 if let Sort::Function(sorts) = p_sort.as_ref() {
                     param_function = true;
                     sorts
@@ -1457,14 +1457,15 @@ impl<'p, 's> Parser<'p, 's> {
         self.expect_token(Token::OpenParen)?;
         let params = self.parse_sequence(Self::expect_symbol, false)?;
 
-        // In order to correctly parse the sort definition, we push a new scope to the sort
-        // declarations table and add the sort parameters to it.
-        self.state.sort_declarations.push_scope();
+        // In order to correctly parse the sort definition, we push a new scope to the symbol table
+        // and add the sort parameters to it.
+        self.state.symbol_table.push_scope();
         for s in &params {
-            self.state.sort_declarations.insert(s.clone(), 0);
+            let sort = self.pool.add_sort(Sort::Type);
+            self.insert_sorted_var((s.clone(), sort));
         }
         let body = self.parse_sort()?;
-        self.state.sort_declarations.pop_scope();
+        self.state.symbol_table.pop_scope();
 
         self.expect_token(Token::CloseParen)?;
 
@@ -1834,7 +1835,7 @@ impl<'p, 's> Parser<'p, 's> {
                                 .make_var(op_symbol.clone())
                                 .map_err(|err| Error::Parser(err, self.current_position))?;
                             let var_sort = self.pool.sort(&var);
-                            if var_sort.is_parametric() {
+                            if var_sort.is_par() {
                                 let sort = self.parse_sort()?;
                                 self.expect_token(Token::CloseParen)?;
                                 // TODO test unification
@@ -1964,40 +1965,31 @@ impl<'p, 's> Parser<'p, 's> {
                                 .make_var(op_symbol.clone())
                                 .map_err(|err| Error::Parser(err, self.current_position))?;
                             let var_sort = self.pool.sort(&var);
-                            if var_sort.is_parametric() {
-                                if let Sort::ParamSort(_, f_sort) = var_sort.as_ref() {
-                                    if let Sort::Function(sorts) = f_sort.as_ref() {
-                                        let sort = self.parse_sort()?;
-                                        self.expect_token(Token::CloseParen)?;
-                                        // unify return sort with as_sort
-                                        let ret_sort = sorts.last().unwrap();
-                                        let mut map = IndexMap::<_, _>::new();
-                                        if !ret_sort.match_with(&sort, &mut map) {
-                                            return Err(Error::Parser(
-                                                ParserError::IncompatibleSorts(
-                                                    ret_sort.clone(),
-                                                    sort.clone(),
-                                                ),
-                                                self.current_position,
-                                            ));
-                                        }
-                                        let substitution: IndexMap<_, _> = map
-                                            .into_iter()
-                                            .map(|(var, sort)| {
-                                                let var = Sort::Var(var);
-                                                (self.pool.add_sort(var), self.pool.add_sort(sort))
-                                            })
-                                            .collect();
-                                        // if types are unifiable, create variable with sort after applying the substitution
-                                        let result = SortSubstitution::new(substitution)
-                                            .apply(self.pool, &var_sort);
-                                        let func = self.pool.add(Term::new_var(op_symbol, result));
-                                        // now apply it to args
-                                        let args = self.parse_sequence(Self::parse_term, true)?;
-                                        return self
-                                            .make_app(func, args)
-                                            .map_err(|err| Error::Parser(err, head_pos));
+                            if let Sort::Par(_, f_sort) = var_sort.as_ref() {
+                                if let Sort::Function(sorts) = f_sort.as_ref() {
+                                    let sort = self.parse_sort()?;
+                                    self.expect_token(Token::CloseParen)?;
+                                    // unify return sort with as_sort
+                                    let ret_sort = sorts.last().unwrap();
+                                    let mut map = IndexMap::<_, _>::new();
+                                    if !ret_sort.match_with(&sort, &mut map) {
+                                        return Err(Error::Parser(
+                                            ParserError::IncompatibleSorts(
+                                                ret_sort.clone(),
+                                                sort.clone(),
+                                            ),
+                                            self.current_position,
+                                        ));
                                     }
+                                    // if types are unifiable, create variable with sort after applying the substitution
+                                    let result =
+                                        SortSubstitution::new(map).apply(self.pool, &var_sort);
+                                    let func = self.pool.add(Term::new_var(op_symbol, result));
+                                    // now apply it to args
+                                    let args = self.parse_sequence(Self::parse_term, true)?;
+                                    return self
+                                        .make_app(func, args)
+                                        .map_err(|err| Error::Parser(err, head_pos));
                                 }
                             }
                             Err(Error::Parser(
@@ -2066,17 +2058,7 @@ impl<'p, 's> Parser<'p, 's> {
                 } else if def.params.is_empty() {
                     Ok(def.body.clone())
                 } else {
-                    let substitution = def
-                        .params
-                        .iter()
-                        .cloned()
-                        .map(|name| {
-                            self.pool
-                                .add_sort(Sort::Atom(name.into_boxed_str(), Box::new([])))
-                        })
-                        .zip(args)
-                        .collect();
-
+                    let substitution = def.params.iter().cloned().zip(args).collect();
                     let result = SortSubstitution::new(substitution).apply(self.pool, &def.body);
                     Ok(result)
                 };

@@ -431,13 +431,13 @@ impl BindingValue for Rc<Sort> {
 #[derive(Debug, Clone)]
 pub struct SortSubstitution {
     /// The substitution's mappings.
-    map: IndexMap<Rc<Sort>, Rc<Sort>>,
+    map: IndexMap<String, Rc<Sort>>,
     cache: IndexMap<Rc<Sort>, Rc<Sort>>,
 }
 
 impl SortSubstitution {
-    /// Constructs a new substitution from an arbitrary mapping of sorts to other sorts.
-    pub fn new(map: IndexMap<Rc<Sort>, Rc<Sort>>) -> Self {
+    /// Constructs a new substitution from an arbitrary mapping of sort variables to other sorts.
+    pub fn new(map: IndexMap<String, Rc<Sort>>) -> Self {
         Self { map, cache: IndexMap::new() }
     }
 
@@ -455,11 +455,11 @@ impl SortSubstitution {
         if let Some(t) = self.cache.get(sort) {
             return t.clone();
         }
-        if let Some(t) = self.map.get(sort) {
-            return t.clone();
-        }
 
         let result = match sort.as_ref() {
+            Sort::Var(var) if self.map.contains_key(var) => {
+                return self.map.get(var).unwrap().clone()
+            }
             Sort::Atom(sort, args) => {
                 let new_args = apply_to_sequence!(args).into_boxed_slice();
                 pool.add_sort(Sort::Atom(sort.clone(), new_args))
@@ -476,7 +476,7 @@ impl SortSubstitution {
                 let new_args = apply_to_sequence!(args);
                 pool.add_sort(Sort::Datatype { name: name.clone(), args: new_args })
             }
-            Sort::ParamSort(vars, sort) => {
+            Sort::Par(vars, sort) => {
                 let new_sort = self.apply(pool, sort);
                 let new_vars: Vec<_> = vars
                     .iter()
@@ -486,7 +486,7 @@ impl SortSubstitution {
                 if new_vars.is_empty() {
                     new_sort
                 } else {
-                    pool.add_sort(Sort::ParamSort(new_vars, new_sort))
+                    pool.add_sort(Sort::Par(new_vars, new_sort))
                 }
             }
             Sort::Var(_)

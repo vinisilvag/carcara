@@ -102,37 +102,22 @@ pub enum Sort {
         args: Vec<Rc<Sort>>,
     },
 
-    // TODO delete this and incorporate it to function sort?
     /// A parametric sort, with a set of sort variables that can appear in the second argument.
-    ParamSort(Vec<Rc<Sort>>, Rc<Sort>),
+    Par(Vec<String>, Rc<Sort>),
 
     /// The sort of sorts.
     Type,
 }
 
 impl Sort {
-    /// Returns `true` if the sort is a sort variable.
-    pub fn is_var(&self) -> bool {
-        match self {
-            // TODO: double representation of sort vars?
-            Sort::Atom(_, args) if args.is_empty() => true,
-            Sort::Var(_) => true,
-            _ => false,
-        }
-    }
-
     /// Returns `true` if the sort is a bitvector sort of any width.
     pub fn is_bitvec(&self) -> bool {
         matches!(self, Sort::BitVec(_) | Sort::ParamBitVec)
     }
 
-    /// Returns `true` if the sort is a datatype sort.
-    pub fn is_datatype(&self) -> bool {
-        matches!(self, Sort::Datatype { .. })
-    }
-
-    pub fn is_parametric(&self) -> bool {
-        matches!(self, Sort::ParamSort(_, _))
+    /// Returns `true` if the sort is a parametric sort.
+    pub fn is_par(&self) -> bool {
+        matches!(self, Sort::Par(_, _))
     }
 
     /// Whether this sort is equal to another, modulo bitvector sorts with width parameters that are
@@ -176,15 +161,15 @@ impl Sort {
     /// can find a substitution to the sort variables of `self` that
     /// will make it equal to `target`. The map argument will store the
     /// substitution
-    pub fn match_with(&self, target: &Sort, map: &mut IndexMap<String, Sort>) -> bool {
-        fn match_all<'i, I>(xs: I, ys: I, map: &mut IndexMap<String, Sort>) -> bool
+    pub fn match_with(&self, target: &Rc<Sort>, map: &mut IndexMap<String, Rc<Sort>>) -> bool {
+        fn match_all<'i, I>(xs: I, ys: I, map: &mut IndexMap<String, Rc<Sort>>) -> bool
         where
             I: IntoIterator<Item = &'i Rc<Sort>>,
         {
             xs.into_iter().zip(ys).all(|(x, y)| x.match_with(y, map))
         }
 
-        match (self, target) {
+        match (self, target.as_ref()) {
             (Sort::Var(a), _) => {
                 match map.entry(a.clone()) {
                     Entry::Vacant(e) => e.insert(target.clone()),
