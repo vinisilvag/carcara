@@ -1,3 +1,4 @@
+// TODO: add tests for these rules
 use super::{
     assert_clause_len, assert_eq, assert_num_premises, assert_polyeq, get_premise_term,
     CheckerError, RuleArgs, RuleResult,
@@ -44,10 +45,13 @@ pub fn row_contra(RuleArgs { conclusion, premises, .. }: RuleArgs) -> RuleResult
     assert_eq(jp1, jp2)?;
     // arrays are the same in the lhs and rhs of the premise
     assert_eq(a1, a2)?;
-    // indices are the same in conclusion and premise
-    assert_eq(ip, ic)?;
-    assert_eq(jp2, jc)?;
-    Ok(())
+    // indices are the same in conclusion and premise, but conclusion might be flipped
+    if ip != ic {
+        assert_eq(ip, jc)?;
+        assert_eq(jp2, ic)
+    } else {
+        assert_eq(jp2, jc)
+    }
 }
 
 pub fn ext(
