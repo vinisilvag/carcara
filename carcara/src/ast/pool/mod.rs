@@ -286,24 +286,41 @@ impl PrimitivePool {
                 | Operator::Arccot => self.sorts.add(Sort::Real),
             },
             Term::App(f, args) => {
-                match self.compute_sort(f).as_ref() {
-                    Sort::Function(sorts) => sorts.last().unwrap().clone(),
-                    Sort::Par(_, p_sort) => {
-                        if let Sort::Function(sorts) = p_sort.as_ref() {
-                            // match with sorts of args, apply the resulting substitution on the return sort
-                            let mut map = IndexMap::new();
-                            for i in 0..args.len() {
-                                let arg_sort_i = self.compute_sort(&args[i]);
-                                if !sorts[i].match_with(&arg_sort_i, &mut map) {
-                                    unreachable!();
-                                }
-                            }
-                            SortSubstitution::new(map).apply(self, sorts.last().unwrap())
+                let func_sort = self.compute_sort(f);
+                let (is_parametric, sorts) = match func_sort.as_ref() {
+                    Sort::Function(sorts) => (false, sorts),
+                    Sort::Par(_, inner) => {
+                        if let Sort::Function(sorts) = inner.as_ref() {
+                            (true, sorts)
                         } else {
                             unreachable!()
                         }
                     }
                     _ => unreachable!(), // We assume that the function is correctly sorted
+                };
+
+                // If all arguments were provided, we just have the return sort of the function.
+                // Otherwise, we get back a partially applied function sort.
+                let applied = if args.len() + 1 == sorts.len() {
+                    sorts.last().unwrap().clone()
+                } else {
+                    let remaining_sorts = sorts[args.len()..].to_vec();
+                    self.sorts.add(Sort::Function(remaining_sorts))
+                };
+
+                // If parametric, match with sorts of args, apply the resulting substitution on
+                // the sort
+                if is_parametric {
+                    let mut map = IndexMap::new();
+                    for i in 0..args.len() {
+                        let arg_sort_i = self.compute_sort(&args[i]);
+                        if !sorts[i].match_with(&arg_sort_i, &mut map) {
+                            unreachable!();
+                        }
+                    }
+                    SortSubstitution::new(map).apply(self, &applied)
+                } else {
+                    applied
                 }
             }
             Term::Binder(Binder::Forall | Binder::Exists, _, _) => self.sorts.add(Sort::Bool),

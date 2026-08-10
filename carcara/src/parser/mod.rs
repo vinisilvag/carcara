@@ -759,7 +759,8 @@ impl<'p, 's> Parser<'p, 's> {
                 return Err(ParserError::NotAFunction(sort.clone()));
             }
         };
-        assert_num_args(&args, sorts.len() - 1)?;
+        // We allow partial application
+        assert_num_args(&args, 1..sorts.len())?;
         let mut map = IndexMap::new();
         for i in 0..args.len() {
             let arg_sort_i = self.pool.sort(&args[i]);
