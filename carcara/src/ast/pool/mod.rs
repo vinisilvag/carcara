@@ -232,9 +232,11 @@ impl PrimitivePool {
                     y.clone()
                 }
                 Operator::Store => self.compute_sort(&args[0]),
-                Operator::StrLen | Operator::IndexOf | Operator::StrToCode | Operator::StrToInt => {
-                    self.sorts.add(Sort::Int)
-                }
+                Operator::StrLen
+                | Operator::IndexOf
+                | Operator::IndexOfRe
+                | Operator::StrToCode
+                | Operator::StrToInt => self.sorts.add(Sort::Int),
                 Operator::StrConcat
                 | Operator::CharAt
                 | Operator::Substring
@@ -266,6 +268,22 @@ impl PrimitivePool {
                 },
                 Operator::Pow2 | Operator::Log2 => self.sorts.add(Sort::Int),
                 Operator::IsPow2 => self.sorts.add(Sort::Bool),
+
+                Operator::RealPi
+                | Operator::Sqrt
+                | Operator::Exp
+                | Operator::Sin
+                | Operator::Cos
+                | Operator::Tan
+                | Operator::Csc
+                | Operator::Sec
+                | Operator::Cot
+                | Operator::Arcsin
+                | Operator::Arccos
+                | Operator::Arctan
+                | Operator::Arccsc
+                | Operator::Arcsec
+                | Operator::Arccot => self.sorts.add(Sort::Real),
             },
             Term::App(f, args) => {
                 match self.compute_sort(f).as_ref() {

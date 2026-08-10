@@ -317,6 +317,24 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
             let v = args[0].as_int()?;
             Value::Bool(v.is_power_of_two())
         }
+
+        // TODO: Transcendentals
+        Operator::RealPi
+        | Operator::Sqrt
+        | Operator::Exp
+        | Operator::Sin
+        | Operator::Cos
+        | Operator::Tan
+        | Operator::Csc
+        | Operator::Sec
+        | Operator::Cot
+        | Operator::Arcsin
+        | Operator::Arccos
+        | Operator::Arctan
+        | Operator::Arccsc
+        | Operator::Arcsec
+        | Operator::Arccot => return None,
+
         Operator::LessThan => comparison_op!(<, args),
         Operator::GreaterThan => comparison_op!(>, args),
         Operator::LessEq => comparison_op!(<=, args),
@@ -340,6 +358,7 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
         | Operator::SuffixOf
         | Operator::Contains
         | Operator::IndexOf
+        | Operator::IndexOfRe
         | Operator::Replace
         | Operator::ReplaceAll
         | Operator::ReplaceRe

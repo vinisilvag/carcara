@@ -537,6 +537,12 @@ impl<'p, 's> Parser<'p, 's> {
                 self.check_sort_eq(&Sort::String, &sorts[1])?;
                 self.check_sort_eq(&Sort::Int, &sorts[2])?;
             }
+            Operator::IndexOfRe => {
+                assert_num_args(&args, 3)?;
+                self.check_sort_eq(&Sort::String, &sorts[0])?;
+                self.check_sort_eq(&Sort::RegLan, &sorts[1])?;
+                self.check_sort_eq(&Sort::Int, &sorts[2])?;
+            }
             Operator::Replace | Operator::ReplaceAll => {
                 assert_num_args(&args, 3)?;
                 self.check_sort_eq(&Sort::String, &sorts[0])?;
@@ -685,6 +691,24 @@ impl<'p, 's> Parser<'p, 's> {
             Operator::Pow2 | Operator::Log2 | Operator::IsPow2 => {
                 assert_num_args(&args, 1)?;
                 self.check_sort_eq(&Sort::Int, &sorts[0])?;
+            }
+            Operator::RealPi => assert_num_args(&args, 0)?,
+            Operator::Sqrt
+            | Operator::Exp
+            | Operator::Sin
+            | Operator::Cos
+            | Operator::Tan
+            | Operator::Csc
+            | Operator::Sec
+            | Operator::Cot
+            | Operator::Arcsin
+            | Operator::Arccos
+            | Operator::Arctan
+            | Operator::Arccsc
+            | Operator::Arcsec
+            | Operator::Arccot => {
+                assert_num_args(&args, 1)?;
+                self.check_sort_eq(&Sort::Real, &sorts[0])?;
             }
         }
         Ok(self.pool.add(Term::Op(op, args)))

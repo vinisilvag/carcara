@@ -203,6 +203,55 @@ pub enum Operator {
     /// The `int.log2` operator.
     Log2,
 
+    // Transcendentals
+    //
+    // These operators are from cvc5's "Transcendentals" theory extension, see:
+    // https://cvc5.github.io/docs-ci/docs-main/theories/transcendentals.html
+    /// The `sqrt` operator.
+    RealPi,
+
+    /// The `sqrt` operator.
+    Sqrt,
+
+    /// The `exp` operator.
+    Exp,
+
+    /// The `sin` operator.
+    Sin,
+
+    /// The `cos` operator.
+    Cos,
+
+    /// The `tan` operator.
+    Tan,
+
+    /// The `csc` operator.
+    Csc,
+
+    /// The `sec` operator.
+    Sec,
+
+    /// The `cot` operator.
+    Cot,
+
+    /// The `arcsin` operator.
+    Arcsin,
+
+    /// The `arccos` operator.
+    Arccos,
+
+    /// The `arctan` operator.
+    Arctan,
+
+    /// The `arccsc` operator.
+    Arccsc,
+
+    /// The `arcsec` operator.
+    Arcsec,
+
+    /// The `arccot` operator.
+    Arccot,
+
     // Arrays
     /// The `select` operator.
     Select,
@@ -240,6 +289,12 @@ pub enum Operator {
 
     /// The `str.indexof` operator.
     IndexOf,
+
+    /// The `str.indexof_re` operator.
+    ///
+    /// This operator is not standard SMT-LIB, but from an extension of the Strings theory used
+    /// by cvc5. We have support for it to facilitate checking cvc5 proofs.
+    IndexOfRe,
 
     /// The `str.replace` operator.
     Replace,
@@ -535,6 +590,23 @@ impl Operator {
             | Operator::ToInt
             | Operator::IsInt => None,
 
+            // Transcendentals
+            Operator::RealPi
+            | Operator::Sqrt
+            | Operator::Exp
+            | Operator::Sin
+            | Operator::Cos
+            | Operator::Tan
+            | Operator::Csc
+            | Operator::Sec
+            | Operator::Cot
+            | Operator::Arcsin
+            | Operator::Arccos
+            | Operator::Arctan
+            | Operator::Arccsc
+            | Operator::Arcsec
+            | Operator::Arccot => None,
+
             // Arrays
             Operator::Select | Operator::Store => None,
 
@@ -553,6 +625,7 @@ impl Operator {
             | Operator::SuffixOf
             | Operator::Contains
             | Operator::IndexOf
+            | Operator::IndexOfRe
             | Operator::Replace
             | Operator::ReplaceAll
             | Operator::ReplaceRe
@@ -696,6 +769,22 @@ impl_str_conversion_traits!(Operator {
     IsPow2: "int.ispow2",
     Log2: "int.log2",
 
+    RealPi: "real.pi",
+    Sqrt: "sqrt",
+    Exp: "exp",
+    Sin: "sin",
+    Cos: "cos",
+    Tan: "tan",
+    Csc: "csc",
+    Sec: "sec",
+    Cot: "cot",
+    Arcsin: "arcsin",
+    Arccos: "arccos",
+    Arctan: "arctan",
+    Arccsc: "arccsc",
+    Arcsec: "arcsec",
+    Arccot: "arccot",
+
     Select: "select",
     Store: "store",
 
@@ -709,6 +798,7 @@ impl_str_conversion_traits!(Operator {
     SuffixOf: "str.suffixof",
     Contains: "str.contains",
     IndexOf: "str.indexof",
+    IndexOfRe: "str.indexof_re",
     Replace: "str.replace",
     ReplaceAll: "str.replace_all",
     ReplaceRe: "str.replace_re",
