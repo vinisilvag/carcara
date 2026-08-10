@@ -394,3 +394,119 @@ fn evaluate() {
         }
     }
 }
+
+#[test]
+fn beta_equiv() {
+    test_cases! {
+        definitions = "",
+        "Simple working examples" {
+            "(step t1 (cl (= ((lambda ((a Int) (b Int) (c Int)) (+ a b c)) 1 2 3) (+ 1 2 3)))
+                :rule beta_equiv)": true,
+
+            "(step t1 (cl (=
+                ((lambda ((a Int) (b Int) (c Int)) (+ a b c)) 1)
+                (lambda ((b Int) (c Int)) (+ 1 b c))
+            )) :rule beta_equiv)": true,
+        }
+        "Not an application" {
+            "(step t1 (cl (=
+                (lambda ((a Int) (b Int) (c Int)) (+ a b c))
+                (lambda ((a Int) (b Int) (c Int)) (+ a b c))
+            )) :rule beta_equiv)": false,
+        }
+        "Wrong arg names" {
+            "(step t1 (cl (=
+                ((lambda ((a Int) (b Int) (c Int)) (+ a b c)) 1)
+                (lambda ((c Int) (b Int)) (+ 1 c b))
+            )) :rule beta_equiv)": false,
+        }
+        "Wrong body" {
+            "(step t1 (cl (=
+                ((lambda ((a Int) (b Int) (c Int)) (+ a b c)) 1)
+                (lambda ((b Int) (c Int)) (+ 1 c b))
+            )) :rule beta_equiv)": false,
+        }
+    }
+}
+
+#[test]
+fn div_intro() {
+    test_cases! {
+        definitions = "
+            (declare-const a Int)
+        ",
+        "Simple working examples" {
+            "(step t1 (cl (and (<= (* 5 (div a 5)) a) (< a (* 5 (+ (div a 5) 1)))))
+                :rule div_intro)": true,
+
+            "(step t1 (cl (and
+                (<= (* (- 5) (div a (- 5))) a)
+                (< a (* (- 5) (+ (div a (- 5)) (- 1))))
+            )) :rule div_intro)": true,
+        }
+        "Division by 0!" {
+            "(step t1 (cl (and (<= (* 0 (div a 0)) a) (< a (* 0 (+ (div a 0) 1)))))
+                :rule div_intro)": false,
+        }
+        "Different values of b" {
+            "(step t1 (cl (and (<= (* 5 (div a 3)) a) (< a (* 5 (+ (div a 5) 1)))))
+                :rule div_intro)": false,
+        }
+        "Wrong coefficient" {
+            "(step t1 (cl (and (<= (* 5 (div a 5)) a) (< a (* 5 (+ (div a 5) 2)))))
+                :rule div_intro)": false,
+
+            "(step t1 (cl (and (<= (* 5 (div a 5)) a) (< a (* 5 (+ (div a 5) (- 1))))))
+                :rule div_intro)": false,
+
+            "(step t1 (cl (and
+                (<= (* (- 5) (div a (- 5))) a)
+                (< a (* (- 5) (+ (div a (- 5)) 1)))
+            )) :rule div_intro)": false,
+        }
+    }
+}
+
+#[test]
+fn log2_intro() {
+    test_cases! {
+        definitions = "
+            (declare-const x Int)
+            (declare-const y Int)
+        ",
+        "Simple working examples" {
+            "(step t1 (cl (and
+                (=> (< 0 x)
+                    (and (<= (int.pow2 (int.log2 x)) x) (< x (int.pow2 (+ (int.log2 x) 1)))))
+                (=> (not (< 0 x)) (= (int.log2 x) 0))
+            )) :rule log2_intro)": true,
+        }
+        "Different values of x" {
+            "(step t1 (cl (and
+                (=> (< 0 x)
+                    (and (<= (int.pow2 (int.log2 x)) y) (< x (int.pow2 (+ (int.log2 x) 1)))))
+                (=> (not (< 0 x)) (= (int.log2 x) 0))
+            )) :rule log2_intro)": false,
+        }
+    }
+}
+
+#[test]
+fn to_int_intro() {
+    test_cases! {
+        definitions = "
+            (declare-const x Real)
+            (declare-const y Real)
+        ",
+        "Simple working examples" {
+            "(step t1 (cl
+                (and (<= 0 (- x (to_real (to_int x)))) (< (- x (to_real (to_int x))) 1))
+            ) :rule to_int_intro)": true,
+        }
+        "Different values of x" {
+            "(step t1 (cl
+                (and (<= 0 (- x (to_real (to_int x)))) (< (- y (to_real (to_int x))) 1))
+            ) :rule to_int_intro)": false,
+        }
+    }
+}

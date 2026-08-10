@@ -318,6 +318,10 @@ pub fn get_rule(
         "la_mult_neg" => extras::la_mult_neg,
         "mod_simplify" => extras::mod_simplify,
         "evaluate" => extras::evaluate,
+        "beta_equiv" => extras::beta_equiv,
+        "div_intro" => extras::div_intro,
+        "log2_intro" => extras::log2_intro,
+        "to_int_intro" => extras::to_int_intro,
 
         "bitblast_const" => bitvectors::value,
         "bitblast_var" => bitvectors::var,

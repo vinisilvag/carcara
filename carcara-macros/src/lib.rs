@@ -208,7 +208,7 @@ fn parse_pat(tt: TokenTree, ctx: &mut ParseCtx) -> Pat {
             // so patterns like (forall blah t) or (forall foo bar t) are rejected.
             if let TokenTree::Ident(id) = &tokens[0] {
                 let name = id.to_string();
-                if matches!(name.as_str(), "forall" | "exists" | "choice") {
+                if matches!(name.as_str(), "forall" | "exists" | "choice" | "lambda") {
                     assert!(
                         tokens.len() == 5,
                         "binder pattern must be ({name} ... <body>), got {} tokens",
@@ -294,6 +294,11 @@ fn op_to_variant(op: &str) -> TokenStream2 {
         "<=" => quote! { crate::ast::Operator::LessEq },
         ">=" => quote! { crate::ast::Operator::GreaterEq },
         "to_real" => quote! { crate::ast::Operator::ToReal },
+        "to_int" => quote! { crate::ast::Operator::ToInt },
+
+        // TODO: we should support dots in operators for these cases
+        "int_pow2" => quote! { crate::ast::Operator::Pow2 },
+        "int_log2" => quote! { crate::ast::Operator::Log2 },
 
         // Clause / delete
         "cl" => quote! { crate::ast::Operator::Cl },
@@ -524,6 +529,7 @@ fn gen_match(pat: &Pat, var: &TokenStream2, inner: TokenStream2, ctr: &mut usize
                 "forall" => quote! { crate::ast::Binder::Forall },
                 "exists" => quote! { crate::ast::Binder::Exists },
                 "choice" => quote! { crate::ast::Binder::Choice },
+                "lambda" => quote! { crate::ast::Binder::Lambda },
                 other => panic!("unknown binder in match_term_flat!: {other}"),
             };
 

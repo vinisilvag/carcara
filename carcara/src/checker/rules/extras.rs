@@ -269,3 +269,75 @@ pub fn evaluate(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
     let (term, value) = match_term_err!((= term value) = &conclusion[0])?;
     assert_eq(&term.evaluate(pool), value)
 }
+
+pub fn beta_equiv(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    assert_clause_len(conclusion, 1)?;
+    let (left, right) = match_term_err!((= left right) = &conclusion[0])?;
+
+    let Term::App(lambda, args) = left.as_ref() else {
+        return Err(CheckerError::TermOfWrongForm(
+            "((lambda ... body) args)",
+            left.clone(),
+        ));
+    };
+    let (left_bindings, left) = match_term_err!((lambda ... body) = lambda)?;
+
+    let (right_bindings, right) = if args.len() == left_bindings.len() {
+        (BindingList::EMPTY, right)
+    } else {
+        match_term_err!((lambda ... body) = right)?
+    };
+
+    let remaining_bindings = &left_bindings[args.len()..];
+    if remaining_bindings != right_bindings.as_slice() {
+        // We avoid calling `to_vec` until we know for sure the rule will fail
+        let list = BindingList(remaining_bindings.to_vec());
+        return Err(EqualityError::ExpectedEqual(list, right_bindings.clone()).into());
+    }
+
+    let substitution = left_bindings
+        .iter()
+        .zip(args)
+        .map(|(var, value)| (pool.add(var.clone().into()), value.clone()))
+        .collect();
+    let reduced = Substitution::new(pool, substitution)?.apply(pool, left);
+    assert_eq(&reduced, right)
+}
+
+pub fn div_intro(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
+    assert_clause_len(conclusion, 1)?;
+
+    let (b, _, c) =
+        match_term_err!((and (<= (* b (div a b)) a) (< a (* b (+ (div a b) c)))) = &conclusion[0])?;
+
+    let b = b.as_signed_number_err()?;
+    if b.is_zero() {
+        return Err(CheckerError::DivOrModByZero);
+    }
+    let expected = if b.is_positive() { 1 } else { -1 };
+    if c.as_signed_number_err()? != expected {
+        return Err(CheckerError::ExpectedNumber(expected.into(), c.clone()));
+    }
+
+    Ok(())
+}
+
+pub fn log2_intro(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
+    assert_clause_len(conclusion, 1)?;
+    match_term_err!(
+        (and
+            (=> (< 0 x) (and (<= (int_pow2 (int_log2 x)) x) (< x (int_pow2 (+ (int_log2 x) 1)))))
+            (=> (not (< 0 x)) (= (int_log2 x) 0))
+        ) = &conclusion[0]
+    )?;
+    Ok(())
+}
+
+pub fn to_int_intro(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
+    assert_clause_len(conclusion, 1)?;
+    match_term_err!(
+        (and (<= 0 (- x (to_real (to_int x)))) (< (- x (to_real (to_int x))) 1))
+        = &conclusion[0]
+    )?;
+    Ok(())
+}
