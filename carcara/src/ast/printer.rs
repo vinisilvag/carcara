@@ -631,9 +631,7 @@ impl<T: fmt::Display> fmt::Display for BindingList<T> {
 impl fmt::Display for Sort {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            // Function sorts should never be displayed, so the exact format we use is of little
-            // importance
-            Sort::Function(args) => write_s_expr(f, "Func", args),
+            Sort::Function(args) => write_s_expr(f, "->", args),
             Sort::Atom(name, args) => match args.len() {
                 0 => write!(f, "{}", quote_symbol(name)),
                 _ => write_s_expr(f, quote_symbol(name), args),

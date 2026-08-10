@@ -2041,7 +2041,8 @@ impl<'p, 's> Parser<'p, 's> {
 
     fn make_sort(&mut self, name: String, args: Vec<Rc<Sort>>) -> Result<Rc<Sort>, ParserError> {
         let sort = match name.as_str() {
-            "Bool" | "Int" | "Real" | "String" | "RegLan" if !args.is_empty() => {
+            "->" => Sort::Function(args),
+            "Bool" | "Int" | "Real" | "String" | "RegLan" | "Type" if !args.is_empty() => {
                 return Err(ParserError::WrongNumberOfArgs(0.into(), args.len()))
             }
             "Bool" => Sort::Bool,
