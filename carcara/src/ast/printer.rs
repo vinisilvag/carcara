@@ -643,6 +643,9 @@ impl fmt::Display for Sort {
             Sort::Real => write!(f, "Real"),
             Sort::String => write!(f, "String"),
             Sort::RegLan => write!(f, "RegLan"),
+            Sort::Datatype { name, args, .. } if args.is_empty() => {
+                write!(f, "{}", quote_symbol(name))
+            }
             Sort::Datatype { name, args, .. } => write_s_expr(f, quote_symbol(name), args),
             Sort::Var(name) => write!(f, "{}", name),
             Sort::Par(args, s) => {
