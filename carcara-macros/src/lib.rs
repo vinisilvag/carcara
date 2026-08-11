@@ -289,6 +289,7 @@ fn op_to_variant(op: &str) -> TokenStream2 {
         "div" => quote! { crate::ast::Operator::IntDiv },
         "/" => quote! { crate::ast::Operator::RealDiv },
         "mod" => quote! { crate::ast::Operator::Mod },
+        "abs" => quote! { crate::ast::Operator::Abs },
         "<" => quote! { crate::ast::Operator::LessThan },
         ">" => quote! { crate::ast::Operator::GreaterThan },
         "<=" => quote! { crate::ast::Operator::LessEq },

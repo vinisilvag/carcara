@@ -317,6 +317,7 @@ pub fn get_rule(
         "la_mult_pos" => extras::la_mult_pos,
         "la_mult_neg" => extras::la_mult_neg,
         "la_mult_sign" => extras::la_mult_sign,
+        "la_mult_abs_comparison" => extras::la_mult_abs_comparison,
         "mod_simplify" => extras::mod_simplify,
         "evaluate" => extras::evaluate,
         "beta_equiv" => extras::beta_equiv,

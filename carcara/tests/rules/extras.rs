@@ -373,6 +373,42 @@ fn la_mult_sign() {
 }
 
 #[test]
+fn la_mult_abs_comparison() {
+    test_cases! {
+        definitions = "
+            (declare-fun a () Int)
+            (declare-fun b () Int)
+            (declare-fun c () Int)
+            (declare-fun d () Int)
+        ",
+        "Simple working examples" {
+            "(step t1 (cl (= (abs a) (abs b))) :rule hole)
+            (step t2 (cl (= (abs c) (abs d))) :rule hole)
+            (step t3 (cl (= (abs (* a c)) (abs (* b d))))
+                :rule la_mult_abs_comparison :premises (t1 t2))": true,
+
+            "(step t1 (cl (> (abs a) (abs 1))) :rule hole)
+            (step t2 (cl (> (abs b) (abs 1))) :rule hole)
+            (step t3 (cl (and (= (abs c) (abs 1)) (not (= c 0)))) :rule hole)
+            (step t4 (cl (and (= (abs d) (abs 1)) (not (= d 0)))) :rule hole)
+            (step t5 (cl (> (abs (* a b c d)) (abs (* 1 1 1 1))))
+                :rule la_mult_abs_comparison :premises (t1 t2 t3 t4))": true,
+        }
+        "Premise has the wrong form" {
+            "(step t1 (cl (> (abs a) (abs b))) :rule hole)
+            (step t2 (cl (= (abs c) (abs d))) :rule hole)
+            (step t3 (cl (= (abs (* a c)) (abs (* b d))))
+                :rule la_mult_abs_comparison :premises (t1 t2))": false,
+
+            "(step t1 (cl (and (= (abs a) (abs 1)) (not (= a 0)))) :rule hole)
+            (step t2 (cl (> (abs b) (abs 1))) :rule hole)
+            (step t3 (cl (> (abs (* a b)) (abs (* 1 1))))
+                :rule la_mult_abs_comparison :premises (t1 t2))": false,
+        }
+    }
+}
+
+#[test]
 fn mod_simplify() {
     test_cases! {
         definitions = "",

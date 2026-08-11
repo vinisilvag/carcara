@@ -312,6 +312,48 @@ pub fn la_mult_sign(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
     }
 }
 
+pub fn la_mult_abs_comparison(RuleArgs { conclusion, premises, .. }: RuleArgs) -> RuleResult {
+    assert_clause_len(conclusion, 1)?;
+    let (root_op, t, s) =
+        if let Some((t, s)) = match_term!((= (abs (* ...)) (abs (* ...))) = &conclusion[0]) {
+            (Operator::Equals, t, s)
+        } else {
+            let (t, s) = match_term_err!((> (abs (* ...)) (abs (* ...))) = &conclusion[0])?;
+            (Operator::GreaterThan, t, s)
+        };
+
+    if t.len() != s.len() {
+        return Err(CheckerError::WrongNumberOfTermsInOp(
+            Operator::Mult,
+            t.len().into(),
+            s.len(),
+        ));
+    }
+    assert_num_premises(premises, t.len())?;
+
+    for (i, (premise, (ti, si))) in premises.iter().zip(t.iter().zip(s)).enumerate() {
+        let premise = get_premise_term(premise)?;
+        let (prem_ti, prem_si) = if root_op == Operator::Equals {
+            match_term_err!((= (abs ti) (abs si)) = premise)?
+        } else if i == 0 {
+            // If the root operator is `>`, The first premise must have the `>` form
+            match_term_err!((> (abs ti) (abs si)) = premise)?
+        } else if let Some((prem_ti, prem_si)) =
+            match_term!((and (= (abs ti) (abs si)) (not (= ti 0))) = premise)
+        {
+            // ...but all others can optionally have this different form
+            (prem_ti, prem_si)
+        } else {
+            match_term_err!((> (abs ti) (abs si)) = premise)?
+        };
+
+        assert_eq(ti, prem_ti)?;
+        assert_eq(si, prem_si)?;
+    }
+
+    Ok(())
+}
+
 pub fn mod_simplify(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
     assert_clause_len(conclusion, 1)?;
     let (left, right) = match_term_err!((= l r) = &conclusion[0])?;
