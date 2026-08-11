@@ -655,6 +655,9 @@ impl fmt::Display for Sort {
             Sort::BitVec(w) => write!(f, "(_ BitVec {})", w),
             Sort::ParamBitVec => write!(f, "(_ BitVec ?)"),
             Sort::Type => write!(f, "Type"),
+            Sort::Set(s) => write!(f, "(Set {})", s),
+            Sort::Tuple(sorts) if sorts.is_empty() => write!(f, "UnitTuple"),
+            Sort::Tuple(sorts) => write_s_expr(f, "Tuple", sorts),
         }
     }
 }

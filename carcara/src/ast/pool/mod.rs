@@ -284,6 +284,72 @@ impl PrimitivePool {
                 | Operator::Arccsc
                 | Operator::Arcsec
                 | Operator::Arccot => self.sorts.add(Sort::Real),
+
+                // Sets and relations
+                Operator::SetUnion
+                | Operator::SetInter
+                | Operator::SetMinus
+                | Operator::SetComplement => self.compute_sort(&args[0]),
+                Operator::SetMember
+                | Operator::SetSubset
+                | Operator::SetIsEmpty
+                | Operator::SetIsSingleton => self.sorts.add(Sort::Bool),
+                Operator::SetSingleton => {
+                    let elem_sort = Sort::Set(self.compute_sort(&args[0]));
+                    self.sorts.add(elem_sort)
+                }
+                Operator::SetCard => self.sorts.add(Sort::Int),
+                Operator::SetInsert => self.compute_sort(args.last().unwrap()),
+                Operator::Tuple => {
+                    let sorts = args.iter().map(|elem| self.compute_sort(elem)).collect();
+                    self.sorts.add(Sort::Tuple(sorts))
+                }
+                Operator::TupleUnit => self.sorts.add(Sort::Tuple(Vec::new())),
+                Operator::RelTranspose => {
+                    let sort = self.compute_sort(&args[0]);
+                    let Sort::Set(tuple) = sort.as_ref() else {
+                        unreachable!()
+                    };
+                    let Sort::Tuple(sorts) = tuple.as_ref() else {
+                        unreachable!()
+                    };
+                    let mut sorts = sorts.clone();
+                    sorts.reverse();
+                    let tuple = self.sorts.add(Sort::Tuple(sorts));
+                    self.sorts.add(Sort::Set(tuple))
+                }
+                Operator::RelTclosure => self.compute_sort(&args[0]),
+                Operator::RelJoin => {
+                    let [mut left, right] = [&args[0], &args[1]].map(|arg| {
+                        let sort = self.compute_sort(arg);
+                        let Sort::Set(tuple) = sort.as_ref() else {
+                            unreachable!()
+                        };
+                        let Sort::Tuple(sorts) = tuple.as_ref() else {
+                            unreachable!()
+                        };
+                        sorts.clone()
+                    });
+                    left.pop();
+                    left.extend_from_slice(&right[1..]);
+                    let tuple = self.sorts.add(Sort::Tuple(left));
+                    self.sorts.add(Sort::Set(tuple))
+                }
+                Operator::RelProduct => {
+                    let [mut left, right] = [&args[0], &args[1]].map(|arg| {
+                        let sort = self.compute_sort(arg);
+                        let Sort::Set(tuple) = sort.as_ref() else {
+                            unreachable!()
+                        };
+                        let Sort::Tuple(sorts) = tuple.as_ref() else {
+                            unreachable!()
+                        };
+                        sorts.clone()
+                    });
+                    left.extend(right);
+                    let tuple = self.sorts.add(Sort::Tuple(left));
+                    self.sorts.add(Sort::Set(tuple))
+                }
             },
             Term::App(f, args) => {
                 let func_sort = self.compute_sort(f);
@@ -342,7 +408,7 @@ impl PrimitivePool {
         self.sorts_cache[term].clone()
     }
 
-    // `None` means `BitVecUnknown`
+    // `None` means `ParamBitVec`
     fn compute_indexed_op_sort(
         &mut self,
         op: ParamOperator,
@@ -386,6 +452,10 @@ impl PrimitivePool {
             ParamOperator::BvBitOf | ParamOperator::Tester => Sort::Bool,
             ParamOperator::BvIntOf => Sort::Int,
             ParamOperator::RePower | ParamOperator::ReLoop => Sort::RegLan,
+            ParamOperator::TupleSelect => {
+                let i = op_args[0].as_integer()?.to_usize().unwrap();
+                return Some(self.compute_sort(&args[i]));
+            }
         };
         Some(self.add_sort(res))
     }

@@ -229,7 +229,7 @@ impl<'p, 's> Parser<'p, 's> {
         let sort = self.pool.sort(&matched_term);
         let Sort::Datatype { name, .. } = sort.as_ref() else {
             return Err(Error::Parser(
-                ParserError::ExpectedDTSort(sort.clone()),
+                ParserError::ExpectedDatatypeSort(sort.clone()),
                 head_pos,
             ));
         };

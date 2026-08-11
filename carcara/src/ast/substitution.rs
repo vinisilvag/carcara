@@ -498,6 +498,14 @@ impl SortSubstitution {
             | Sort::BitVec(_)
             | Sort::ParamBitVec
             | Sort::Type => sort.clone(),
+            Sort::Set(s) => {
+                let s = self.apply(pool, s);
+                pool.add_sort(Sort::Set(s))
+            }
+            Sort::Tuple(sorts) => {
+                let new_sorts = apply_to_sequence!(sorts);
+                pool.add_sort(Sort::Tuple(new_sorts))
+            }
         };
 
         self.cache.insert(sort.clone(), result.clone());

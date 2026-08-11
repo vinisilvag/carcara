@@ -67,7 +67,15 @@ pub enum ParserError {
 
     /// Expected any datatype sort.
     #[error("expected datatype sort, got '{0}'")]
-    ExpectedDTSort(Rc<Sort>),
+    ExpectedDatatypeSort(Rc<Sort>),
+
+    /// Expected any set sort.
+    #[error("expected set sort, got '{0}'")]
+    ExpectedSetSort(Rc<Sort>),
+
+    /// Expected any tuple sort.
+    #[error("expected tuple sort, got '{0}'")]
+    ExpectedTupleSort(Rc<Sort>),
 
     /// Expected an integer constant term.
     #[error("expected integer constant, got '{0}'")]
@@ -111,7 +119,7 @@ pub enum ParserError {
 
     /// The argument values are not in the expected range.
     #[error("expected argument value to be greater than {0}, got {1}")]
-    WrongValueOfArgs(Range<Integer>, Integer),
+    WrongValueOfArgs(Range, Integer),
 
     /// Constant arguments given to `extract` do not follow required restrictions.
     #[error("extract arguments do not follow restrictions. Expected: {2} > {0} and {0} >= {1} and {1} >= 0")]
@@ -204,17 +212,42 @@ where
 /// Returns an error if the value of `sequence` is not in the `expected` range.
 pub fn assert_indexed_op_args_value<R>(sequence: &[Rc<Term>], range: R) -> Result<(), ParserError>
 where
-    R: Into<Range<Integer>>,
+    R: Into<Range>,
 {
     let range = range.into();
     for x in sequence {
         if let Term::Const(Constant::Integer(i)) = x.as_ref() {
-            if !range.contains(i.clone()) {
+            let contained = i.to_usize().is_some_and(|i| range.contains(i));
+            if !contained {
                 return Err(ParserError::WrongValueOfArgs(range, i.clone()));
             }
         }
     }
     Ok(())
+}
+
+/// Makes sure `got` is a valid `Set` sort.
+pub fn check_set_sort(got: &Rc<Sort>) -> Result<(), ParserError> {
+    if !matches!(got.as_ref(), Sort::Set(_)) {
+        return Err(ParserError::ExpectedSetSort(got.clone()));
+    }
+    Ok(())
+}
+
+/// Makes sure `got` is a valid `Tuple` sort.
+pub fn check_tuple_sort(got: &Rc<Sort>) -> Result<(), ParserError> {
+    if !matches!(got.as_ref(), Sort::Tuple(_)) {
+        return Err(ParserError::ExpectedTupleSort(got.clone()));
+    }
+    Ok(())
+}
+
+/// Makes sure `got` is a valid `(Set (Tuple ...))` sort.
+pub fn check_relation_sort(got: &Rc<Sort>) -> Result<(), ParserError> {
+    let Sort::Set(tuple) = got.as_ref() else {
+        return Err(ParserError::ExpectedSetSort(got.clone()));
+    };
+    check_tuple_sort(tuple)
 }
 
 /// An error in sort checking.

@@ -20,7 +20,7 @@ use crate::{
     CarcaraResult, Error,
 };
 use carcara_macros::GenerateSetters;
-use error::{assert_indexed_op_args_value, assert_num_args};
+use error::{assert_indexed_op_args_value, assert_num_args, check_relation_sort, check_set_sort};
 use indexmap::{IndexMap, IndexSet};
 use rug::{Integer, Rational};
 use std::{iter::Iterator, str::FromStr};
@@ -709,6 +709,72 @@ impl<'p, 's> Parser<'p, 's> {
             | Operator::Arccot => {
                 assert_num_args(&args, 1)?;
                 self.check_sort_eq(&Sort::Real, &sorts[0])?;
+            }
+            Operator::SetUnion | Operator::SetInter | Operator::SetMinus | Operator::SetSubset => {
+                assert_num_args(&args, 2)?;
+                self.check_sort_all_eq(&sorts)?;
+                for sort in sorts {
+                    check_set_sort(&sort)?;
+                }
+            }
+            Operator::SetMember => {
+                assert_num_args(&args, 2)?;
+                let expected = self.pool.add_sort(Sort::Set(sorts[0].clone()));
+                self.check_sort_eq(&expected, &sorts[1])?;
+            }
+            Operator::SetSingleton => {
+                assert_num_args(&args, 1)?;
+            }
+            Operator::SetIsEmpty
+            | Operator::SetIsSingleton
+            | Operator::SetCard
+            | Operator::SetComplement => {
+                assert_num_args(&args, 1)?;
+                check_set_sort(&sorts[0])?;
+            }
+            Operator::SetInsert => {
+                assert_num_args(&args, 2..)?;
+                self.check_sort_all_eq(&sorts[..sorts.len() - 1])?;
+                let expected = self.pool.add_sort(Sort::Set(sorts[0].clone()));
+                self.check_sort_eq(&expected, sorts.last().unwrap())?;
+            }
+            Operator::Tuple => {
+                assert_num_args(&args, 1..)?;
+            }
+            Operator::TupleUnit => {
+                assert_num_args(&args, 0)?;
+            }
+            Operator::RelTranspose => {
+                assert_num_args(&args, 1)?;
+                check_relation_sort(&sorts[0])?;
+            }
+            Operator::RelTclosure => {
+                assert_num_args(&args, 1)?;
+                check_relation_sort(&sorts[0])?;
+                let Sort::Set(tuple) = sorts[0].as_ref() else {
+                    unreachable!()
+                };
+                let Sort::Tuple(elems) = tuple.as_ref() else {
+                    unreachable!()
+                };
+                if elems.len() != 2 {
+                    // Hacky way to print an error saying the relation should be binary
+                    let any = self.pool.add_sort(Sort::Var("?".into()));
+                    let tuple = self.pool.add_sort(Sort::Tuple(vec![any.clone(), any]));
+                    let expected = vec![self.pool.add_sort(Sort::Set(tuple))].into_boxed_slice();
+                    return Err(SortError { expected, got: sorts[0].clone() }.into());
+                }
+            }
+            Operator::RelJoin => {
+                assert_num_args(&args, 2)?;
+                check_relation_sort(&sorts[0])?;
+                check_relation_sort(&sorts[1])?;
+                // TODO: check properly
+            }
+            Operator::RelProduct => {
+                assert_num_args(&args, 2)?;
+                check_relation_sort(&sorts[0])?;
+                check_relation_sort(&sorts[1])?;
             }
         }
         Ok(self.pool.add(Term::Op(op, args)))
@@ -1813,7 +1879,23 @@ impl<'p, 's> Parser<'p, 's> {
                 self.check_sort_eq(&Sort::RegLan, &sorts[0])?;
                 assert_indexed_op_args_value(&op_args, 0..)?;
             }
-            ParamOperator::Tester => {}
+            ParamOperator::Tester => {} // TODO
+            ParamOperator::TupleSelect => {
+                assert_num_args(&op_args, 1)?;
+                assert_num_args(&args, 1)?;
+                if op_args[0]
+                    .as_integer()
+                    .as_ref()
+                    .and_then(Integer::to_usize)
+                    .is_none()
+                {
+                    return Err(ParserError::ExpectedIntegerConstant(op_args[0].clone()));
+                }
+                let Sort::Tuple(elems) = sorts[0].as_ref() else {
+                    return Err(ParserError::ExpectedTupleSort(sorts[0].clone()));
+                };
+                assert_indexed_op_args_value(&op_args, ..elems.len())?;
+            }
         }
         Ok(self.pool.add(Term::ParamOp { op, op_args, args }))
     }
@@ -1830,6 +1912,10 @@ impl<'p, 's> Parser<'p, 's> {
             QualifiedOperator::Const => {
                 assert_num_args(&args, 1)?;
                 self.check_array_sort(None, Some(&sorts[0]), &sort)?;
+            }
+            QualifiedOperator::SetEmpty | QualifiedOperator::SetUniverse => {
+                assert_num_args(&args, 0)?;
+                check_set_sort(&sort)?;
             }
         }
         Ok(self.pool.add(Term::AsOp(op, sort, args)))
@@ -2061,6 +2147,24 @@ impl<'p, 's> Parser<'p, 's> {
                 [s] => return Ok(s.clone()),
                 _ => return Err(ParserError::WrongNumberOfArgs(1.into(), args.len())),
             },
+
+            // From sets and relations extension
+            "Set" => {
+                assert_num_args(&args, 1)?;
+                Sort::Set(args[0].clone())
+            }
+            "Tuple" => {
+                assert_num_args(&args, 1..)?;
+                Sort::Tuple(args)
+            }
+            "UnitTuple" => {
+                assert_num_args(&args, 0)?;
+                Sort::Tuple(Vec::new())
+            }
+            "Relation" => {
+                assert_num_args(&args, 1..)?;
+                Sort::Set(self.pool.add_sort(Sort::Tuple(args)))
+            }
 
             // Local sort parameter
             other if self.has_sort_symbol(other) => Sort::Var(other.to_owned()),

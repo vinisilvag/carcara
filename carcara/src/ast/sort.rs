@@ -107,6 +107,17 @@ pub enum Sort {
 
     /// The sort of sorts.
     Type,
+
+    // Sorts from cvc5's theory extensions
+    /// The `Set` sort.
+    ///
+    /// The `Relation` sort is represented by this sort, applied to a `Tuple` sort.
+    Set(Rc<Sort>),
+
+    /// The `Tuple` sort.
+    ///
+    /// The `UnitTuple` sort is represented by this sort with an empty vector of arguments.
+    Tuple(Vec<Rc<Sort>>),
 }
 
 impl Sort {

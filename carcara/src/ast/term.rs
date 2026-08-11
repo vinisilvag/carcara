@@ -487,6 +487,61 @@ pub enum Operator {
 
     /// The `@d` operator.
     Delete,
+
+    // Sets and relations
+    //
+    // These operators are from cvc5's "Sets and Relations" theory extension, see:
+    // https://cvc5.github.io/docs-ci/docs-main/theories/sets-and-relations.html
+    /// The `set.union` operator.
+    SetUnion,
+
+    /// The `set.inter` operator.
+    SetInter,
+
+    /// The `set.minus` operator.
+    SetMinus,
+
+    /// The `set.member` operator.
+    SetMember,
+
+    /// The `set.subset` operator.
+    SetSubset,
+
+    /// The `set.singleton` operator.
+    SetSingleton,
+
+    /// The `set.is_empty` operator.
+    SetIsEmpty,
+
+    /// The `set.is_singleton` operator.
+    SetIsSingleton,
+
+    /// The `set.card` operator.
+    SetCard,
+
+    /// The `set.insert` operator.
+    SetInsert,
+
+    /// The `set.complement` operator.
+    SetComplement,
+
+    /// The `tuple` operator.
+    Tuple,
+
+    /// The `tuple.unit` operator.
+    TupleUnit,
+
+    /// The `rel.transpose` operator.
+    RelTranspose,
+
+    /// The `rel.tclosure` operator.
+    RelTclosure,
+
+    /// The `rel.join` operator.
+    RelJoin,
+
+    /// The `rel.product` operator.
+    RelProduct,
 }
 
 /// A case for a `match` term.
@@ -689,6 +744,25 @@ impl Operator {
 
             // Clausal
             Operator::Cl | Operator::Delete => Some(NaryCase::LeftAssoc),
+
+            // Sets and relations
+            Operator::SetUnion
+            | Operator::SetInter
+            | Operator::SetMinus
+            | Operator::SetMember
+            | Operator::SetSubset
+            | Operator::SetSingleton
+            | Operator::SetIsEmpty
+            | Operator::SetIsSingleton
+            | Operator::SetCard
+            | Operator::SetInsert
+            | Operator::SetComplement
+            | Operator::Tuple
+            | Operator::TupleUnit
+            | Operator::RelTranspose
+            | Operator::RelTclosure
+            | Operator::RelJoin
+            | Operator::RelProduct => None,
         }
     }
 }
@@ -736,6 +810,10 @@ pub enum ParamOperator {
     // Datatypes
     /// The `is` tester for datatypes.
     Tester,
+
+    // Sets and relations
+    /// The `tuple.select` operator.
+    TupleSelect,
 }
 
 impl_str_conversion_traits!(Operator {
@@ -868,7 +946,25 @@ impl_str_conversion_traits!(Operator {
     RareList: "rare-list",
 
     Cl: "cl",
-    Delete: "@d"
+    Delete: "@d",
+
+    SetUnion: "set.union",
+    SetInter: "set.inter",
+    SetMinus: "set.minus",
+    SetMember: "set.member",
+    SetSubset: "set.subset",
+    SetSingleton: "set.singleton",
+    SetIsEmpty: "set.is_empty",
+    SetIsSingleton: "set.is_singleton",
+    SetCard: "set.card",
+    SetInsert: "set.insert",
+    SetComplement: "set.complement",
+    Tuple: "tuple",
+    TupleUnit: "tuple.unit",
+    RelTranspose: "rel.transpose",
+    RelTclosure: "rel.tclosure",
+    RelJoin: "rel.join",
+    RelProduct: "rel.product",
 });
 
 impl_str_conversion_traits!(ParamOperator {
@@ -888,6 +984,8 @@ impl_str_conversion_traits!(ParamOperator {
     ReLoop: "re.loop",
 
     Tester: "is",
+
+    TupleSelect: "tuple.select",
 });
 
 impl ParamOperator {
@@ -896,7 +994,7 @@ impl ParamOperator {
         use ParamOperator::*;
         match self {
             BvBitOf | BvIntOf | ZeroExtend | SignExtend | RotateLeft | RotateRight | Repeat
-            | IntToBv | RePower | Tester => 1,
+            | IntToBv | RePower | Tester | TupleSelect => 1,
             BvExtract | BvConst | ReLoop => 2,
         }
     }
@@ -905,11 +1003,21 @@ impl ParamOperator {
 /// An operator that can be used with the `(as <op> <sort>)` syntax
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum QualifiedOperator {
-    /// The `const` operator
+    /// The `const` operator.
     Const,
+
+    /// The `set.empty` operator.
+    SetEmpty,
+
+    /// The `set.universe` operator.
+    SetUniverse,
 }
 
-impl_str_conversion_traits!(QualifiedOperator { Const: "const" });
+impl_str_conversion_traits!(QualifiedOperator {
+    Const: "const",
+    SetEmpty: "set.empty",
+    SetUniverse: "set.universe",
+});
 
 impl std::ops::Not for Binder {
     type Output = Self;

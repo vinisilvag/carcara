@@ -1,4 +1,4 @@
-use super::{pool::TermPool, Constant, Operator, ParamOperator, QualifiedOperator, Rc, Term};
+use super::{pool::TermPool, Constant, Operator, ParamOperator, Rc, Term};
 use rug::{Integer, Rational};
 use std::collections::{HashMap, HashSet};
 
@@ -153,8 +153,8 @@ impl Rc<Term> {
                     Value::into_term,
                 )
             }
-            // TODO: Arrays
-            Term::AsOp(QualifiedOperator::Const, ..) => self.as_ref().clone(),
+            // TODO: qualified operators
+            Term::AsOp(_, _, _) => self.as_ref().clone(),
 
             Term::Var(_, _) | Term::App(_, _) | Term::Binder(_, _, _) | Term::Let(_, _) => {
                 cache.insert(self, self.clone());
@@ -520,6 +520,25 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
 
         // TODO: Rare
         Operator::RareList | Operator::Cl | Operator::Delete => return None,
+
+        // TODO: Sets and relations
+        Operator::SetUnion
+        | Operator::SetInter
+        | Operator::SetMinus
+        | Operator::SetMember
+        | Operator::SetSubset
+        | Operator::SetSingleton
+        | Operator::SetIsEmpty
+        | Operator::SetIsSingleton
+        | Operator::SetCard
+        | Operator::SetInsert
+        | Operator::SetComplement
+        | Operator::Tuple
+        | Operator::TupleUnit
+        | Operator::RelTranspose
+        | Operator::RelTclosure
+        | Operator::RelJoin
+        | Operator::RelProduct => return None,
     })
 }
 
@@ -592,10 +611,11 @@ fn eval_param_op(op: ParamOperator, op_args: &[Rc<Term>], args: &[Rc<Term>]) -> 
             Value::Integer(bit)
         }
 
-        // TODO: Strings
-        ParamOperator::RePower | ParamOperator::ReLoop => return None,
-
-        ParamOperator::Tester => todo!(), // TODO
+        // TODO: Strings, datatypes, sets and relations
+        ParamOperator::RePower
+        | ParamOperator::ReLoop
+        | ParamOperator::Tester
+        | ParamOperator::TupleSelect => return None,
     })
 }
 
