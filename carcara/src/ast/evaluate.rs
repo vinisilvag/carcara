@@ -20,6 +20,7 @@ impl Value {
             Constant::Integer(i) => Value::Integer(i),
             Constant::Real(r) => Value::Real(r),
             Constant::String(s) => Value::String(s),
+            Constant::RegLan(_, _) => panic!("regular language constants cannot be evaluated"),
             Constant::BitVec(val, width) => Value::BitVec(val, width),
         }
     }
@@ -352,7 +353,8 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
         | Operator::ReDiff
         | Operator::ReKleeneCross
         | Operator::ReOption
-        | Operator::ReRange => return None,
+        | Operator::ReRange
+        | Operator::ReFromAutomaton => return None,
 
         // Bitvectors
         Operator::BvNot => {

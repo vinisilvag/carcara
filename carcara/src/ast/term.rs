@@ -1,5 +1,5 @@
 use super::{match_term, PrimitivePool, Rc, TermPool};
-use crate::CheckerError;
+use crate::{automata::Automaton, CheckerError};
 use indexmap::{map::Entry, IndexMap};
 use rug::{Integer, Rational};
 use std::{collections::HashSet, hash::Hash, ops::Deref};
@@ -123,6 +123,9 @@ pub enum Constant {
 
     /// A string literal term.
     String(String),
+
+    /// A regular expression term.
+    RegLan(String, Automaton),
 
     /// A bitvector literal term.
     ///
@@ -339,6 +342,9 @@ pub enum Operator {
     /// The `re.range` operator.
     ReRange,
 
+    /// The `re.from_automaton` operator.
+    ReFromAutomaton,
+
     // BV operators (unary)
     BvNot,
     BvNeg,
@@ -468,7 +474,8 @@ impl Operator {
             | Operator::ReComplement
             | Operator::ReKleeneCross
             | Operator::ReOption
-            | Operator::ReRange => None,
+            | Operator::ReRange
+            | Operator::ReFromAutomaton => None,
 
             // Bitvectors
             Operator::BvAnd | Operator::BvOr | Operator::BvAdd | Operator::BvMul => {
@@ -606,6 +613,8 @@ impl_str_conversion_traits!(Operator {
     ReKleeneCross: "re.+",
     ReOption: "re.opt",
     ReRange: "re.range",
+    ReFromAutomaton: "re.from_automaton",
+
     BvNot: "bvnot",
     BvNeg: "bvneg",
     BvAnd: "bvand",
@@ -1166,6 +1175,7 @@ impl Constant {
             Constant::Integer(_) => Sort::Int,
             Constant::Real(_) => Sort::Real,
             Constant::String(_) => Sort::String,
+            Constant::RegLan(_, _) => Sort::RegLan,
             Constant::BitVec(_, width) => Sort::BitVec(*width),
         }
     }
