@@ -37,7 +37,7 @@ impl<'p, 's> Parser<'p, 's> {
         }?;
         self.expect_token(Token::CloseParen)?;
 
-        self.insert_sorted_var((name.clone(), sort.clone()));
+        self.declare_symbol(name.clone(), sort.clone());
 
         Ok((name, TypeParameter { sort, attribute }))
     }

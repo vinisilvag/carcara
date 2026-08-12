@@ -96,7 +96,7 @@ impl<'p, 's> Parser<'p, 's> {
                 |p| {
                     let name = p.expect_symbol()?;
                     let sort = p.pool.add_sort(Sort::Type);
-                    p.insert_sorted_var((name.clone(), sort));
+                    p.declare_symbol(name.clone(), sort);
                     Ok(name)
                 },
                 true,
@@ -165,7 +165,7 @@ impl<'p, 's> Parser<'p, 's> {
                 self.pool
                     .add_sort(Sort::Par(datatype.params.clone(), inner_sort))
             };
-            self.insert_sorted_var((name.clone(), sort));
+            self.declare_symbol(name.clone(), sort);
 
             // If we are supporting legacy tester syntax, register a function symbol named
             // `is-<cons>`, that serves the same purpose as the newer `(_ is <cons>)`.
@@ -173,7 +173,7 @@ impl<'p, 's> Parser<'p, 's> {
                 let sort =
                     Sort::Function(vec![return_sort.clone(), self.pool.add_sort(Sort::Bool)]);
                 let sort = self.pool.add_sort(sort);
-                self.insert_sorted_var((format!("is-{}", name), sort));
+                self.declare_symbol(format!("is-{}", name), sort);
             }
 
             self.register_selectors(cons, &return_sort, &datatype.params);
@@ -209,7 +209,7 @@ impl<'p, 's> Parser<'p, 's> {
                 self.pool
                     .add_sort(Sort::Par(sort_params.to_vec(), inner_sort))
             };
-            self.insert_sorted_var((name.clone(), sort));
+            self.declare_symbol(name.clone(), sort);
         }
     }
 
@@ -280,8 +280,8 @@ impl<'p, 's> Parser<'p, 's> {
         self.state.symbol_table.push_scope();
 
         let pattern = self.parse_match_pattern(sort, constructors)?;
-        for var in pattern.bindings() {
-            self.insert_sorted_var(var.clone());
+        for (var, sort) in pattern.bindings() {
+            self.declare_symbol(var.clone(), sort.clone());
         }
 
         let body = self.parse_term()?;

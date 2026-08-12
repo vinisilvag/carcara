@@ -262,8 +262,8 @@ impl<'p, 's> Parser<'p, 's> {
         Ok((old_token, old_position))
     }
 
-    /// Inserts a `SortedVar` into the parser symbol table.
-    fn insert_sorted_var(&mut self, (symbol, sort): SortedVar) {
+    /// Inserts a new symbol into the parser symbol table, with the provided sort.
+    fn declare_symbol(&mut self, symbol: String, sort: Rc<Sort>) {
         self.state.symbol_table.insert(HashCache::new(symbol), sort);
     }
 
@@ -985,14 +985,14 @@ impl<'p, 's> Parser<'p, 's> {
             match self.next_token()?.0 {
                 Token::ReservedWord(Reserved::DeclareFun) => {
                     let (name, sort) = self.parse_declare_fun()?;
-                    self.insert_sorted_var((name.clone(), sort.clone()));
+                    self.declare_symbol(name.clone(), sort.clone());
                     self.prelude().function_declarations.push((name, sort));
                 }
                 Token::ReservedWord(Reserved::DeclareConst) => {
                     let name = self.expect_symbol()?;
                     let sort = self.parse_sort()?;
                     self.expect_token(Token::CloseParen)?;
-                    self.insert_sorted_var((name.clone(), sort.clone()));
+                    self.declare_symbol(name.clone(), sort.clone());
                     self.prelude().function_declarations.push((name, sort));
                 }
                 Token::ReservedWord(Reserved::DeclareSort) => {
@@ -1026,9 +1026,8 @@ impl<'p, 's> Parser<'p, 's> {
                             ))
                         };
                         let sort = self.pool.sort(&lambda_term);
-                        let var = (name, sort);
-                        self.insert_sorted_var(var.clone());
-                        let var_term = self.pool.add(var.into());
+                        self.declare_symbol(name.clone(), sort.clone());
+                        let var_term = self.pool.add((name, sort).into());
                         let assertion_term = self
                             .pool
                             .add(Term::Op(Operator::Equals, vec![var_term, lambda_term]));
@@ -1388,13 +1387,13 @@ impl<'p, 's> Parser<'p, 's> {
                     let value = self.parse_term_expecting_sort(&sort)?;
                     (var, value, sort)
                 };
-            self.insert_sorted_var((var.clone(), sort.clone()));
+            self.declare_symbol(var.clone(), sort.clone());
             self.expect_token(Token::CloseParen)?;
             AnchorArg::Assign((var, sort), value)
         } else {
             let symbol = self.expect_symbol()?;
             let sort = self.parse_sort()?;
-            self.insert_sorted_var((symbol.clone(), sort.clone()));
+            self.declare_symbol(symbol.clone(), sort.clone());
             self.expect_token(Token::CloseParen)?;
             AnchorArg::Variable((symbol, sort))
         })
@@ -1459,8 +1458,8 @@ impl<'p, 's> Parser<'p, 's> {
         // In order to correctly parse the function body, we push a new scope to the symbol table
         // and add the functions arguments to it.
         self.state.symbol_table.push_scope();
-        for var in &params {
-            self.insert_sorted_var(var.clone());
+        for (var, sort) in &params {
+            self.declare_symbol(var.clone(), sort.clone());
         }
         let body = self.parse_term_expecting_sort(&return_sort)?;
         self.state.symbol_table.pop_scope();
@@ -1517,7 +1516,7 @@ impl<'p, 's> Parser<'p, 's> {
                 param_sorts.push(return_sort.clone());
                 self.pool.add_sort(Sort::Function(param_sorts))
             };
-            self.insert_sorted_var((name.clone(), sort));
+            self.declare_symbol(name.clone(), sort);
         }
 
         if is_multiple {
@@ -1525,8 +1524,8 @@ impl<'p, 's> Parser<'p, 's> {
         }
         for (name, params, return_sort) in declarations {
             self.state.symbol_table.push_scope();
-            for var in &params {
-                self.insert_sorted_var(var.clone());
+            for (var, sort) in &params {
+                self.declare_symbol(var.clone(), sort.clone());
             }
             let body = self.parse_term_expecting_sort(&return_sort)?;
             self.state.symbol_table.pop_scope();
@@ -1553,7 +1552,7 @@ impl<'p, 's> Parser<'p, 's> {
         self.state.symbol_table.push_scope();
         for s in &params {
             let sort = self.pool.add_sort(Sort::Type);
-            self.insert_sorted_var((s.clone(), sort));
+            self.declare_symbol(s.clone(), sort);
         }
         let body = self.parse_sort()?;
         self.state.symbol_table.pop_scope();
@@ -1624,16 +1623,16 @@ impl<'p, 's> Parser<'p, 's> {
         self.expect_token(Token::OpenParen)?;
         self.state.symbol_table.push_scope();
         let bindings = if binder == Binder::Choice {
-            let var = self.parse_sorted_var()?;
-            self.insert_sorted_var(var.clone());
+            let (var, sort) = self.parse_sorted_var()?;
+            self.declare_symbol(var.clone(), sort.clone());
             self.expect_token(Token::CloseParen)?;
-            BindingList(vec![var])
+            BindingList(vec![(var, sort)])
         } else {
             BindingList(self.parse_sequence(
                 |p| {
-                    let var = p.parse_sorted_var()?;
-                    p.insert_sorted_var(var.clone());
-                    Ok(var)
+                    let (var, sort) = p.parse_sorted_var()?;
+                    p.declare_symbol(var.clone(), sort.clone());
+                    Ok((var, sort))
                 },
                 true,
             )?)
@@ -1668,7 +1667,7 @@ impl<'p, 's> Parser<'p, 's> {
         self.state.symbol_table.push_scope();
         for (name, value) in &bindings {
             let sort = self.pool.sort(value);
-            self.insert_sorted_var((name.clone(), sort));
+            self.declare_symbol(name.clone(), sort);
         }
 
         let inner = self.parse_term()?;
@@ -2022,7 +2021,7 @@ impl<'p, 's> Parser<'p, 's> {
                 self.state.symbol_table.push_scope();
                 for (name, value) in &args {
                     let sort = self.pool.sort(value);
-                    self.insert_sorted_var((name.clone(), sort));
+                    self.declare_symbol(name.clone(), sort);
                 }
 
                 let inner = self.parse_term()?;
