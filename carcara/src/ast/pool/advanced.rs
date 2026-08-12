@@ -3,6 +3,8 @@ use crate::ast::{Rc, Sort, Term};
 use indexmap::IndexSet;
 use std::sync::{Arc, RwLock};
 
+/// A pool with a shared mutable *context pool*, and a shared immutable *global pool*.
+#[derive(Clone)]
 pub struct ContextPool {
     pub(crate) global_pool: Arc<PrimitivePool>,
     pub(crate) inner: Arc<RwLock<PrimitivePool>>,
@@ -15,6 +17,7 @@ impl Default for ContextPool {
 }
 
 impl ContextPool {
+    /// Constructs a `ContextPool` with a fresh, empty global pool and a fresh, empty inner pool.
     pub fn new() -> Self {
         Self {
             global_pool: Arc::new(PrimitivePool::new()),
@@ -22,17 +25,12 @@ impl ContextPool {
         }
     }
 
+    /// Constructs a `ContextPool` that shares the given global pool, with a fresh, empty inner
+    /// pool.
     pub fn from_global(global_pool: &Arc<PrimitivePool>) -> Self {
         Self {
             global_pool: global_pool.clone(),
             inner: Arc::new(RwLock::new(PrimitivePool::new())),
-        }
-    }
-
-    pub fn from_previous(ctx_pool: &Self) -> Self {
-        Self {
-            global_pool: ctx_pool.global_pool.clone(),
-            inner: ctx_pool.inner.clone(),
         }
     }
 }
@@ -79,8 +77,7 @@ impl TermPool for ContextPool {
     }
 }
 
-// =========================================================================
-
+/// A thread local pool, layered on top of a shared [`ContextPool`].
 pub struct LocalPool {
     pub(crate) ctx_pool: ContextPool,
     pub(crate) inner: PrimitivePool,
@@ -93,6 +90,7 @@ impl Default for LocalPool {
 }
 
 impl LocalPool {
+    /// Constructs a `LocalPool` with a fresh `ContextPool` and a fresh, empty thread-local pool.
     pub fn new() -> Self {
         Self {
             ctx_pool: ContextPool::new(),
@@ -100,11 +98,11 @@ impl LocalPool {
         }
     }
 
-    /// Instantiates a new `LocalPool` from a previous `ContextPool` (makes
-    /// sure the context is shared between threads).
+    /// Instantiates a new `LocalPool` from a previous `ContextPool` (makes sure the context is
+    /// shared between threads).
     pub fn from_previous(ctx_pool: &ContextPool) -> Self {
         Self {
-            ctx_pool: ContextPool::from_previous(ctx_pool),
+            ctx_pool: ctx_pool.clone(),
             inner: PrimitivePool::new(),
         }
     }

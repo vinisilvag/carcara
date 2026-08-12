@@ -73,7 +73,7 @@ impl Substitution {
         map: IndexMap<Rc<Term>, Rc<Term>>,
     ) -> SubstitutionResult<Self> {
         for (k, v) in &map {
-            if !pool.sort(k).is_compatible_with(&pool.sort(v)) {
+            if !pool.sort(k).is_compatible(&pool.sort(v)) {
                 return Err(SubstitutionError::DifferentSorts(k.clone(), v.clone()));
             }
         }
@@ -99,7 +99,7 @@ impl Substitution {
         x: Rc<Term>,
         t: Rc<Term>,
     ) -> SubstitutionResult<()> {
-        if !pool.sort(&x).is_compatible_with(&pool.sort(&t)) {
+        if !pool.sort(&x).is_compatible(&pool.sort(&t)) {
             return Err(SubstitutionError::DifferentSorts(x, t));
         }
 
@@ -136,6 +136,7 @@ impl Substitution {
         }
     }
 
+    /// Sets whether the substitution is applied in a capture-avoiding way.
     pub fn set_capture_avoidance(&mut self, avoid_capture: bool) {
         self.avoid_capture = avoid_capture;
     }

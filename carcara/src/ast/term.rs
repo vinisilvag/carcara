@@ -207,7 +207,7 @@ pub enum Operator {
     //
     // These operators are from cvc5's "Transcendentals" theory extension, see:
     // https://cvc5.github.io/docs-ci/docs-main/theories/transcendentals.html
-    /// The `sqrt` operator.
+    /// The `real.pi` constant.
     RealPi,
 
     /// The `sqrt` operator.
@@ -1187,7 +1187,7 @@ impl Term {
         }
     }
 
-    /// Tries to extract a `String` from a term. Returns `Some` if the term is a boolean constant.
+    /// Tries to extract a `String` from a term. Returns `Some` if the term is a string constant.
     pub fn as_string(&self) -> Option<String> {
         match self {
             Term::Const(Constant::String(s)) => Some(s.to_owned()),

@@ -7,26 +7,43 @@ use std::fmt;
 
 pub type Holes = IndexMap<String, Rc<RefCell<Option<Rc<Term>>>>>;
 
+/// The attribute of a parameter in a RARE rule.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AttributeParameters {
+    /// The `:list` attribute.
     List,
+
+    /// No attribute.
     None,
 }
 
+/// A typed parameter in a RARE rule.
 #[derive(Debug, Clone)]
 pub struct TypeParameter {
+    /// The sort of the parameter.
     pub sort: Rc<Sort>,
+
+    /// The parameter attribute.
     pub attribute: AttributeParameters,
 }
 
+/// A RARE rule, from a `(declare-rare-rule ...)` command.
 #[derive(Debug, Clone)]
 pub struct RuleDefinition {
+    /// The rule name.
     pub name: String,
+
+    /// The rule's parameters.
     pub parameters: IndexMap<String, TypeParameter>,
+
+    /// The rule's arguments, given via the `:args` attribute.
     pub arguments: Vec<String>,
+
+    /// The rule's premises, given via the `:premises` attribute.
     pub premises: Vec<Rc<Term>>,
+
+    /// The rule's conclusion, given via the `:conclusion` attribute.
     pub conclusion: Rc<Term>,
-    pub is_elaborated: bool,
 }
 
 impl fmt::Display for RuleDefinition {
@@ -93,8 +110,10 @@ pub struct DeclConst {
     pub is_parameterized: bool,
 }
 
+/// A set of statements parsed from a Rare file.
 #[derive(Debug, Clone)]
 pub struct RareStatements {
+    /// The rare rules, indexed by their name.
     pub rules: IndexMap<String, RuleDefinition>,
 }
 

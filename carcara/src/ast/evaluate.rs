@@ -109,8 +109,10 @@ impl Value {
 }
 
 impl Rc<Term> {
-    /// Tries to obtain a [`Value`] from a term by evaluating it. This will return `Some` if the
-    /// term is "evaluatable".
+    /// Tries to obtain a value from a term by evaluating it.
+    ///
+    /// If this term is *evaluatable*, this will return a constant term corresponding to this value.
+    /// Otherwise, this returns a partially evaluated term.
     ///
     /// We say that a term is evaluatable if it is either:
     /// - a constant term

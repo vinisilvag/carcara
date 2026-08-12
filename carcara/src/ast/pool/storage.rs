@@ -8,11 +8,13 @@ use crate::ast::*;
 use indexmap::IndexSet;
 use std::{borrow::Borrow, hash::Hash};
 
-/// Since `ast::Rc` intentionally implements hashing and equality by reference (instead of by
-/// value), we cannot safely implement `Borrow<Term>` for `Rc<Term>`, so we cannot access a
-/// `HashSet<Rc<Term>>` using a `&Term` as a key. To go around that, we use this struct that wraps
-/// an `Rc<Term>` and that re-implements hashing and equality by value, meaning we can implement
-/// `Borrow<Term>` for it, and use it as the contents of the hash set instead.
+/// A wrapper to make `ast::Rc` operations by-value instead of by-reference.
+///
+/// Since `ast::Rc` intentionally implements hashing and equality by reference, we cannot safely
+/// implement `Borrow<T>` for `Rc<T>`, so we cannot access a `HashSet<Rc<T>>` using a `&T` as a key.
+/// To go around that, we use this struct that wraps an `Rc<T>` and that re-implements hashing and
+/// equality by value, meaning we can implement `Borrow<T>` for it, and use it as the contents of
+/// the hash set instead.
 #[derive(Debug, Clone, Eq)]
 struct ByValue<T>(Rc<T>);
 
@@ -34,6 +36,10 @@ impl<T> Borrow<T> for ByValue<T> {
     }
 }
 
+/// A hash-consing enforcing storage of objects.
+///
+/// This struct stores objects ensuring that identical object are only allocated once, and hands out
+/// [`ast::Rc`] handles to those allocations.
 #[derive(Debug, Clone)]
 pub struct Storage<T>(IndexSet<ByValue<T>>);
 
@@ -44,6 +50,10 @@ impl<T> Default for Storage<T> {
 }
 
 impl<T: Hash + Eq> Storage<T> {
+    /// Takes an object and returns a possibly newly allocated `Rc` that references it.
+    ///
+    /// If the object was not originally in the storage, it is added to it. Otherwise, this method
+    /// just returns an `Rc` pointing to the existing allocation.
     pub fn add(&mut self, object: T) -> Rc<T> {
         // If the `hash_set_entry` feature was stable, this would be much simpler to do using
         // `get_or_insert_with` (and would avoid rehashing the object)
@@ -59,8 +69,9 @@ impl<T: Hash + Eq> Storage<T> {
         }
     }
 
-    pub fn get(&self, term: &T) -> Option<&Rc<T>> {
-        self.0.get(term).map(|t| &t.0)
+    /// Returns a reference to the allocation of `object` stored in `self`, if it is present.
+    pub fn get(&self, object: &T) -> Option<&Rc<T>> {
+        self.0.get(object).map(|t| &t.0)
     }
 
     // This method is only necessary for the hash consing tests

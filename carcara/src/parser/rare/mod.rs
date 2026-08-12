@@ -108,7 +108,6 @@ impl<'p, 's> Parser<'p, 's> {
             arguments: body.args.clone(),
             premises: body.premises.clone(),
             conclusion: body.conclusion.unwrap(),
-            is_elaborated: false,
         })
     }
 

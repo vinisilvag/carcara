@@ -8,10 +8,7 @@ use super::{
 };
 use crate::{
     ast::{
-        pool::{
-            advanced::{ContextPool, LocalPool},
-            PrimitivePool,
-        },
+        pool::{ContextPool, LocalPool, PrimitivePool},
         rare_rules::Rules,
         ContextStack, Problem, ProblemPrelude, Proof, ProofCommand, ProofStep, Rc, Term,
     },

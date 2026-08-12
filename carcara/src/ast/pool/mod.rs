@@ -1,6 +1,6 @@
 //! This module implements `TermPool`, a structure that stores terms and implements hash consing.
 
-pub mod advanced;
+mod advanced;
 mod storage;
 
 use super::{
@@ -8,6 +8,8 @@ use super::{
 };
 use indexmap::{IndexMap, IndexSet};
 use storage::Storage;
+
+pub use advanced::{ContextPool, LocalPool};
 
 /// A user-defined datatype.
 #[derive(Debug, Clone)]
@@ -26,6 +28,12 @@ pub struct DatatypeConstructor {
     pub selectors: Vec<SortedVar>,
 }
 
+/// A pool: a structure that stores [`Term`]s and [`Sort`]s, implementing hash consing.
+///
+/// A structure implementing this trait guarantees that identical terms or sorts share a single
+/// allocation, which allows [`Rc`] values to be safely compared and hashed by reference. Pools
+/// are also responsible for computing and storing the sort of each term, as well as other term
+/// metadata.
 pub trait TermPool {
     /// Returns the term corresponding to the boolean constant `true`.
     fn bool_true(&mut self) -> Rc<Term> {
@@ -90,15 +98,14 @@ pub trait TermPool {
 pub struct PrimitivePool {
     pub(crate) terms: Storage<Term>,
     pub(crate) sorts: Storage<Sort>,
-    pub(crate) free_vars_cache: IndexMap<Rc<Term>, IndexSet<Rc<Term>>>,
-    pub(crate) sorts_cache: IndexMap<Rc<Term>, Rc<Sort>>,
-    pub(crate) binders_cache: IndexMap<(Rc<Term>, Binder), IndexSet<Rc<Term>>>,
-    pub(crate) datatypes: IndexMap<String, Datatype>,
+    free_vars_cache: IndexMap<Rc<Term>, IndexSet<Rc<Term>>>,
+    sorts_cache: IndexMap<Rc<Term>, Rc<Sort>>,
+    binders_cache: IndexMap<(Rc<Term>, Binder), IndexSet<Rc<Term>>>,
+    datatypes: IndexMap<String, Datatype>,
 }
 
 impl PrimitivePool {
-    /// Constructs a new `TermPool`. This new pool will already contain the boolean constants `true`
-    /// and `false`, as well as the `Bool` sort.
+    /// Constructs a new, empty `PrimitivePool`.
     pub fn new() -> Self {
         Self::default()
     }
@@ -380,7 +387,7 @@ impl PrimitivePool {
                 if is_parametric {
                     let mut map = IndexMap::new();
                     for i in 0..args.len() {
-                        if !sorts[i].match_with(self.compute_sort(&args[i]), &mut map) {
+                        if !sorts[i].is_compatible_with_map(self.compute_sort(&args[i]), &mut map) {
                             unreachable!();
                         }
                     }
@@ -488,6 +495,8 @@ impl PrimitivePool {
     }
 
     // TODO: Try to workaround the lifetime specifiers and return a ref
+    /// Computes the free variables of `term`, reusing cached results from the given prior pools
+    /// whenever possible.
     pub fn free_vars_with_priorities<const N: usize>(
         &mut self,
         term: &Rc<Term>,
@@ -558,10 +567,12 @@ impl PrimitivePool {
         self.free_vars_cache.get(term).unwrap().clone()
     }
 
+    /// Registers a user-defined datatype in the pool, under the given name.
     pub fn add_datatype(&mut self, name: String, datatype: Datatype) {
         self.datatypes.insert(name, datatype);
     }
 
+    /// Collects all subterms of `term` which are binders of the given binder type.
     pub fn collect_binders(&mut self, term: &Rc<Term>, binder: Binder) -> IndexSet<Rc<Term>> {
         if let Some(set) = self.binders_cache.get(&(term.clone(), binder)) {
             return set.clone();
@@ -579,7 +590,7 @@ impl PrimitivePool {
             }
             Term::Binder(b, _, inner) => {
                 let mut set = IndexSet::new();
-                if *b == Binder::Choice {
+                if *b == binder {
                     set.insert(term.clone());
                 }
                 set.extend(self.collect_binders(inner, binder));

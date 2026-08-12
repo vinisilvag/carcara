@@ -153,7 +153,7 @@ impl FunctionDef {
         for (arg, (_, expected)) in args.iter().zip(self.params.iter()) {
             let got = p.sort(arg);
 
-            if !expected.is_compatible_with(got.as_ref()) {
+            if !expected.is_compatible(got.as_ref()) {
                 return Err(SortError {
                     expected: vec![expected.clone()].into_boxed_slice(),
                     got,
@@ -273,7 +273,7 @@ impl<'p, 's> Parser<'p, 's> {
 
     /// Returns a sort error if `got` does not equal `expected`.
     fn check_sort_eq(&mut self, expected: &Sort, got: &Rc<Sort>) -> Result<(), SortError> {
-        if expected.is_compatible_with(got) {
+        if expected.is_compatible(got) {
             Ok(())
         } else {
             let expected = self.pool.add_sort(expected.clone());
@@ -301,7 +301,7 @@ impl<'p, 's> Parser<'p, 's> {
         possibilities: &[Sort],
         got: &Rc<Sort>,
     ) -> Result<(), SortError> {
-        if possibilities.iter().any(|p| p.is_compatible_with(got)) {
+        if possibilities.iter().any(|p| p.is_compatible(got)) {
             Ok(())
         } else {
             let expected: Vec<_> = possibilities
@@ -332,8 +332,8 @@ impl<'p, 's> Parser<'p, 's> {
         let Sort::Array(got_key, got_value) = got.as_ref() else {
             return Err(SortError { expected, got: got.clone() });
         };
-        if key.is_some_and(|k| !got_key.is_compatible_with(k))
-            || value.is_some_and(|v| !got_value.is_compatible_with(v))
+        if key.is_some_and(|k| !got_key.is_compatible(k))
+            || value.is_some_and(|v| !got_value.is_compatible(v))
         {
             return Err(SortError { expected, got: got.clone() });
         }
@@ -815,7 +815,7 @@ impl<'p, 's> Parser<'p, 's> {
         for i in 0..args.len() {
             let arg_sort_i = self.pool.sort(&args[i]);
             if param_function {
-                if !sorts[i].match_with(&arg_sort_i, &mut map) {
+                if !sorts[i].is_compatible_with_map(&arg_sort_i, &mut map) {
                     return Err(ParserError::IncompatibleSorts(
                         sorts[i].clone(),
                         arg_sort_i.clone(),
@@ -2066,7 +2066,7 @@ impl<'p, 's> Parser<'p, 's> {
                                     // unify return sort with as_sort
                                     let ret_sort = sorts.last().unwrap();
                                     let mut map = IndexMap::<_, _>::new();
-                                    if !ret_sort.match_with(&sort, &mut map) {
+                                    if !ret_sort.is_compatible_with_map(&sort, &mut map) {
                                         return Err(Error::Parser(
                                             ParserError::IncompatibleSorts(
                                                 ret_sort.clone(),
