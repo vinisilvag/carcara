@@ -281,18 +281,18 @@ impl<T: Clone> MultiSet<T> {
     }
 }
 
-// TODO: Document this struct
+/// A range type with a nice `Display` implementation, to be used in error messages.
 #[derive(Debug)]
-pub struct Range<T = usize>(Option<T>, Option<T>);
+pub struct Range(Option<usize>, Option<usize>);
 
-impl<T: std::cmp::PartialOrd> Range<T> {
-    pub fn contains(&self, n: T) -> bool {
+impl Range {
+    pub fn contains(&self, n: usize) -> bool {
         self.0.as_ref().is_none_or(|bound| n >= *bound)
             && self.1.as_ref().is_none_or(|bound| n <= *bound)
     }
 }
 
-impl<T: fmt::Display + std::cmp::PartialEq> fmt::Display for Range<T> {
+impl fmt::Display for Range {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Range(Some(a), Some(b)) if a == b => write!(f, "{}", a),
@@ -319,12 +319,6 @@ impl From<ops::Range<usize>> for Range {
 impl From<ops::RangeFrom<usize>> for Range {
     fn from(r: ops::RangeFrom<usize>) -> Self {
         Self(Some(r.start), None)
-    }
-}
-
-impl From<ops::RangeFrom<i32>> for Range<Integer> {
-    fn from(r: ops::RangeFrom<i32>) -> Self {
-        Self(Some(Integer::from(r.start)), None)
     }
 }
 
