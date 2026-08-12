@@ -85,6 +85,7 @@ macro_rules! test_cases {
     }};
 }
 
+pub(super) mod arrays;
 pub(super) mod bitvectors;
 pub(super) mod clausification;
 pub(super) mod congruence;
