@@ -104,9 +104,9 @@ impl PrimitivePool {
     }
 
     /// Computes the sort of a term and adds it to the sort cache.
-    fn compute_sort(&mut self, term: &Rc<Term>) -> Rc<Sort> {
-        if let Some(sort) = self.sorts_cache.get(term) {
-            return sort.clone();
+    fn compute_sort(&mut self, term: &Rc<Term>) -> &Rc<Sort> {
+        if self.sorts_cache.contains_key(term) {
+            return &self.sorts_cache[term];
         }
 
         let result = match term.as_ref() {
@@ -175,9 +175,8 @@ impl PrimitivePool {
                 | Operator::BvSMod
                 | Operator::BvAShr => 'block: {
                     for a in args {
-                        let s = self.compute_sort(a);
-                        match s.as_ref() {
-                            Sort::BitVec(_) => break 'block s.clone(),
+                        match self.compute_sort(a).as_ref() {
+                            Sort::BitVec(_) => break 'block self.compute_sort(a).clone(),
                             Sort::ParamBitVec => (),
                             _ => unreachable!(),
                         }
@@ -198,7 +197,7 @@ impl PrimitivePool {
                     self.sorts.add(s)
                 }
                 Operator::BvConcat => {
-                    let s = args.iter().map(|a| self.compute_sort(a)).fold(
+                    let s = args.iter().map(|a| self.compute_sort(a).clone()).fold(
                         Sort::BitVec(0),
                         |acc, sort| match (acc, sort.as_ref()) {
                             (Sort::BitVec(a), Sort::BitVec(b)) => Sort::BitVec(a + b),
@@ -209,8 +208,8 @@ impl PrimitivePool {
                     );
                     self.sorts.add(s)
                 }
-                Operator::Ite => self.compute_sort(&args[1]),
-                Operator::Abs => self.compute_sort(&args[0]),
+                Operator::Ite => self.compute_sort(&args[1]).clone(),
+                Operator::Abs => self.compute_sort(&args[0]).clone(),
                 Operator::Add | Operator::Sub | Operator::Mult => {
                     let s = if args
                         .iter()
@@ -225,13 +224,12 @@ impl PrimitivePool {
                 Operator::RealDiv | Operator::ToReal => self.sorts.add(Sort::Real),
                 Operator::IntDiv | Operator::Mod | Operator::ToInt => self.sorts.add(Sort::Int),
                 Operator::Select => {
-                    let sort = self.compute_sort(&args[0]);
-                    let Sort::Array(_, y) = sort.as_ref() else {
+                    let Sort::Array(_, y) = self.compute_sort(&args[0]).as_ref() else {
                         unreachable!()
                     };
                     y.clone()
                 }
-                Operator::Store => self.compute_sort(&args[0]),
+                Operator::Store => self.compute_sort(&args[0]).clone(),
                 Operator::StrLen
                 | Operator::IndexOf
                 | Operator::IndexOfRe
@@ -264,7 +262,7 @@ impl PrimitivePool {
                     // For empty lists, we can't know the element sort, so we use a placeholder
                     // variable sort `?`
                     [] => self.sorts.add(Sort::Var("?".to_owned())),
-                    [arg, ..] => self.compute_sort(arg),
+                    [arg, ..] => self.compute_sort(arg).clone(),
                 },
                 Operator::Pow2 | Operator::Log2 => self.sorts.add(Sort::Int),
                 Operator::IsPow2 => self.sorts.add(Sort::Bool),
@@ -289,19 +287,22 @@ impl PrimitivePool {
                 Operator::SetUnion
                 | Operator::SetInter
                 | Operator::SetMinus
-                | Operator::SetComplement => self.compute_sort(&args[0]),
+                | Operator::SetComplement => self.compute_sort(&args[0]).clone(),
                 Operator::SetMember
                 | Operator::SetSubset
                 | Operator::SetIsEmpty
                 | Operator::SetIsSingleton => self.sorts.add(Sort::Bool),
                 Operator::SetSingleton => {
-                    let elem_sort = Sort::Set(self.compute_sort(&args[0]));
+                    let elem_sort = Sort::Set(self.compute_sort(&args[0]).clone());
                     self.sorts.add(elem_sort)
                 }
                 Operator::SetCard => self.sorts.add(Sort::Int),
-                Operator::SetInsert => self.compute_sort(args.last().unwrap()),
+                Operator::SetInsert => self.compute_sort(args.last().unwrap()).clone(),
                 Operator::Tuple => {
-                    let sorts = args.iter().map(|elem| self.compute_sort(elem)).collect();
+                    let sorts = args
+                        .iter()
+                        .map(|elem| self.compute_sort(elem).clone())
+                        .collect();
                     self.sorts.add(Sort::Tuple(sorts))
                 }
                 Operator::TupleUnit => self.sorts.add(Sort::Tuple(Vec::new())),
@@ -318,10 +319,10 @@ impl PrimitivePool {
                     let tuple = self.sorts.add(Sort::Tuple(sorts));
                     self.sorts.add(Sort::Set(tuple))
                 }
-                Operator::RelTclosure => self.compute_sort(&args[0]),
+                Operator::RelTclosure => self.compute_sort(&args[0]).clone(),
                 Operator::RelJoin => {
                     let [mut left, right] = [&args[0], &args[1]].map(|arg| {
-                        let sort = self.compute_sort(arg);
+                        let sort = self.compute_sort(arg).clone();
                         let Sort::Set(tuple) = sort.as_ref() else {
                             unreachable!()
                         };
@@ -337,7 +338,7 @@ impl PrimitivePool {
                 }
                 Operator::RelProduct => {
                     let [mut left, right] = [&args[0], &args[1]].map(|arg| {
-                        let sort = self.compute_sort(arg);
+                        let sort = self.compute_sort(arg).clone();
                         let Sort::Set(tuple) = sort.as_ref() else {
                             unreachable!()
                         };
@@ -352,7 +353,7 @@ impl PrimitivePool {
                 }
             },
             Term::App(f, args) => {
-                let func_sort = self.compute_sort(f);
+                let func_sort = self.compute_sort(f).clone();
                 let (is_parametric, sorts) = match func_sort.as_ref() {
                     Sort::Function(sorts) => (false, sorts),
                     Sort::Par(_, inner) => {
@@ -379,8 +380,7 @@ impl PrimitivePool {
                 if is_parametric {
                     let mut map = IndexMap::new();
                     for i in 0..args.len() {
-                        let arg_sort_i = self.compute_sort(&args[i]);
-                        if !sorts[i].match_with(&arg_sort_i, &mut map) {
+                        if !sorts[i].match_with(self.compute_sort(&args[i]), &mut map) {
                             unreachable!();
                         }
                     }
@@ -394,18 +394,18 @@ impl PrimitivePool {
             Term::Binder(Binder::Lambda, bindings, body) => {
                 let mut result: Vec<_> =
                     bindings.iter().map(|(_name, sort)| sort.clone()).collect();
-                result.push(self.compute_sort(body));
+                result.push(self.compute_sort(body).clone());
                 self.sorts.add(Sort::Function(result))
             }
-            Term::Let(_, inner) => self.compute_sort(inner),
-            Term::Match(_, cases) => self.compute_sort(&cases.last().unwrap().body),
+            Term::Let(_, inner) => self.compute_sort(inner).clone(),
+            Term::Match(_, cases) => self.compute_sort(&cases.last().unwrap().body).clone(),
             Term::ParamOp { op, op_args, args } => self
                 .compute_indexed_op_sort(*op, op_args, args)
                 .unwrap_or_else(|| self.add_sort(Sort::ParamBitVec)),
             Term::AsOp(_, sort, _) => sort.clone(),
         };
         self.sorts_cache.insert(term.clone(), result);
-        self.sorts_cache[term].clone()
+        &self.sorts_cache[term]
     }
 
     // `None` means `ParamBitVec`
@@ -430,7 +430,7 @@ impl PrimitivePool {
                 }
             }
             ParamOperator::RotateLeft | ParamOperator::RotateRight => {
-                return Some(self.compute_sort(&args[0]))
+                return Some(self.compute_sort(&args[0]).clone())
             }
             ParamOperator::Repeat => {
                 let repetitions = op_args[0].as_integer()?;
@@ -454,7 +454,7 @@ impl PrimitivePool {
             ParamOperator::RePower | ParamOperator::ReLoop => Sort::RegLan,
             ParamOperator::TupleSelect => {
                 let i = op_args[0].as_integer()?.to_usize().unwrap();
-                return Some(self.compute_sort(&args[i]));
+                return Some(self.compute_sort(&args[i]).clone());
             }
         };
         Some(self.add_sort(res))
