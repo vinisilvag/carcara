@@ -48,6 +48,9 @@ where
     }
 }
 
+/// An iterator extension trait that provides the [`dedup`](DedupIterator::dedup) method.
+///
+/// This trait is implemented for all iterators.
 pub trait DedupIterator<T> {
     /// Creates an iterator that skips duplicate elements.
     fn dedup(self) -> Dedup<T, Self>
@@ -64,6 +67,12 @@ impl<T, I: Iterator<Item = T>> DedupIterator<T> for I {
     }
 }
 
+/// A wrapper around a value that caches its hash, so that the wrapped value only needs to be
+/// hashed once.
+///
+/// The hash is computed when the `HashCache` is created, and after that hashing will only write
+/// that cached hash instead of hashing the wrapped value. This is useful when you need to hash the
+/// same value multiple times, for example when it is used as a key in a [`HashMapStack`].
 pub struct HashCache<T> {
     hash: u64,
     value: T,
@@ -84,12 +93,14 @@ impl<T: Hash> Hash for HashCache<T> {
 }
 
 impl<T: Eq + Hash> HashCache<T> {
+    /// Creates a new `HashCache`, computing and storing the hash of `value`.
     pub fn new(value: T) -> Self {
         let mut hasher = std::collections::hash_map::DefaultHasher::default();
         value.hash(&mut hasher);
         Self { hash: hasher.finish(), value }
     }
 
+    /// Consumes the `HashCache`, returning the wrapped value.
     pub fn unwrap(self) -> T {
         self.value
     }
@@ -101,28 +112,41 @@ impl<T> AsRef<T> for HashCache<T> {
     }
 }
 
+/// A stack of hash maps, used as a symbol table.
+///
+/// Values are inserted into the topmost scope, and lookups search scopes from the top down,
+/// returning the first value found.
 #[derive(Debug)]
 pub struct HashMapStack<K, V> {
     scopes: Vec<IndexMap<K, V>>,
 }
 
 impl<K, V> HashMapStack<K, V> {
+    /// Creates an empty `HashMapStack`, containing a single empty scope.
     pub fn new() -> Self {
         Self { scopes: vec![IndexMap::new()] }
     }
 
+    /// Returns the number of scopes in the stack.
     pub fn height(&self) -> usize {
         self.scopes.len()
     }
 
+    /// Returns `true` if every scope in the stack is empty.
     pub fn is_empty(&self) -> bool {
         self.scopes.iter().all(IndexMap::is_empty)
     }
 
+    /// Pushes a new, empty scope onto the stack.
     pub fn push_scope(&mut self) {
         self.scopes.push(IndexMap::new());
     }
 
+    /// Pops the topmost scope from the stack.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the stack contains only one scope, since the last scope cannot be popped.
     pub fn pop_scope(&mut self) {
         match self.scopes.len() {
             0 => unreachable!(),
@@ -135,6 +159,9 @@ impl<K, V> HashMapStack<K, V> {
 }
 
 impl<K: Eq + Hash, V> HashMapStack<K, V> {
+    /// Searches for the value bound to `key`, starting from the topmost scope.
+    ///
+    /// Returns the value from the first scope found that binds `key`, or `None` if no scope does.
     pub fn get<Q>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
@@ -150,6 +177,8 @@ impl<K: Eq + Hash, V> HashMapStack<K, V> {
         self.scopes.iter().rev().find_map(|scope| scope.get(key))
     }
 
+    /// Like [`get`](HashMapStack::get), but also returns the depth of the scope in which the key
+    /// was found, where `0` is the bottommost scope.
     pub fn get_with_depth<Q>(&self, key: &Q) -> Option<(usize, &V)>
     where
         K: Borrow<Q>,
@@ -162,6 +191,7 @@ impl<K: Eq + Hash, V> HashMapStack<K, V> {
             .find_map(|(depth, scope)| scope.get(key).map(|v| (depth, v)))
     }
 
+    /// Inserts a key-value pair into the topmost scope.
     pub fn insert(&mut self, key: K, value: V) {
         self.scopes.last_mut().unwrap().insert(key, value);
     }
@@ -173,6 +203,7 @@ impl<K, V> Default for HashMapStack<K, V> {
     }
 }
 
+/// A multiset (or bag): a collection that counts how many times each element occurs.
 #[derive(Debug, Clone)]
 pub struct MultiSet<T>(pub IndexMap<T, usize>);
 
@@ -183,30 +214,42 @@ impl<T> Default for MultiSet<T> {
 }
 
 impl<T> MultiSet<T> {
+    /// Creates a new, empty `MultiSet`.
     pub fn new() -> Self {
         MultiSet(IndexMap::new())
     }
 }
 
+/// The result of comparing two multisets with [`MultiSet::symmetric_difference`].
 pub enum MultiSetDifference<'a, T> {
+    /// The two multisets contain the same elements with the same multiplicities.
     None,
+
+    /// The element occurs fewer times in `self` than in the other multiset.
     Missing(&'a T),
+
+    /// The element occurs more times in `self` than in the other multiset.
     Extra(&'a T),
 }
 
 impl<T: Hash + Eq> MultiSet<T> {
+    /// Returns the number of times `value` occurs in the multiset, or `0` if it is not present.
     pub fn get(&self, value: &T) -> usize {
         self.0.get(value).copied().unwrap_or_default()
     }
 
+    /// Returns a mutable reference to the number of times `value` occurs in the multiset, inserting
+    /// an entry with count `0` if `value` is not present.
     pub fn get_mut(&mut self, value: T) -> &mut usize {
         self.0.entry(value).or_default()
     }
 
+    /// Inserts `value` into the multiset once, returning the new count for `value`.
     pub fn insert(&mut self, value: T) -> usize {
         self.insert_n(value, 1)
     }
 
+    /// Inserts `n` copies of `value` into the multiset, returning the new count for `value`.
     pub fn insert_n(&mut self, value: T, n: usize) -> usize {
         if n == 0 {
             return self.get(&value);
@@ -216,10 +259,12 @@ impl<T: Hash + Eq> MultiSet<T> {
         *v
     }
 
+    /// Removes `value` from the multiset once, returning the remaining count for `value`.
     pub fn remove(&mut self, value: T) -> usize {
         self.remove_n(value, 1)
     }
 
+    /// Removes up to `n` copies of `value` from the multiset, returning the remaining count.
     pub fn remove_n(&mut self, value: T, n: usize) -> usize {
         if self.get(&value) <= n {
             self.0.swap_remove(&value);
@@ -231,6 +276,12 @@ impl<T: Hash + Eq> MultiSet<T> {
         }
     }
 
+    /// Returns the first element that distinguishes this multiset from `other`.
+    ///
+    /// More precisely, this returns `MultiSetDifference::Extra` if some element occurs more times
+    /// in `self` than in `other`, `MultiSetDifference::Missing` if some element occurs fewer
+    /// times in `self` than in `other`, and `MultiSetDifference::None` if the two multisets are
+    /// identical.
     pub fn symmetric_difference<'a>(&'a self, other: &'a Self) -> MultiSetDifference<'a, T> {
         for (item, &count) in &self.0 {
             let other_count = other.get(item);
@@ -271,6 +322,7 @@ impl<T: Hash + Eq> FromIterator<T> for MultiSet<T> {
 }
 
 impl<T: Clone> MultiSet<T> {
+    /// Returns an iterator that yields each element of the multiset as many times as it occurs.
     pub fn into_iter(self) -> impl Iterator<Item = T> {
         // I use a custom `into_iter` method instead of implementing `IntoIterator` because the
         // actual iterator type I use can't be named (because of the closure), which `IntoIterator`
@@ -286,6 +338,7 @@ impl<T: Clone> MultiSet<T> {
 pub struct Range(Option<usize>, Option<usize>);
 
 impl Range {
+    /// Returns `true` if `n` is contained in the range.
     pub fn contains(&self, n: usize) -> bool {
         self.0.as_ref().is_none_or(|bound| n >= *bound)
             && self.1.as_ref().is_none_or(|bound| n <= *bound)
@@ -334,9 +387,9 @@ impl From<ops::RangeTo<usize>> for Range {
     }
 }
 
-/// Provides a pretty displayable name for a type. For example, the type name for `Rc<Term>` is
-/// "term".
+/// Provides a pretty displayable name for a type.
 pub trait TypeName {
+    /// The type's displayable name.
     const NAME: &'static str;
 }
 
