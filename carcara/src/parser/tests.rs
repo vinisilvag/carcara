@@ -55,6 +55,14 @@ pub fn parse_proof_err(pool: &mut PrimitivePool, input: &str) -> Error {
         .expect_err("expected error")
 }
 
+/// Parses a problem from a `&str`. Panics if any error is encountered.
+fn parse_problem(pool: &mut PrimitivePool, input: &str) -> Problem {
+    Parser::new(pool, TEST_CONFIG, input)
+        .expect(ERROR_MESSAGE)
+        .parse_problem()
+        .expect(ERROR_MESSAGE)
+}
+
 fn run_parser_tests(pool: &mut PrimitivePool, cases: &[(&str, Term)]) {
     for (case, expected) in cases {
         let got = parse_term(pool, case);
@@ -845,4 +853,80 @@ fn test_proofs_with_extra_parens() {
         parse_proof_err(&mut p, "(assume h1 true) )"),
         Error::Parser(ParserError::UnexpectedToken(Token::CloseParen), _)
     ));
+}
+
+#[test]
+fn test_datatypes() {
+    let mut p = PrimitivePool::new();
+    // Basic
+    parse_problem(
+        &mut p,
+        "(declare-datatype Color ((red) (green) (blue)))
+
+        ; sort symbol
+        (declare-const c Color)
+
+        (assert (= c green))
+        (assert (= c blue))
+
+        ; testers
+        (assert ((_ is red) red))
+        (assert ((_ is blue) c))
+
+        ; matching on color
+        (define-fun redness ((c Color)) Int
+            (match c (
+                (red 100)
+                (other 0)
+            ))
+        )",
+    );
+
+    // Parametric datatypes
+    parse_problem(
+        &mut p,
+        "(declare-datatype Option (par (X) ((none) (some (val X)))))
+        (declare-const o (Option Int))
+
+        (assert (= (val (some 10)) 10))
+        (assert ((_ is some) (some 10)))
+        (assert (not ((_ is some) none)))
+        (assert (not (= (some 1) none)))
+
+        (declare-datatype Pair (par (X Y) ((pair (first X) (second Y)))))
+        (declare-const p (Pair Int Bool))
+
+        (assert (= (first (pair 3 true)) 3))
+        (assert (= (second (pair 3 true)) true))",
+    );
+
+    // Recursive datatypes
+    parse_problem(
+        &mut p,
+        "(declare-datatype List (par (T) (
+            (nil)
+            (cons (head T) (tail (List T)))
+        )))
+        (declare-const b (List Bool))
+
+        (assert (= b nil))
+        (assert (= b (cons true nil)))
+
+        (define-fun is-empty ((l (List Int))) Bool
+            (match l (
+                (nil true)
+                ((cons h t) false)
+            ))
+        )
+
+        (declare-datatypes ((Tree 1) (TreeList 1)) (
+            (par (X) (
+                (node (value X) (children (TreeList X)))
+            ))
+            (par (Y) (
+                (empty)
+                (insert (head (Tree Y)) (tail (TreeList Y)))
+            ))
+        ))",
+    );
 }

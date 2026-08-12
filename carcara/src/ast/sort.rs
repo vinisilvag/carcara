@@ -145,8 +145,14 @@ impl Sort {
             xs.into_iter().zip(ys).all(|(x, y)| x.is_compatible_with(y))
         }
 
+        if self == other {
+            return true;
+        }
+
         match (self, other) {
             (Sort::Var(_), _) | (_, Sort::Var(_)) => true,
+            (Sort::Par(_, a), b) => a.is_compatible_with(b),
+            (a, Sort::Par(_, b)) => a.is_compatible_with(b),
             (Sort::ParamBitVec, Sort::BitVec(_) | Sort::ParamBitVec)
             | (Sort::BitVec(_), Sort::ParamBitVec) => true,
 
@@ -154,17 +160,16 @@ impl Sort {
                 a == b && all_compatible(sorts_a, sorts_b)
             }
             (Sort::Function(sorts_a), Sort::Function(sorts_b)) => all_compatible(sorts_a, sorts_b),
-            // The datatype name and arguments are sufficient to uniquely specify a datatype sort,
-            // so we don't need to look at the constructors
             (
-                Sort::Datatype { name: name_a, args: args_a, .. },
-                Sort::Datatype { name: name_b, args: args_b, .. },
+                Sort::Datatype { name: name_a, args: args_a },
+                Sort::Datatype { name: name_b, args: args_b },
             ) => name_a == name_b && all_compatible(args_a, args_b),
             (Sort::Array(x_a, y_a), Sort::Array(x_b, y_b)) => {
                 all_compatible([x_a, y_a], [x_b, y_b])
             }
-
-            _ => self == other,
+            (Sort::Set(a), Sort::Set(b)) => a.is_compatible_with(b),
+            (Sort::Tuple(sorts_a), Sort::Tuple(sorts_b)) => all_compatible(sorts_a, sorts_b),
+            _ => false,
         }
     }
 
@@ -188,6 +193,8 @@ impl Sort {
                 };
                 true
             }
+            (Sort::Par(_, a), b) => a.is_compatible_with(b),
+            (a, Sort::Par(_, b)) => a.is_compatible_with(b),
             (Sort::Atom(a, sorts_a), Sort::Atom(b, sorts_b)) => {
                 a == b && match_all(sorts_a, sorts_b, map)
             }
@@ -202,6 +209,8 @@ impl Sort {
             (Sort::Array(x_a, y_a), Sort::Array(x_b, y_b)) => {
                 match_all([x_a, y_a], [x_b, y_b], map)
             }
+            (Sort::Set(a), Sort::Set(b)) => a.match_with(b, map),
+            (Sort::Tuple(sorts_a), Sort::Tuple(sorts_b)) => match_all(sorts_a, sorts_b, map),
             _ => self.param_eq(target),
         }
     }

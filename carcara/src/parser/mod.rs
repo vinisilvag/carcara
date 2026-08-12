@@ -71,11 +71,6 @@ pub struct Config {
     /// This behaviour is seen in some legacy rare files.
     implicit_at_sort_alias: bool,
 
-    /// If `true`, relaxes sort checking rules such that sorts that are compatible but not identical
-    /// (e.g. `(Array Int T)` and `(Array Int Real)`, where `T` is a sort variable) are considered
-    /// equal for sort checking purposes.
-    relaxed_sort_checking: bool,
-
     /// If `true`, allow old (SMT-LIB versions < 2.6) syntax for datatype testers, namely `is-cons`
     /// instead of `(_ is cons)`.
     allow_legacy_tester_syntax: bool,
@@ -93,7 +88,6 @@ impl Config {
             parse_hole_args: false,
             allow_higher_order_indexed_ops: false,
             implicit_at_sort_alias: false,
-            relaxed_sort_checking: false,
             allow_legacy_tester_syntax: false,
         }
     }
@@ -133,7 +127,6 @@ pub fn parse_instance_with_pool<'s>(
     if let Some(rules) = rules {
         parser.reset(rules)?;
         parser.config.allow_higher_order_indexed_ops = true;
-        parser.config.relaxed_sort_checking = true;
         let rules = parser.parse_rare();
         let rules = match rules {
             Ok(t) => Ok(t),
@@ -160,9 +153,7 @@ impl FunctionDef {
         for (arg, (_, expected)) in args.iter().zip(self.params.iter()) {
             let got = p.sort(arg);
 
-            // TODO: maybe use `is_compatible_with` instead of `param_eq` when
-            // `relaxed_sort_checking` is enabled, similarly to how `Parser::compare_sort` works.
-            if !expected.param_eq(got.as_ref()) {
+            if !expected.is_compatible_with(got.as_ref()) {
                 return Err(SortError {
                     expected: vec![expected.clone()].into_boxed_slice(),
                     got,
@@ -280,19 +271,9 @@ impl<'p, 's> Parser<'p, 's> {
             .is_some_and(|sort| *sort.as_ref() == Sort::Type)
     }
 
-    /// Compares two sorts according to the sort checking configuration. Return `true` if they are
-    /// considered equal.
-    fn compare_sort(&self, a: &Sort, b: &Sort) -> bool {
-        if self.config.relaxed_sort_checking {
-            a.is_compatible_with(b)
-        } else {
-            a.param_eq(b)
-        }
-    }
-
     /// Returns a sort error if `got` does not equal `expected`.
     fn check_sort_eq(&mut self, expected: &Sort, got: &Rc<Sort>) -> Result<(), SortError> {
-        if self.compare_sort(expected, got) {
+        if expected.is_compatible_with(got) {
             Ok(())
         } else {
             let expected = self.pool.add_sort(expected.clone());
@@ -305,6 +286,9 @@ impl<'p, 's> Parser<'p, 's> {
 
     /// Makes sure all terms in `sequence` are equal to each other, otherwise returns an error.
     fn check_sort_all_eq(&mut self, sequence: &[Rc<Sort>]) -> Result<(), SortError> {
+        // TODO: we are just checking if each sort is compatible with the previous. We could be more
+        // strict here, and check that they are all collectively compatible. That would reject sort
+        // sequences like (Real, (par (x) x), Int), which is currently accepted.
         for i in 1..sequence.len() {
             self.check_sort_eq(&sequence[i - 1], &sequence[i])?;
         }
@@ -317,7 +301,7 @@ impl<'p, 's> Parser<'p, 's> {
         possibilities: &[Sort],
         got: &Rc<Sort>,
     ) -> Result<(), SortError> {
-        if possibilities.iter().any(|p| self.compare_sort(p, got)) {
+        if possibilities.iter().any(|p| p.is_compatible_with(got)) {
             Ok(())
         } else {
             let expected: Vec<_> = possibilities
@@ -348,8 +332,8 @@ impl<'p, 's> Parser<'p, 's> {
         let Sort::Array(got_key, got_value) = got.as_ref() else {
             return Err(SortError { expected, got: got.clone() });
         };
-        if key.is_some_and(|k| !self.compare_sort(got_key, k))
-            || value.is_some_and(|v| !self.compare_sort(got_value, v))
+        if key.is_some_and(|k| !got_key.is_compatible_with(k))
+            || value.is_some_and(|v| !got_value.is_compatible_with(v))
         {
             return Err(SortError { expected, got: got.clone() });
         }
