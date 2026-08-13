@@ -726,14 +726,10 @@ impl Automaton {
                     all_states: vec![State {
                         id: "init".to_owned(),
                         accept: false,
-                        transitions: HashSet::from_iter(
-                            [Transition {
-                                to: 0,
-                                trigger: Trigger::Range((0, u16::MAX)),
-                            }]
-                            .iter()
-                            .cloned(),
-                        ),
+                        transitions: HashSet::from([Transition {
+                            to: 0,
+                            trigger: Trigger::Range((0, u16::MAX)),
+                        }]),
                     }],
                     initial_state: 0,
                 }),
