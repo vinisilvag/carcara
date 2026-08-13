@@ -572,7 +572,7 @@ impl Automaton {
                     }
 
                     let mut automatons = automatons.into_iter();
-                    let mut result = automatons.next().ok_or(CheckerError::Unspecified)?;
+                    let mut result = automatons.next().unwrap();
 
                     for next in automatons {
                         let offset = result.all_states.len();
@@ -691,13 +691,13 @@ impl Automaton {
                     Ok(dfa.complement())
                 }
                 Term::Op(Operator::ReRange, args) => {
-                    let c1_term = args.first().ok_or(CheckerError::Unspecified)?;
-                    let c2_term = args.get(1).ok_or(CheckerError::Unspecified)?;
+                    let c1_term = &args[0];
+                    let c2_term = &args[1];
                     let Term::Const(Constant::String(s1)) = c1_term.as_ref() else {
-                        return Err(CheckerError::Unspecified);
+                        unreachable!()
                     };
                     let Term::Const(Constant::String(s2)) = c2_term.as_ref() else {
-                        return Err(CheckerError::Unspecified);
+                        unreachable!()
                     };
                     let c1 = s1.chars().next().ok_or(CheckerError::Unspecified)? as u16;
                     let c2 = s2.chars().next().ok_or(CheckerError::Unspecified)? as u16;
@@ -747,7 +747,7 @@ impl Automaton {
                         components.push(nfa.epsilon_eliminate());
                     }
                     let mut components = components.into_iter();
-                    let mut res = components.next().ok_or(CheckerError::Unspecified)?;
+                    let mut res = components.next().unwrap();
                     for comp in components {
                         res = operations::intersection(res, comp)?;
                     }
