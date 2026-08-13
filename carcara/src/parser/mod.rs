@@ -280,6 +280,12 @@ impl<'p, 's> Parser<'p, 's> {
         Ok(())
     }
 
+    /// Wraps a `ParserError` into a crate level error, by adding the given position and the current
+    /// source name.
+    fn err(&self, inner: impl Into<ParserError>, pos: Position) -> Error {
+        Error::Parser(inner.into(), pos, self.lexer.source_name.into())
+    }
+
     /// Advances the parser one token, and returns the previous `current_token`.
     fn next_token(&mut self) -> CarcaraResult<(Token, Position)> {
         use std::mem::replace;
@@ -871,7 +877,7 @@ impl<'p, 's> Parser<'p, 's> {
         if got == expected {
             Ok(())
         } else {
-            Err(Error::Parser(ParserError::UnexpectedToken(got), pos))
+            Err(self.err(ParserError::UnexpectedToken(got), pos))
         }
     }
 
@@ -880,7 +886,7 @@ impl<'p, 's> Parser<'p, 's> {
     fn expect_symbol(&mut self) -> CarcaraResult<String> {
         match self.next_token()? {
             (Token::Symbol(s), _) => Ok(s),
-            (other, pos) => Err(Error::Parser(ParserError::UnexpectedToken(other), pos)),
+            (other, pos) => Err(self.err(ParserError::UnexpectedToken(other), pos)),
         }
     }
 
@@ -889,7 +895,7 @@ impl<'p, 's> Parser<'p, 's> {
     fn expect_keyword(&mut self) -> CarcaraResult<String> {
         match self.next_token()? {
             (Token::Keyword(s), _) => Ok(s),
-            (other, pos) => Err(Error::Parser(ParserError::UnexpectedToken(other), pos)),
+            (other, pos) => Err(self.err(ParserError::UnexpectedToken(other), pos)),
         }
     }
 
@@ -898,7 +904,7 @@ impl<'p, 's> Parser<'p, 's> {
     fn expect_numeral(&mut self) -> CarcaraResult<Integer> {
         match self.next_token()? {
             (Token::Numeral(n), _) => Ok(n),
-            (other, pos) => Err(Error::Parser(ParserError::UnexpectedToken(other), pos)),
+            (other, pos) => Err(self.err(ParserError::UnexpectedToken(other), pos)),
         }
     }
 
@@ -915,10 +921,7 @@ impl<'p, 's> Parser<'p, 's> {
             result.push(parse_func(self)?);
         }
         if non_empty && result.is_empty() {
-            Err(Error::Parser(
-                ParserError::EmptySequence,
-                self.current_position,
-            ))
+            Err(self.err(ParserError::EmptySequence, self.current_position))
         } else {
             self.next_token()?; // Consume `)` token
             Ok(result)
@@ -935,7 +938,7 @@ impl<'p, 's> Parser<'p, 's> {
                 (Token::OpenParen, _) => 1,
                 (Token::CloseParen, _) => -1,
                 (Token::Eof, pos) => {
-                    return Err(Error::Parser(ParserError::UnexpectedToken(Token::Eof), pos));
+                    return Err(self.err(ParserError::UnexpectedToken(Token::Eof), pos));
                 }
                 _ => 0,
             };
@@ -1149,10 +1152,9 @@ impl<'p, 's> Parser<'p, 's> {
                         }
                         // It is disallowed within subproofs.
                         else {
-                            return Err(Error::Parser(
-                                ParserError::AssumeAfterStepInSubproof(id),
-                                position,
-                            ));
+                            return Err(
+                                self.err(ParserError::AssumeAfterStepInSubproof(id), position)
+                            );
                         }
                     }
 
@@ -1191,15 +1193,12 @@ impl<'p, 's> Parser<'p, 's> {
                     continue;
                 }
                 _ => {
-                    return Err(Error::Parser(ParserError::UnexpectedToken(token), position));
+                    return Err(self.err(ParserError::UnexpectedToken(token), position));
                 }
             };
             let id = HashCache::new(id);
             if self.state.step_ids.get(&id).is_some() {
-                return Err(Error::Parser(
-                    ParserError::RepeatedStepId(id.unwrap()),
-                    position,
-                ));
+                return Err(self.err(ParserError::RepeatedStepId(id.unwrap()), position));
             }
 
             let (top_subproof, top_end_step, _) = stack.last_mut().unwrap();
@@ -1214,15 +1213,12 @@ impl<'p, 's> Parser<'p, 's> {
                 // The subproof must contain at least two commands: the end step and the previous
                 // command it implicitly references
                 if subproof.commands.len() < 2 {
-                    return Err(Error::Parser(
-                        ParserError::EmptySubproof(id.unwrap()),
-                        position,
-                    ));
+                    return Err(self.err(ParserError::EmptySubproof(id.unwrap()), position));
                 }
 
                 // We also need to make sure that the last command is in fact a `step`
                 if !subproof.commands.last().unwrap().is_step() {
-                    return Err(Error::Parser(
+                    return Err(self.err(
                         ParserError::LastSubproofStepIsNotStep(id.unwrap()),
                         position,
                     ));
@@ -1247,7 +1243,7 @@ impl<'p, 's> Parser<'p, 's> {
             // If there is more than one layer in the stack, we are inside a subproof that should be
             // closed before the outer proof is finished
             _ => {
-                return Err(Error::Parser(
+                return Err(self.err(
                     ParserError::UnclosedSubproof(stack.pop().unwrap().1),
                     self.current_position,
                 ))
@@ -1276,7 +1272,7 @@ impl<'p, 's> Parser<'p, 's> {
             (Token::Symbol(s), _) => s,
             (Token::ReservedWord(r), _) => format!("{}", r),
             (other, pos) => {
-                return Err(Error::Parser(ParserError::UnexpectedToken(other), pos));
+                return Err(self.err(ParserError::UnexpectedToken(other), pos));
             }
         };
 
@@ -1337,7 +1333,7 @@ impl<'p, 's> Parser<'p, 's> {
             .step_ids
             .get_with_depth(&id)
             .map(|(d, &i)| (d, i))
-            .ok_or_else(|| Error::Parser(ParserError::UndefinedStepId(id.unwrap()), position))
+            .ok_or_else(|| self.err(ParserError::UndefinedStepId(id.unwrap()), position))
     }
 
     /// Parses an argument for the `:discharge` attribute.
@@ -1357,7 +1353,7 @@ impl<'p, 's> Parser<'p, 's> {
             .get_with_depth(&absolute_id)
             .or_else(|| self.state.step_ids.get_with_depth(&id))
             .map(|(d, &i)| (d, i))
-            .ok_or_else(|| Error::Parser(ParserError::UndefinedStepId(id.unwrap()), position))
+            .ok_or_else(|| self.err(ParserError::UndefinedStepId(id.unwrap()), position))
     }
 
     /// Parses an `anchor` proof command. This method assumes that the `(` and `anchor` tokens were
@@ -1445,10 +1441,9 @@ impl<'p, 's> Parser<'p, 's> {
         let arity_pos = self.current_position;
         let arity = self.expect_numeral()?;
         self.expect_token(Token::CloseParen)?;
-        let arity = arity.to_usize().ok_or(Error::Parser(
-            ParserError::InvalidSortArity(arity),
-            arity_pos,
-        ))?;
+        let arity = arity
+            .to_usize()
+            .ok_or(self.err(ParserError::InvalidSortArity(arity), arity_pos))?;
         Ok((name, arity))
     }
 
@@ -1611,19 +1606,18 @@ impl<'p, 's> Parser<'p, 's> {
                 // Check to see if there is a nullary function defined with this name
                 return if let Some(func) = self.state.function_defs.get(&s) {
                     func.apply(self.pool, Vec::new())
-                        .map_err(|err| Error::Parser(err, pos))
+                        .map_err(|err| self.err(err, pos))
                 } else if let Ok(op) = Operator::from_str(&s) {
                     let args = Vec::new();
 
-                    self.make_op(op, args)
-                        .map_err(|err| Error::Parser(err, pos))
+                    self.make_op(op, args).map_err(|err| self.err(err, pos))
                 } else {
-                    self.make_var(s).map_err(|err| Error::Parser(err, pos))
+                    self.make_var(s).map_err(|err| self.err(err, pos))
                 };
             }
             (Token::OpenParen, _) => return self.parse_application(),
             (other, pos) => {
-                return Err(Error::Parser(ParserError::UnexpectedToken(other), pos));
+                return Err(self.err(ParserError::UnexpectedToken(other), pos));
             }
         };
         Ok(self.pool.add(term))
@@ -1634,7 +1628,7 @@ impl<'p, 's> Parser<'p, 's> {
         let pos = self.current_position;
         let term = self.parse_term()?;
         self.check_sort_eq(expected_sort, &self.pool.sort(&term))
-            .map_err(|e| Error::Parser(e.into(), pos))?;
+            .map_err(|e| self.err(e, pos))?;
         Ok(term)
     }
 
@@ -1773,7 +1767,7 @@ impl<'p, 's> Parser<'p, 's> {
                 if let Some(i) = arg.as_signed_integer() {
                     constant_args.push(self.pool.add(Term::Const(Constant::Integer(i))));
                 } else {
-                    return Err(Error::Parser(
+                    return Err(self.err(
                         ParserError::ExpectedIntegerConstant(arg.clone()),
                         self.current_position,
                     ));
@@ -1786,7 +1780,7 @@ impl<'p, 's> Parser<'p, 's> {
             return Ok((ParamOperator::BvConst, constant_args));
         }
         let op = ParamOperator::from_str(op_symbol.as_str()).map_err(|_| {
-            Error::Parser(
+            self.err(
                 ParserError::InvalidIndexedOp(op_symbol),
                 self.current_position,
             )
@@ -1803,7 +1797,7 @@ impl<'p, 's> Parser<'p, 's> {
             if let Some(i) = arg.as_signed_integer() {
                 constant_args.push(self.pool.add(Term::Const(Constant::Integer(i))));
             } else {
-                return Err(Error::Parser(
+                return Err(self.err(
                     ParserError::ExpectedIntegerConstant(arg.clone()),
                     self.current_position,
                 ));
@@ -1952,7 +1946,7 @@ impl<'p, 's> Parser<'p, 's> {
                     Reserved::Underscore => {
                         let (op, op_args) = self.parse_indexed_operator()?;
                         self.make_indexed_op(op, op_args, Vec::new())
-                            .map_err(|err| Error::Parser(err, head_pos))
+                            .map_err(|err| self.err(err, head_pos))
                     }
                     Reserved::As => {
                         let op_symbol = self.expect_symbol()?;
@@ -1960,11 +1954,11 @@ impl<'p, 's> Parser<'p, 's> {
                             let sort = self.parse_sort()?;
                             self.expect_token(Token::CloseParen)?;
                             self.make_qualified_op(op, sort, Vec::new())
-                                .map_err(|err| Error::Parser(err, head_pos))
+                                .map_err(|err| self.err(err, head_pos))
                         } else {
                             let var = self
                                 .make_var(op_symbol.clone())
-                                .map_err(|err| Error::Parser(err, self.current_position))?;
+                                .map_err(|err| self.err(err, self.current_position))?;
                             let var_sort = self.pool.sort(&var);
                             if var_sort.is_par() {
                                 let sort = self.parse_sort()?;
@@ -1973,7 +1967,7 @@ impl<'p, 's> Parser<'p, 's> {
                                 // if types are unifiable, create variable with sort
                                 Ok(self.pool.add(Term::new_var(op_symbol, sort)))
                             } else {
-                                Err(Error::Parser(
+                                Err(self.err(
                                     ParserError::InvalidQualifiedOp(op_symbol),
                                     self.current_position,
                                 ))
@@ -1990,9 +1984,9 @@ impl<'p, 's> Parser<'p, 's> {
                     Reserved::Cl => {
                         let args = self.parse_sequence(Self::parse_term, false)?;
                         self.make_op(Operator::Cl, args)
-                            .map_err(|err| Error::Parser(err, head_pos))
+                            .map_err(|err| self.err(err, head_pos))
                     }
-                    _ => Err(Error::Parser(
+                    _ => Err(self.err(
                         ParserError::UnexpectedToken(Token::ReservedWord(reserved)),
                         head_pos,
                     )),
@@ -2009,7 +2003,7 @@ impl<'p, 's> Parser<'p, 's> {
                 self.next_token()?;
                 let args = self.parse_sequence(Self::parse_term, true)?;
                 self.make_op(operator, args)
-                    .map_err(|err| Error::Parser(err, head_pos))
+                    .map_err(|err| self.err(err, head_pos))
             }
             Token::Symbol(s)
                 if ParamOperator::from_str(s).is_ok()
@@ -2020,7 +2014,7 @@ impl<'p, 's> Parser<'p, 's> {
                 let mut op_args = self.parse_sequence(Self::parse_term, true)?;
                 let args = op_args.split_off(op.num_op_args());
                 self.make_indexed_op(op, op_args, args)
-                    .map_err(|err| Error::Parser(err, head_pos))
+                    .map_err(|err| self.err(err, head_pos))
             }
             Token::Symbol(s) if s == "eo" => {
                 // "Let" constructions unfold
@@ -2070,7 +2064,7 @@ impl<'p, 's> Parser<'p, 's> {
                 let func = self.state.function_defs.get(&func_name).unwrap();
 
                 func.apply(self.pool, args)
-                    .map_err(|err| Error::Parser(err, head_pos))
+                    .map_err(|err| self.err(err, head_pos))
             }
             Token::OpenParen => {
                 self.next_token()?;
@@ -2080,7 +2074,7 @@ impl<'p, 's> Parser<'p, 's> {
                         let (op, op_args) = self.parse_indexed_operator()?;
                         let args = self.parse_sequence(Self::parse_term, true)?;
                         self.make_indexed_op(op, op_args, args)
-                            .map_err(|err| Error::Parser(err, head_pos))
+                            .map_err(|err| self.err(err, head_pos))
                     }
                     Token::ReservedWord(Reserved::As) => {
                         self.next_token()?;
@@ -2090,11 +2084,11 @@ impl<'p, 's> Parser<'p, 's> {
                             self.expect_token(Token::CloseParen)?;
                             let args = self.parse_sequence(Self::parse_term, true)?;
                             self.make_qualified_op(op, sort, args)
-                                .map_err(|err| Error::Parser(err, head_pos))
+                                .map_err(|err| self.err(err, head_pos))
                         } else {
                             let var = self
                                 .make_var(op_symbol.clone())
-                                .map_err(|err| Error::Parser(err, self.current_position))?;
+                                .map_err(|err| self.err(err, self.current_position))?;
                             let var_sort = self.pool.sort(&var);
                             if let Sort::Par(_, f_sort) = var_sort.as_ref() {
                                 if let Sort::Function(sorts) = f_sort.as_ref() {
@@ -2104,7 +2098,7 @@ impl<'p, 's> Parser<'p, 's> {
                                     let ret_sort = sorts.last().unwrap();
                                     let mut map = IndexMap::<_, _>::new();
                                     if !ret_sort.is_compatible_with_map(&sort, &mut map) {
-                                        return Err(Error::Parser(
+                                        return Err(self.err(
                                             ParserError::IncompatibleSorts(
                                                 ret_sort.clone(),
                                                 sort.clone(),
@@ -2120,10 +2114,10 @@ impl<'p, 's> Parser<'p, 's> {
                                     let args = self.parse_sequence(Self::parse_term, true)?;
                                     return self
                                         .make_app(func, args)
-                                        .map_err(|err| Error::Parser(err, head_pos));
+                                        .map_err(|err| self.err(err, head_pos));
                                 }
                             }
-                            Err(Error::Parser(
+                            Err(self.err(
                                 ParserError::InvalidQualifiedOp(op_symbol),
                                 self.current_position,
                             ))
@@ -2133,7 +2127,7 @@ impl<'p, 's> Parser<'p, 's> {
                         let func = self.parse_application()?;
                         let args = self.parse_sequence(Self::parse_term, true)?;
                         self.make_app(func, args)
-                            .map_err(|err| Error::Parser(err, head_pos))
+                            .map_err(|err| self.err(err, head_pos))
                     }
                 }
             }
@@ -2141,7 +2135,7 @@ impl<'p, 's> Parser<'p, 's> {
                 let func = self.parse_term()?;
                 let args = self.parse_sequence(Self::parse_term, true)?;
                 self.make_app(func, args)
-                    .map_err(|err| Error::Parser(err, head_pos))
+                    .map_err(|err| self.err(err, head_pos))
             }
         }
     }
@@ -2273,7 +2267,7 @@ impl<'p, 's> Parser<'p, 's> {
                 let args = self.parse_sequence(Self::parse_term, true)?;
                 return self
                     .make_indexed_sort(name, args)
-                    .map_err(|e| Error::Parser(e, pos));
+                    .map_err(|e| self.err(e, pos));
             }
             Token::OpenParen => {
                 let name = self.expect_symbol()?;
@@ -2283,16 +2277,15 @@ impl<'p, 's> Parser<'p, 's> {
                     let args = self.parse_sequence(Self::parse_term, true)?;
                     return self
                         .make_indexed_sort(name, args)
-                        .map_err(|e| Error::Parser(e, pos));
+                        .map_err(|e| self.err(e, pos));
                 }
                 let args = self.parse_sequence(Parser::parse_sort, true)?;
                 (name, args)
             }
             other => {
-                return Err(Error::Parser(ParserError::UnexpectedToken(other), pos));
+                return Err(self.err(ParserError::UnexpectedToken(other), pos));
             }
         };
-        self.make_sort(name, args)
-            .map_err(|e| Error::Parser(e, pos))
+        self.make_sort(name, args).map_err(|e| self.err(e, pos))
     }
 }

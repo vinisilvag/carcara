@@ -148,7 +148,7 @@ fn test_arithmetic_ops() {
 
     assert!(matches!(
         parse_term_err("(+ (- 1 2) (* 3.0 4.2))"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
 }
 
@@ -201,27 +201,27 @@ fn test_logic_ops() {
 
     assert!(matches!(
         parse_term_err("(or true 1.2)"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
     assert!(matches!(
         parse_term_err("(= 10 10.0)"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
     assert!(matches!(
         parse_term_err("(not 1 2 3)"),
-        Error::Parser(ParserError::WrongNumberOfArgs(_, 3), _),
+        Error::Parser(ParserError::WrongNumberOfArgs(_, 3), _, _),
     ));
     assert!(matches!(
         parse_term_err("(distinct 2 1.0)"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
     assert!(matches!(
         parse_term_err("(distinct 0)"),
-        Error::Parser(ParserError::WrongNumberOfArgs(_, 1), _),
+        Error::Parser(ParserError::WrongNumberOfArgs(_, 1), _, _),
     ));
     assert!(matches!(
         parse_term_err("(=> true 0)"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
 }
 
@@ -244,15 +244,15 @@ fn test_ite() {
 
     assert!(matches!(
         parse_term_err("(ite true 0)"),
-        Error::Parser(ParserError::WrongNumberOfArgs(_, 2), _),
+        Error::Parser(ParserError::WrongNumberOfArgs(_, 2), _, _),
     ));
     assert!(matches!(
         parse_term_err("(ite 0 1 2)"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
     assert!(matches!(
         parse_term_err("(ite false 10 10.0)"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
 }
 
@@ -288,11 +288,11 @@ fn test_quantifiers() {
     run_parser_tests(&mut p, &cases);
     assert!(matches!(
         parse_term_err("(exists () true)"),
-        Error::Parser(ParserError::EmptySequence, _),
+        Error::Parser(ParserError::EmptySequence, _, _),
     ));
     assert!(matches!(
         parse_term_err("(forall ((x Int)) (+ x x)"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
 }
 
@@ -318,11 +318,11 @@ fn test_choice_terms() {
     run_parser_tests(&mut p, &cases);
     assert!(matches!(
         parse_term_err("(choice () false)"),
-        Error::Parser(ParserError::UnexpectedToken(_), _),
+        Error::Parser(ParserError::UnexpectedToken(_), _, _),
     ));
     assert!(matches!(
         parse_term_err("(choice ((x Int) (y Int)) (= x y))"),
-        Error::Parser(ParserError::UnexpectedToken(_), _),
+        Error::Parser(ParserError::UnexpectedToken(_), _, _),
     ));
 }
 
@@ -349,7 +349,7 @@ fn test_let_terms() {
     run_parser_tests(&mut p, &cases);
     assert!(matches!(
         parse_term_err("(let () 0)"),
-        Error::Parser(ParserError::EmptySequence, _),
+        Error::Parser(ParserError::EmptySequence, _, _),
     ));
 }
 
@@ -374,11 +374,11 @@ fn test_lambda_terms() {
     run_parser_tests(&mut p, &cases);
     assert!(matches!(
         parse_term_err("(lambda () false)"),
-        Error::Parser(ParserError::EmptySequence, _),
+        Error::Parser(ParserError::EmptySequence, _, _),
     ));
     assert!(matches!(
         parse_term_err("((lambda ((x Int)) (+ x 1)) false)"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
 }
 
@@ -402,15 +402,15 @@ fn test_annotated_terms() {
     run_parser_tests(&mut p, &cases);
     assert!(matches!(
         parse_term_err("(! true)"),
-        Error::Parser(ParserError::EmptySequence, _),
+        Error::Parser(ParserError::EmptySequence, _, _),
     ));
     assert!(matches!(
         parse_term_err("(! true not_a_keyword)"),
-        Error::Parser(ParserError::UnexpectedToken(_), _),
+        Error::Parser(ParserError::UnexpectedToken(_), _, _),
     ));
     assert!(matches!(
         parse_term_err("(! true :named 1 2 3)"),
-        Error::Parser(ParserError::UnexpectedToken(_), _),
+        Error::Parser(ParserError::UnexpectedToken(_), _, _),
     ));
 }
 
@@ -721,7 +721,7 @@ fn test_assumes_after_steps_in_subproofs() {
 
     assert!(matches!(
         parse_proof_err(&mut p, bad_input),
-        Error::Parser(ParserError::AssumeAfterStepInSubproof(_), _)
+        Error::Parser(ParserError::AssumeAfterStepInSubproof(_), _, _)
     ));
 }
 
@@ -805,11 +805,11 @@ fn test_qualified_operators() {
 
     assert!(matches!(
         parse_term_err("((as const Real) 0.0)"),
-        Error::Parser(ParserError::SortError(_), _),
+        Error::Parser(ParserError::SortError(_), _, _),
     ));
     assert!(matches!(
         parse_term_err("((as undefined (Array Int Int)) 1)"),
-        Error::Parser(ParserError::UndefinedIden(_), _),
+        Error::Parser(ParserError::UndefinedIden(_), _, _),
     ));
 }
 
@@ -833,25 +833,25 @@ fn test_proofs_with_extra_parens() {
     // Extra set of parens
     assert!(matches!(
         parse_proof_err(&mut p, "(( (assume h1 true) ))"),
-        Error::Parser(ParserError::UnexpectedToken(Token::OpenParen), _)
+        Error::Parser(ParserError::UnexpectedToken(Token::OpenParen), _, _)
     ));
 
     // Stuff after final closing parens
     assert!(matches!(
         parse_proof_err(&mut p, "( (assume h1 true) ) (assume h2 false)"),
-        Error::Parser(ParserError::UnexpectedToken(Token::OpenParen), _)
+        Error::Parser(ParserError::UnexpectedToken(Token::OpenParen), _, _)
     ));
 
     // Missing closing parens
     assert!(matches!(
         parse_proof_err(&mut p, "( (assume h1 true)"),
-        Error::Parser(ParserError::UnexpectedToken(Token::Eof), _)
+        Error::Parser(ParserError::UnexpectedToken(Token::Eof), _, _)
     ));
 
     // Missing opening parens
     assert!(matches!(
         parse_proof_err(&mut p, "(assume h1 true) )"),
-        Error::Parser(ParserError::UnexpectedToken(Token::CloseParen), _)
+        Error::Parser(ParserError::UnexpectedToken(Token::CloseParen), _, _)
     ));
 }
 

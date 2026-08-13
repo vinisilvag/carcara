@@ -4,7 +4,7 @@ use crate::{
         pool::{Datatype, DatatypeConstructor, TermPool},
         MatchCase, MatchPattern, Rc, Sort, Term,
     },
-    CarcaraResult, Error,
+    CarcaraResult,
 };
 use indexmap::IndexMap;
 
@@ -37,10 +37,9 @@ impl<'p, 's> Parser<'p, 's> {
                 let name = p.expect_symbol()?;
                 let arity_pos = p.current_position;
                 let arity = p.expect_numeral()?;
-                let arity = arity.to_usize().ok_or(Error::Parser(
-                    ParserError::InvalidSortArity(arity),
-                    arity_pos,
-                ))?;
+                let arity = arity
+                    .to_usize()
+                    .ok_or(p.err(ParserError::InvalidSortArity(arity), arity_pos))?;
                 p.state.datatype_declarations.insert(name.clone(), arity);
                 p.expect_token(Token::CloseParen)?;
                 Ok((name, arity))
@@ -60,13 +59,13 @@ impl<'p, 's> Parser<'p, 's> {
         if datatypes.len() != declarations.len() {
             let err =
                 ParserError::WrongNumberOfDatatypeDeclarations(declarations.len(), datatypes.len());
-            return Err(Error::Parser(err, start_pos));
+            return Err(self.err(err, start_pos));
         }
 
         for ((name, arity), (pos, dt)) in declarations.into_iter().zip(datatypes) {
             if dt.params.len() != arity {
                 let err = ParserError::WrongNumberOfDatatypeParams(arity, dt.params.len());
-                return Err(Error::Parser(err, pos));
+                return Err(self.err(err, pos));
             }
             self.register_constructors(&name, &dt);
             self.pool.add_datatype(name, dt);
@@ -228,10 +227,7 @@ impl<'p, 's> Parser<'p, 's> {
         let matched_term = self.parse_term()?;
         let sort = self.pool.sort(&matched_term);
         let Sort::Datatype { name, .. } = sort.as_ref() else {
-            return Err(Error::Parser(
-                ParserError::ExpectedDatatypeSort(sort.clone()),
-                head_pos,
-            ));
+            return Err(self.err(ParserError::ExpectedDatatypeSort(sort.clone()), head_pos));
         };
         let datatype = self.pool.get_datatype(name).clone();
 
@@ -246,7 +242,7 @@ impl<'p, 's> Parser<'p, 's> {
         for w in cases.windows(2) {
             let sorts = [0, 1].map(|i| self.pool.sort(&w[i].body));
             self.check_sort_eq(&sorts[0], &sorts[1])
-                .map_err(|e| Error::Parser(e.into(), head_pos))?;
+                .map_err(|e| self.err(e, head_pos))?;
         }
 
         // Check that patterns are exhaustive
@@ -265,7 +261,7 @@ impl<'p, 's> Parser<'p, 's> {
             covered_constructors.values().all(|covered| *covered)
         };
         if !is_exhaustive {
-            return Err(Error::Parser(ParserError::NonExhaustivePatterns, head_pos));
+            return Err(self.err(ParserError::NonExhaustivePatterns, head_pos));
         }
 
         Ok(self.pool.add(Term::Match(matched_term, cases)))
@@ -307,7 +303,7 @@ impl<'p, 's> Parser<'p, 's> {
                     Ok(MatchPattern::Cons(s.clone(), Vec::new()))
                 } else {
                     let e = ParserError::WrongNumberOfArgs(n.into(), 0);
-                    Err(Error::Parser(e, head_pos))
+                    Err(self.err(e, head_pos))
                 }
             }
             // Single variable
@@ -333,17 +329,14 @@ impl<'p, 's> Parser<'p, 's> {
 
                         Ok(MatchPattern::Cons(cons_name, args))
                     }
-                    Some(cons) => Err(Error::Parser(
+                    Some(cons) => Err(self.err(
                         ParserError::WrongNumberOfArgs(cons.selectors.len().into(), args.len()),
                         head_pos,
                     )),
-                    None => Err(Error::Parser(
-                        ParserError::UnknownConstructor(cons_name),
-                        head_pos,
-                    )),
+                    None => Err(self.err(ParserError::UnknownConstructor(cons_name), head_pos)),
                 }
             }
-            (other, pos) => Err(Error::Parser(ParserError::UnexpectedToken(other), pos)),
+            (other, pos) => Err(self.err(ParserError::UnexpectedToken(other), pos)),
         }
     }
 }

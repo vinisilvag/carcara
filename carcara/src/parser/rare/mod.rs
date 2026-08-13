@@ -1,7 +1,6 @@
 use super::{Parser, ParserError, Reserved, Token};
-use crate::ast::*;
+use crate::ast::{rare_rules::*, *};
 use crate::CarcaraResult;
-use crate::{ast::rare_rules::*, Error};
 
 #[derive(Debug, Clone)]
 enum Body {
@@ -27,7 +26,7 @@ impl<'p, 's> Parser<'p, 's> {
             if attribute == "list" {
                 Ok(AttributeParameters::List)
             } else {
-                Err(Error::Parser(
+                Err(self.err(
                     ParserError::InvalidRareArgAttribute(attribute),
                     self.current_position,
                 ))
@@ -65,7 +64,7 @@ impl<'p, 's> Parser<'p, 's> {
                 )?;
                 Ok(Body::Premise(terms))
             }
-            _ => Err(Error::Parser(
+            _ => Err(self.err(
                 ParserError::InvalidRareRuleAttribute(qualified_arg),
                 self.current_position,
             )),
@@ -96,7 +95,7 @@ impl<'p, 's> Parser<'p, 's> {
         });
 
         if body.conclusion.is_none() {
-            return Err(Error::Parser(
+            return Err(self.err(
                 ParserError::UndefinedRareConclusion(name),
                 self.current_position,
             ));

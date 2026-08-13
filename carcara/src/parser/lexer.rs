@@ -173,7 +173,6 @@ pub struct Lexer<'s> {
     line_start: usize,
     lines_read: usize,
     source_len: usize,
-    #[allow(unused)] // TODO
     pub source_name: &'s str,
 }
 
@@ -188,6 +187,12 @@ impl<'s> Lexer<'s> {
             source_len,
             source_name: source.name,
         }
+    }
+
+    /// Wraps a `ParserError` into a crate level error, by adding the current position and the
+    /// current source name.
+    fn err(&self, inner: impl Into<ParserError>) -> Error {
+        Error::Parser(inner.into(), self.position(), self.source_name.into())
     }
 
     /// Advances the lexer by one character, and returns the previous `current_char`.
@@ -298,10 +303,7 @@ impl<'s> Lexer<'s> {
             Some(c) if c.is_ascii_digit() => self.read_number(false),
             Some(c) if is_symbol_character(c) => Ok(self.read_simple_symbol()),
             None => Ok(Token::Eof),
-            Some(other) => Err(Error::Parser(
-                ParserError::UnexpectedChar(other),
-                self.position(),
-            )),
+            Some(other) => Err(self.err(ParserError::UnexpectedChar(other))),
         }?;
         Ok((token, start_position))
     }
@@ -321,14 +323,8 @@ impl<'s> Lexer<'s> {
         self.next_char(); // Consume `|`
         let symbol = self.read_chars_while(|c| c != '|' && c != '\\');
         match self.current() {
-            Some('\\') => Err(Error::Parser(
-                ParserError::BackslashInQuotedSymbol,
-                self.position(),
-            )),
-            None => Err(Error::Parser(
-                ParserError::EofInQuotedSymbol,
-                self.position(),
-            )),
+            Some('\\') => Err(self.err(ParserError::BackslashInQuotedSymbol)),
+            None => Err(self.err(ParserError::EofInQuotedSymbol)),
             Some('|') => {
                 self.next_char();
                 Ok(Token::Symbol(symbol))
@@ -353,17 +349,12 @@ impl<'s> Lexer<'s> {
         let (base, bits_per_char) = match self.next_char() {
             Some('b') => (2, 1),
             Some('x') => (16, 4),
-            None => return Err(Error::Parser(ParserError::EmptyBitvector, self.position())),
-            Some(other) => {
-                return Err(Error::Parser(
-                    ParserError::UnexpectedChar(other),
-                    self.position(),
-                ))
-            }
+            None => return Err(self.err(ParserError::EmptyBitvector)),
+            Some(other) => return Err(self.err(ParserError::UnexpectedChar(other))),
         };
         let s = self.read_chars_while(|c| c.is_digit(base as u32));
         if s.is_empty() {
-            return Err(Error::Parser(ParserError::EmptyBitvector, self.position()));
+            return Err(self.err(ParserError::EmptyBitvector));
         }
 
         let width = s.len() * bits_per_char;
@@ -376,10 +367,7 @@ impl<'s> Lexer<'s> {
         let first_part = self.read_chars_while(|c| c.is_ascii_digit());
 
         if first_part.len() > 1 && first_part.starts_with('0') {
-            return Err(Error::Parser(
-                ParserError::LeadingZero(first_part),
-                self.position(),
-            ));
+            return Err(self.err(ParserError::LeadingZero(first_part)));
         }
 
         if let Some(delimiter @ ('/' | '.')) = self.current() {
@@ -388,7 +376,7 @@ impl<'s> Lexer<'s> {
             if let Some('/' | '.') = self.current() {
                 // A number can have only one delimiter
                 let e = ParserError::UnexpectedChar(self.current().unwrap());
-                return Err(Error::Parser(e, self.position()));
+                return Err(self.err(e));
             }
             let r = match delimiter {
                 '/' => {
@@ -396,7 +384,7 @@ impl<'s> Lexer<'s> {
                         [first_part, second_part].map(|s| s.parse::<Integer>().unwrap());
                     if denom.is_zero() {
                         let e = ParserError::DivisionByZeroInLiteral(format!("{numer}/{denom}"));
-                        return Err(Error::Parser(e, self.position()));
+                        return Err(self.err(e));
                     }
                     Rational::from((numer, denom))
                 }
@@ -420,7 +408,7 @@ impl<'s> Lexer<'s> {
         let mut result = String::new();
         loop {
             let Some(c) = self.current() else {
-                return Err(Error::Parser(ParserError::EofInString, self.position()));
+                return Err(self.err(ParserError::EofInString));
             };
             if c == '"' {
                 self.next_char();
@@ -457,7 +445,7 @@ impl<'s> Lexer<'s> {
                 let mut contents = String::new();
                 for _ in 0..5 {
                     let Some(c) = self.current() else {
-                        return Err(Error::Parser(ParserError::EofInString, self.position()));
+                        return Err(self.err(ParserError::EofInString));
                     };
                     if c == '}' || !c.is_ascii_hexdigit() {
                         break;
@@ -495,9 +483,8 @@ impl<'s> Lexer<'s> {
                 // Unicode, it might still lie in the Unicode High Surrogate Area (0xD800 to
                 // 0xDFFF), which is also considered invalid. Therefore `char::from_u32` may still
                 // fail.
-                let c = char::from_u32(code).ok_or_else(|| {
-                    Error::Parser(ParserError::InvalidUnicode(contents), self.position())
-                })?;
+                let c = char::from_u32(code)
+                    .ok_or_else(|| self.err(ParserError::InvalidUnicode(contents)))?;
                 result.push(c);
                 Ok(())
             }
@@ -505,7 +492,7 @@ impl<'s> Lexer<'s> {
                 let mut contents = String::new();
                 for _ in 0..4 {
                     let Some(c) = self.current() else {
-                        return Err(Error::Parser(ParserError::EofInString, self.position()));
+                        return Err(self.err(ParserError::EofInString));
                     };
                     if !c.is_ascii_hexdigit() {
                         break;
@@ -521,13 +508,12 @@ impl<'s> Lexer<'s> {
                     return Ok(());
                 }
                 let code = u32::from_str_radix(&contents, 16).unwrap();
-                let c = char::from_u32(code).ok_or_else(|| {
-                    Error::Parser(ParserError::InvalidUnicode(contents), self.position())
-                })?;
+                let c = char::from_u32(code)
+                    .ok_or_else(|| self.err(ParserError::InvalidUnicode(contents)))?;
                 result.push(c);
                 Ok(())
             }
-            None => Err(Error::Parser(ParserError::EofInString, self.position())),
+            None => Err(self.err(ParserError::EofInString)),
         }
     }
 }
@@ -604,12 +590,12 @@ mod tests {
 
         assert!(matches!(
             lex_one("|\\|"),
-            Err(Error::Parser(ParserError::BackslashInQuotedSymbol, _))
+            Err(Error::Parser(ParserError::BackslashInQuotedSymbol, _, _))
         ));
 
         assert!(matches!(
             lex_one("|"),
-            Err(Error::Parser(ParserError::EofInQuotedSymbol, _))
+            Err(Error::Parser(ParserError::EofInQuotedSymbol, _, _))
         ));
     }
 
@@ -629,23 +615,23 @@ mod tests {
 
         assert!(matches!(
             lex_one("0123"),
-            Err(Error::Parser(ParserError::LeadingZero(_), _))
+            Err(Error::Parser(ParserError::LeadingZero(_), _, _))
         ));
         assert!(matches!(
             lex_one("1.2.3"),
-            Err(Error::Parser(ParserError::UnexpectedChar(_), _))
+            Err(Error::Parser(ParserError::UnexpectedChar(_), _, _))
         ));
         assert!(matches!(
             lex_one("1/2.3"),
-            Err(Error::Parser(ParserError::UnexpectedChar(_), _))
+            Err(Error::Parser(ParserError::UnexpectedChar(_), _, _))
         ));
         assert!(matches!(
             lex_one("1.2/3"),
-            Err(Error::Parser(ParserError::UnexpectedChar(_), _))
+            Err(Error::Parser(ParserError::UnexpectedChar(_), _, _))
         ));
         assert!(matches!(
             lex_one("1/0"),
-            Err(Error::Parser(ParserError::DivisionByZeroInLiteral(_), _))
+            Err(Error::Parser(ParserError::DivisionByZeroInLiteral(_), _, _))
         ));
     }
 
@@ -662,17 +648,17 @@ mod tests {
 
         assert!(matches!(
             lex_one("#o123"),
-            Err(Error::Parser(ParserError::UnexpectedChar('o'), _)),
+            Err(Error::Parser(ParserError::UnexpectedChar('o'), _, _)),
         ));
 
         assert!(matches!(
             lex_one("#"),
-            Err(Error::Parser(ParserError::EmptyBitvector, _)),
+            Err(Error::Parser(ParserError::EmptyBitvector, _, _)),
         ));
 
         assert!(matches!(
             lex_one("#b"),
-            Err(Error::Parser(ParserError::EmptyBitvector, _)),
+            Err(Error::Parser(ParserError::EmptyBitvector, _, _)),
         ));
     }
 
@@ -691,11 +677,11 @@ mod tests {
 
         assert!(matches!(
             lex_one("\""),
-            Err(Error::Parser(ParserError::EofInString, _))
+            Err(Error::Parser(ParserError::EofInString, _, _))
         ));
         assert!(matches!(
             lex_one("\"\\u{de01}\""),
-            Err(Error::Parser(ParserError::InvalidUnicode(_), _))
+            Err(Error::Parser(ParserError::InvalidUnicode(_), _, _))
         ));
     }
 

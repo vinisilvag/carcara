@@ -97,7 +97,7 @@ fn test_file(proof_path: &str) {
         // performance
         let short_message = match e {
             Error::Io(_) => "IO error".to_owned(),
-            Error::Parser(_, (line, column)) => format!("parser error at {}:{}", line, column),
+            Error::Parser(_, (line, column), _) => format!("parser error at {}:{}", line, column),
             Error::Checker { rule, step, .. } => format!("checker error at '{}' ({})", step, rule),
             Error::DoesNotReachEmptyClause => format!("{}", e), // This one is already pretty short
             Error::Elaborator { rule, step, .. } => {

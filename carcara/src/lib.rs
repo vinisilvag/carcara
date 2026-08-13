@@ -102,9 +102,9 @@ pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
 
-    /// A parsing error, with the position in the input where it occurred.
+    /// A parsing error, with the position in the input where it occurred and the source file name.
     #[error("{}", wrap_parser_error_message(.0, .1))]
-    Parser(ParserError, Position),
+    Parser(ParserError, Position, Box<str>),
 
     /// An error while checking a proof, indicating the step where it occurred.
     #[error("checking failed on step '{step}' with rule '{rule}': {inner}")]
