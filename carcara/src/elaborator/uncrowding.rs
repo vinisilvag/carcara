@@ -447,7 +447,7 @@ mod tests {
                 :args (x true y true a true z true b true c true d true))
         ";
         let (_, proof, _, mut pool) =
-            parse_instance(problem, proof, None, parser::Config::new()).unwrap();
+            parse_instance(problem.into(), proof.into(), None, parser::Config::new()).unwrap();
         let proof = ProofNodeForest::from_commands(proof.commands)
             .0
             .pop()
@@ -477,9 +477,14 @@ mod tests {
             (step t9.t6 (cl d w) :rule contraction :premises (t9.t5))
             (step t9 (cl w) :rule resolution :premises (t9.t6 t8) :args (d true))
         ";
-        let (_, expected, _) =
-            parse_instance_with_pool(problem, expected, None, parser::Config::new(), &mut pool)
-                .unwrap();
+        let (_, expected, _) = parse_instance_with_pool(
+            problem.into(),
+            expected.into(),
+            None,
+            parser::Config::new(),
+            &mut pool,
+        )
+        .unwrap();
         let expected = ProofNodeForest::from_commands(expected.commands)
             .0
             .pop()

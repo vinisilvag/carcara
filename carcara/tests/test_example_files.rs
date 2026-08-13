@@ -1,8 +1,5 @@
 use carcara::*;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 fn run_parallel_checker_test(
     problem_path: &Path,
@@ -13,8 +10,8 @@ fn run_parallel_checker_test(
     use std::sync::Arc;
 
     let (problem, proof, rare_rules, pool) = parser::parse_instance(
-        &fs::read_to_string(problem_path)?,
-        &fs::read_to_string(proof_path)?,
+        parser::Source::file(problem_path, &mut String::new())?,
+        parser::Source::file(proof_path, &mut String::new())?,
         None,
         config.0,
     )?;
@@ -38,8 +35,8 @@ fn run_test(
     config: (parser::Config, checker::Config),
 ) -> CarcaraResult<()> {
     let (problem, proof, rare_rules, mut pool) = parser::parse_instance(
-        &fs::read_to_string(problem_path)?,
-        &fs::read_to_string(proof_path)?,
+        parser::Source::file(problem_path, &mut String::new())?,
+        parser::Source::file(proof_path, &mut String::new())?,
         None,
         config.0,
     )?;

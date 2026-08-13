@@ -5,11 +5,11 @@ use carcara::{
 use colored::{Color, Colorize};
 
 fn run_tests(test_name: &str, definitions: &str, cases: &[(&str, bool)]) {
-    for (i, (proof, expected)) in cases.iter().enumerate() {
+    for (i, &(proof, expected)) in cases.iter().enumerate() {
         // This parses the definitions again for every case, which is not ideal
         let (mut problem, mut proof, rare_rules, mut pool) = parser::parse_instance(
-            definitions,
-            proof,
+            definitions.into(),
+            proof.into(),
             None,
             parser::Config::new().apply_function_defs(true),
         )
@@ -50,10 +50,10 @@ fn run_tests(test_name: &str, definitions: &str, cases: &[(&str, bool)]) {
 
         let got = check_result.is_ok();
 
-        if *expected == got {
+        if expected == got {
             println!("{} \"{}\"", "PASSED".bold().color(Color::Green), test_name);
         } else {
-            let (color, expectation) = if *expected {
+            let (color, expectation) = if expected {
                 (Color::Red, "expected to PASS but FAILED".red())
             } else {
                 (Color::Yellow, "expected to FAIL but PASSED".yellow())

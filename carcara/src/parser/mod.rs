@@ -23,10 +23,43 @@ use carcara_macros::GenerateSetters;
 use error::{assert_indexed_op_args_value, assert_num_args, check_relation_sort, check_set_sort};
 use indexmap::{IndexMap, IndexSet};
 use rug::{Integer, Rational};
-use std::{iter::Iterator, str::FromStr};
+use std::{iter::Iterator, path::Path, str::FromStr};
 
 pub use error::{ParserError, SortError};
 pub use lexer::{Position, Reserved, Token};
+
+/// A code source for [`Parser`], with a name and contents.
+pub struct Source<'s> {
+    name: &'s str,
+    contents: &'s str,
+}
+
+impl<'s> Source<'s> {
+    /// Constructs a new `Source` from `name` and `contents` strings.
+    pub fn new(name: &'s str, contents: &'s str) -> Self {
+        Self { name, contents }
+    }
+
+    /// Constructs a new `Source` by reading the contents of a file.
+    ///
+    /// Since `Source` does not own its `contents` string, this must take a buffer in which to store
+    /// the file contents.
+    pub fn file(path: &'s Path, buf: &'s mut String) -> CarcaraResult<Self> {
+        use std::io::Read;
+
+        std::fs::File::open(path)?.read_to_string(buf)?;
+        Ok(Self {
+            name: path.to_str().unwrap(),
+            contents: buf,
+        })
+    }
+}
+
+impl<'s> From<&'s str> for Source<'s> {
+    fn from(value: &'s str) -> Self {
+        Self { name: "<str>", contents: value }
+    }
+}
 
 /// Configuration for [`Parser`].
 #[derive(Debug, Clone, Copy, Default, GenerateSetters)]
@@ -77,7 +110,7 @@ pub struct Config {
 }
 
 impl Config {
-    /// Concstructs a new `Config`, with default settings.
+    /// Constructs a new `Config`, with default settings.
     pub const fn new() -> Self {
         // I can't just call `default()` because it is not const :/
         Self {
@@ -98,9 +131,9 @@ impl Config {
 ///
 /// This returns the parsed problem, proof, and rules, as well as the `TermPool` used in parsing.
 pub fn parse_instance<'s>(
-    problem: &'s str,
-    proof: &'s str,
-    rules: Option<&'s str>,
+    problem: Source<'s>,
+    proof: Source<'s>,
+    rules: Option<Source<'s>>,
     config: Config,
 ) -> CarcaraResult<(Problem, Proof, Rules, PrimitivePool)> {
     let mut pool = PrimitivePool::new();
@@ -114,9 +147,9 @@ pub fn parse_instance<'s>(
 ///
 /// This returns the parsed problem, proof, and rules.
 pub fn parse_instance_with_pool<'s>(
-    problem: &'s str,
-    proof: &'s str,
-    rules: Option<&'s str>,
+    problem: Source<'s>,
+    proof: Source<'s>,
+    rules: Option<Source<'s>>,
     config: Config,
     pool: &mut PrimitivePool,
 ) -> CarcaraResult<(Problem, Proof, Rules)> {
@@ -214,10 +247,14 @@ pub struct Parser<'p, 's> {
 }
 
 impl<'p, 's> Parser<'p, 's> {
-    /// Constructs a new `Parser` from a type that implements `BufRead`.
+    /// Constructs a new `Parser` from a [`Source`].
     ///
     /// This operation can fail if there is an IO or lexer error on the first token.
-    pub fn new(pool: &'p mut PrimitivePool, config: Config, input: &'s str) -> CarcaraResult<Self> {
+    pub fn new(
+        pool: &'p mut PrimitivePool,
+        config: Config,
+        input: Source<'s>,
+    ) -> CarcaraResult<Self> {
         let mut lexer = lexer::Lexer::new(input);
         let (current_token, current_position) = lexer.next_token()?;
         Ok(Parser {
@@ -234,7 +271,7 @@ impl<'p, 's> Parser<'p, 's> {
 
     /// Resets the parser position and sets its input to `input`. This keeps the parser state,
     /// including all function, constant and sort declarations.
-    pub fn reset(&mut self, input: &'s str) -> CarcaraResult<()> {
+    pub fn reset(&mut self, input: Source<'s>) -> CarcaraResult<()> {
         let mut lexer = lexer::Lexer::new(input);
         let (current_token, current_position) = lexer.next_token()?;
         self.lexer = lexer;

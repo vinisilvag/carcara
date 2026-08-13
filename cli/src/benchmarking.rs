@@ -38,8 +38,8 @@ fn run_job<T: CollectResults + Default + Send>(
 
     let parsing = Instant::now();
     let (problem, proof, rules, mut pool) = parser::parse_instance(
-        &std::fs::read_to_string(job.problem_file)?,
-        &std::fs::read_to_string(job.proof_file)?,
+        parser::Source::file(job.problem_file, &mut String::new())?,
+        parser::Source::file(job.proof_file, &mut String::new())?,
         None,
         parser_config,
     )?;

@@ -1,7 +1,9 @@
 //! A lexer for the SMT-LIB and Alethe formats.
 
 use crate::{
-    ast::impl_str_conversion_traits, parser::ParserError, utils::is_symbol_character,
+    ast::impl_str_conversion_traits,
+    parser::{ParserError, Source},
+    utils::is_symbol_character,
     CarcaraResult, Error,
 };
 use rug::{ops::Pow, Integer, Rational};
@@ -170,18 +172,21 @@ pub struct Lexer<'s> {
     chars: Chars<'s>,
     line_start: usize,
     lines_read: usize,
-    input_len: usize,
+    source_len: usize,
+    #[allow(unused)] // TODO
+    pub source_name: &'s str,
 }
 
 impl<'s> Lexer<'s> {
-    /// Constructs a new `Lexer` from a source string.
-    pub fn new(input: &'s str) -> Self {
-        let input_len = input.len();
+    /// Constructs a new `Lexer` from a `Source`.
+    pub fn new(source: Source<'s>) -> Self {
+        let source_len = source.contents.len();
         Self {
-            chars: input.chars(),
+            chars: source.contents.chars(),
             line_start: 0,
             lines_read: 0,
-            input_len,
+            source_len,
+            source_name: source.name,
         }
     }
 
@@ -190,7 +195,7 @@ impl<'s> Lexer<'s> {
         let got = self.chars.next();
         if got == Some('\n') {
             self.lines_read += 1;
-            self.line_start = self.input_len - self.chars.as_str().len();
+            self.line_start = self.source_len - self.chars.as_str().len();
         }
         got
     }
@@ -216,7 +221,7 @@ impl<'s> Lexer<'s> {
 
     /// Returns the position of the current character.
     fn position(&self) -> Position {
-        let raw = self.input_len - self.chars.as_str().len();
+        let raw = self.source_len - self.chars.as_str().len();
         // + 1 because lines and columns are usually counted starting from 1
         (self.lines_read + 1, raw - self.line_start + 1)
     }
@@ -532,11 +537,11 @@ mod tests {
     use super::*;
 
     fn lex_one(input: &str) -> CarcaraResult<Token> {
-        Lexer::new(input).next_token().map(|(tk, _)| tk)
+        Lexer::new(input.into()).next_token().map(|(tk, _)| tk)
     }
 
     fn lex_all(input: &str) -> Vec<Token> {
-        let mut lex = Lexer::new(input);
+        let mut lex = Lexer::new(input.into());
         let mut result = Vec::new();
         loop {
             let tk = lex.next_token().expect("lexer error during test").0;

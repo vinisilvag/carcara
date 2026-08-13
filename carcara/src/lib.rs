@@ -147,9 +147,9 @@ pub enum Error {
 ///
 /// If `collect_stats` is true, benchmarking statistics will be collected and printed.
 pub fn check<'s>(
-    problem: &'s str,
-    proof: &'s str,
-    rules: Option<&'s str>,
+    problem: parser::Source<'s>,
+    proof: parser::Source<'s>,
+    rules: Option<parser::Source<'s>>,
     parser_config: parser::Config,
     checker_config: checker::Config,
     collect_stats: bool,
@@ -207,9 +207,9 @@ pub fn check<'s>(
 /// threads. The `stack_size` argument sets the stack size of the worker threads.
 #[allow(clippy::too_many_arguments)]
 pub fn check_parallel<'s>(
-    problem: &'s str,
-    proof: &'s str,
-    rules: Option<&'s str>,
+    problem: parser::Source<'s>,
+    proof: parser::Source<'s>,
+    rules: Option<parser::Source<'s>>,
     parser_config: parser::Config,
     checker_config: checker::Config,
     collect_stats: bool,
@@ -282,9 +282,9 @@ pub fn check_parallel<'s>(
 /// used.
 #[allow(clippy::too_many_arguments)]
 pub fn check_and_elaborate<'s>(
-    problem: &'s str,
-    proof: &'s str,
-    rules: Option<&'s str>,
+    problem: parser::Source<'s>,
+    proof: parser::Source<'s>,
+    rules: Option<parser::Source<'s>>,
     parser_config: parser::Config,
     checker_config: checker::Config,
     elaborator_config: elaborator::Config,
@@ -355,9 +355,9 @@ pub fn check_and_elaborate<'s>(
 /// Each returned pair contains the ID of a `lia_generic` step and an SMT-LIB problem that
 /// corresponds to the negation of that step's conclusion clause.
 pub fn generate_lia_smt_instances<'s>(
-    problem: &'s str,
-    proof: &'s str,
-    rules: Option<&'s str>,
+    problem: parser::Source<'s>,
+    proof: parser::Source<'s>,
+    rules: Option<parser::Source<'s>>,
     config: parser::Config,
     use_sharing: bool,
 ) -> Result<Vec<(String, String)>, Error> {

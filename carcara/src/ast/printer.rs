@@ -750,8 +750,13 @@ mod tests {
             (step t6.t1 (cl (= (+ x 2) (+ x 2))) :rule hole)\n\
             (step t6 (cl) :rule hole)\n\
         ";
-        let (problem, proof, _, mut pool) =
-            parser::parse_instance(definitions, proof, None, parser::Config::new()).unwrap();
+        let (problem, proof, _, mut pool) = parser::parse_instance(
+            definitions.into(),
+            proof.into(),
+            None,
+            parser::Config::new(),
+        )
+        .unwrap();
 
         let mut buf = Vec::new();
         AlethePrinter::new(&mut pool, &problem.prelude, true, &mut buf)

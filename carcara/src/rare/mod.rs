@@ -395,11 +395,11 @@ mod tests {
 
     fn run_test(definitions: &str, original: &str, rule: (RewriteTerm, RewriteTerm), result: &str) {
         let mut pool = PrimitivePool::new();
-        let mut parser = Parser::new(&mut pool, Config::new(), definitions).unwrap();
+        let mut parser = Parser::new(&mut pool, Config::new(), definitions.into()).unwrap();
         parser.parse_problem().unwrap();
 
         let [original, result] = [original, result].map(|s| {
-            parser.reset(s).unwrap();
+            parser.reset(s.into()).unwrap();
             parser.parse_term().unwrap()
         });
 
