@@ -217,7 +217,8 @@ impl<'s> Lexer<'s> {
     /// Returns the position of the current character.
     fn position(&self) -> Position {
         let raw = self.input_len - self.chars.as_str().len();
-        (self.lines_read, raw - self.line_start)
+        // + 1 because lines and columns are usually counted starting from 1
+        (self.lines_read + 1, raw - self.line_start + 1)
     }
 
     /// Reads characters while the given predicate returns `true`, and stores them in a `String`.
