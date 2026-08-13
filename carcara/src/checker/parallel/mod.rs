@@ -25,6 +25,8 @@ use std::{
 
 pub use scheduler::{Schedule, ScheduleIter, Scheduler};
 
+/// A proof checker that checks the steps of a proof in parallel, distributing the work between
+/// multiple threads.
 pub struct ParallelProofChecker<'c> {
     pool: Arc<PrimitivePool>,
     config: Config,
@@ -37,6 +39,9 @@ pub struct ParallelProofChecker<'c> {
 }
 
 impl<'c> ParallelProofChecker<'c> {
+    /// Constructs a new `ParallelProofChecker` from a shared pool, a checker config, the
+    /// parsed problem prelude, the context usage counts returned by [`Scheduler::new`], a
+    /// `stack_size` for the worker threads, and the rare rules.
     pub fn new(
         pool: Arc<PrimitivePool>,
         config: Config,
@@ -71,6 +76,9 @@ impl<'c> ParallelProofChecker<'c> {
         }
     }
 
+    /// Checks that `proof` is a valid proof for the given problem.
+    ///
+    /// Returns `Ok` if the proof is valid, with a boolean indicating if it had holes.
     pub fn check(
         &mut self,
         problem: &Problem,
@@ -143,6 +151,8 @@ impl<'c> ParallelProofChecker<'c> {
         })
     }
 
+    /// Checks that `proof` is a valid proof for the given problem, collecting benchmarking
+    /// statistics into `stats`.
     pub fn check_with_stats<CR: CollectResults + Send + Default>(
         &mut self,
         problem: &Problem,

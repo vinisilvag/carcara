@@ -246,7 +246,7 @@ fn generic_eq_congruent(
         .collect();
 
     // If true, the conclusion terms of the `eq_congruent_pred` step were flipped. That is, they
-    // were `f (not g)` intead of `(not f) g`.
+    // were `f (not g)` instead of `(not f) g`.
     let mut pred_flipped = false;
 
     let (f, g) = if is_pred {

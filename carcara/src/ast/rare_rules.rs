@@ -1,11 +1,10 @@
+//! The AST types used for Rare files.
+
 use crate::ast::Constant;
 
 use super::{Operator, Rc, Sort, Term};
 use indexmap::IndexMap;
-use std::cell::RefCell;
 use std::fmt;
-
-pub type Holes = IndexMap<String, Rc<RefCell<Option<Rc<Term>>>>>;
 
 /// The attribute of a parameter in a RARE rule.
 #[derive(Debug, Clone, Copy, PartialEq)]

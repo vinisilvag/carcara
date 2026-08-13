@@ -1,4 +1,4 @@
-//! A parser for the Alethe proof format.
+//! A parser for the SMT-LIB and Alethe formats.
 
 mod datatypes;
 mod error;

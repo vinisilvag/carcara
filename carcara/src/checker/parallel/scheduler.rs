@@ -90,6 +90,7 @@ impl<'a> StackLevel<'a> {
 
 /// Struct that stores the schedules for each thread.
 pub struct Scheduler {
+    /// The schedule of steps assigned to each worker thread.
     pub loads: Vec<Schedule>,
 }
 

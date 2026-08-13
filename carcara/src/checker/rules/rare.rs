@@ -33,7 +33,7 @@ pub fn check_rare(
         }
 
         if conclusion.is_empty() || conclusion.len() > 1 {
-            return Err(CheckerError::RareConclusionNumberInvalid());
+            return Err(CheckerError::RareConclusionNumberInvalid);
         }
 
         let mut arguments = args.iter().rev();

@@ -1,3 +1,4 @@
+//! A proof checker for Alethe proofs
 pub mod error;
 mod parallel;
 mod rules;
@@ -30,15 +31,23 @@ pub use parallel::{scheduler::Scheduler, ParallelProofChecker};
 pub(crate) use rules::clausification::apply_bfun_elim;
 pub(crate) use rules::linear_arithmetic::la_generic_partial;
 
+/// Benchmarking statistics collected while checking a proof.
 #[derive(Clone)]
 pub struct CheckerStatistics<'s, CR: CollectResults + Send + Default> {
+    /// The name of the proof file being checked.
     pub file_name: &'s str,
+
+    /// Total time spent on `polyeq` operations during checking.
     pub polyeq_time: Duration,
+
+    /// Total time spent checking `assume` steps.
     pub assume_time: Duration,
 
-    // This is the time to compare the `assume` term with the `assert` that matches it. That is,
-    // this excludes the time spent searching for the correct `assert` premise.
+    /// Time spent comparing `assume` terms with their corresponding `assert` premise, excluding the
+    /// time spent searching for the right premise.
     pub assume_core_time: Duration,
+
+    /// The collected benchmarking results.
     pub results: CR,
 }
 
@@ -55,14 +64,22 @@ impl<CR: CollectResults + Send + Default> fmt::Debug for CheckerStatistics<'_, C
     }
 }
 
+/// Configuration for checking `sat_refutation` steps using external tools.
 #[derive(Debug, Default, Clone)]
 pub enum SatRefConfig {
+    /// Don't check `sat_refutation` steps at all.
     #[default]
     None,
+
+    /// Use a single dedicated checker for `sat_refutation`.
     Dedicated(ExternalTool),
+
+    /// Validate the step using a SAT-based pipeline, consisting of a SAT solver, a DRAT checker,
+    /// and an SMT solver. See [`SatTools`].
     Sat(SatTools),
 }
 
+/// Configuration options for the proof checker.
 #[derive(Debug, Default, Clone, GenerateSetters)]
 pub struct Config {
     /// If `true`, the checker will assume that the proof is elaborated, and enforce extra
@@ -85,12 +102,16 @@ pub struct Config {
     #[skip_setter]
     allowed_rules: HashSet<String>,
 
+    /// A map from rule names to external checkers, which are called to check the steps that use
+    /// those rules.
     rule_checkers: IndexMap<String, ExternalTool>,
 
+    /// The configuration for checking `sat_refutation` steps. See [`SatRefConfig`].
     sat_ref_config: SatRefConfig,
 }
 
 impl Config {
+    /// Constructs a new `Config` with all options set to their default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -102,6 +123,7 @@ impl Config {
     }
 }
 
+/// A proof checker for Alethe.
 pub struct ProofChecker<'c> {
     pool: &'c mut PrimitivePool,
     config: Config,
@@ -112,6 +134,7 @@ pub struct ProofChecker<'c> {
 }
 
 impl<'c> ProofChecker<'c> {
+    /// Constructs a new `ProofChecker` with a given pool, set of rare rules, and `Config`.
     pub fn new(pool: &'c mut PrimitivePool, rare_rules: &'c Rules, config: Config) -> Self {
         ProofChecker {
             pool,
@@ -123,6 +146,9 @@ impl<'c> ProofChecker<'c> {
         }
     }
 
+    /// Checks that `proof` is a valid proof for the given problem.
+    ///
+    /// Returns `Ok` if the proof is valid, with a boolean indicating if it had holes.
     pub fn check(&mut self, problem: &Problem, proof: &Proof) -> CarcaraResult<bool> {
         self.check_impl(
             problem,
@@ -131,6 +157,8 @@ impl<'c> ProofChecker<'c> {
         )
     }
 
+    /// Checks that `proof` is a valid proof for the given problem, collecting benchmarking
+    /// statistics into `stats`.
     pub fn check_with_stats<CR: CollectResults + Send + Default>(
         &mut self,
         problem: &Problem,

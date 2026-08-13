@@ -1,4 +1,5 @@
-//! Backend of the slice command.
+//! A module for slicing a proof step, together with its dependencies, into a new standalone proof.
+
 use std::collections::{HashMap, VecDeque};
 
 use crate::ast::{

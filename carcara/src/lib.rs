@@ -66,6 +66,7 @@ use std::io;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 
+/// A type alias for a `Result` whose error type is a Carcara error.
 pub type CarcaraResult<T> = Result<T, Error>;
 
 fn wrap_parser_error_message(e: &ParserError, pos: &Position) -> String {
@@ -77,34 +78,59 @@ fn wrap_parser_error_message(e: &ParserError, pos: &Position) -> String {
     }
 }
 
+/// The error type for Carcara operations.
 #[derive(Debug, Error)]
 pub enum Error {
+    /// An IO error.
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
 
+    /// A parsing error, with the position in the input where it occurred.
     #[error("{}", wrap_parser_error_message(.0, .1))]
     Parser(ParserError, Position),
 
+    /// An error while checking a proof, indicating the step where it occurred.
     #[error("checking failed on step '{step}' with rule '{rule}': {inner}")]
     Checker {
+        /// The underlying checking error.
         inner: CheckerError,
+
+        /// The rule that was being checked when the error occurred.
         rule: Box<str>,
+
+        /// The id of the step in which the error occurred.
         step: Box<str>,
     },
 
     // While this is a kind of checking error, it does not happen in a specific step like all other
     // checker errors, so we model it as a different variant
+    /// The proof being checked did not conclude the empty clause.
     #[error("checker error: proof does not conclude empty clause")]
     DoesNotReachEmptyClause,
 
+    /// An error while elaborating a proof, indicating the step where it occurred.
     #[error("elaboration failed on step '{step}' with rule '{rule}': {inner}")]
     Elaborator {
+        /// The underlying elaboration error.
         inner: ElaborationError,
+
+        /// The rule that was being elaborated when the error occurred.
         rule: Box<str>,
+
+        /// The ID of the step in which the error occurred.
         step: Box<str>,
     },
 }
 
+/// Parses and checks an Alethe proof against an SMT-LIB problem.
+///
+/// The `Result` returned is `Ok` if the proof did not have errors, and contains a boolean
+/// indicating whether the proof contained holes.
+///
+/// The `problem` and `proof` strings are the SMT-LIB problem and the Alethe proof to check. If
+/// `rules` is `Some`, it should contain a set of Rare rewrite rules to be used when checking.
+///
+/// If `collect_stats` is true, benchmarking statistics will be collected and printed.
 pub fn check<'s>(
     problem: &'s str,
     proof: &'s str,
@@ -160,6 +186,10 @@ pub fn check<'s>(
     }
 }
 
+/// Parses and checks an Alethe proof against an SMT-LIB problem, checking steps in parallel.
+///
+/// This is similar to [`check`], but the proof steps are checked concurrently using `num_threads`
+/// threads. The `stack_size` argument sets the stack size of the worker threads.
 #[allow(clippy::too_many_arguments)]
 pub fn check_parallel<'s>(
     problem: &'s str,
@@ -229,6 +259,12 @@ pub fn check_parallel<'s>(
     }
 }
 
+/// Parses, checks, and elaborates an Alethe proof against an SMT-LIB problem.
+///
+/// This is similar to [`check`], but additionally elaborates the proof after checking it. The
+/// `pipeline` argument determines the elaboration passes to apply, in order. On success, this
+/// returns the proof holiness status, the parsed problem, the elaborated proof, and the term pool
+/// used.
 #[allow(clippy::too_many_arguments)]
 pub fn check_and_elaborate<'s>(
     problem: &'s str,
@@ -299,6 +335,10 @@ pub fn check_and_elaborate<'s>(
     Ok((checking_result, problem, elaborated, pool))
 }
 
+/// Generates an SMT-LIB problem for each `lia_generic` step in a proof.
+///
+/// Each returned pair contains the ID of a `lia_generic` step and an SMT-LIB problem that
+/// corresponds to the negation of that step's conclusion clause.
 pub fn generate_lia_smt_instances<'s>(
     problem: &'s str,
     proof: &'s str,

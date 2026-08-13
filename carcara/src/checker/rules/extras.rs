@@ -279,7 +279,7 @@ pub fn la_mult_sign(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
     };
     let multiset: MultiSet<_> = monomial.iter().collect();
 
-    // We interate directly on the underlying hashmap of the multiset (`.0`), so we can get at the
+    // We iterate directly on the underlying hashmap of the multiset (`.0`), so we can get at the
     // (term, quantity) pairs.
     let got = multiset
         .0

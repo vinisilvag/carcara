@@ -1,3 +1,5 @@
+//! Tools for benchmarking Carcara.
+
 mod metrics;
 #[cfg(test)]
 mod tests;
@@ -29,6 +31,7 @@ where
     a
 }
 
+/// The unique identifier of a single proof step, given by its file, step ID, and rule.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StepId {
     pub(crate) file: Box<str>,
@@ -44,46 +47,100 @@ impl fmt::Display for StepId {
 
 type RunId = (String, usize);
 
+/// The timing measurements of a single run of Carcara on a proof.
 #[derive(Debug, Default)]
 pub struct RunMeasurement {
+    /// The time spent parsing the proof.
     pub parsing: Duration,
+
+    /// The time spent checking the proof.
     pub checking: Duration,
+
+    /// The time spent elaborating the proof.
     pub elaboration: Duration,
+
+    /// The time spent scheduling the checking tasks.
     pub scheduling: Duration,
+
+    /// The total time spent on the run.
     pub total: Duration,
+
+    /// The time spent checking polyequality.
     pub polyeq: Duration,
+
+    /// The time spent checking `assume` steps.
     pub assume: Duration,
+
+    /// The time spent comparing `assume`d terms with their premises.
     pub assume_core: Duration,
+
+    /// The time spent on each pass of the elaboration pipeline.
     pub elaboration_pipeline: Vec<Duration>,
 }
 
+/// The benchmark results collected over many runs of Carcara on a set of proofs.
 #[derive(Debug, Default, Clone)]
 pub struct OnlineBenchmarkResults {
+    /// The time per run to parse the proof.
     pub parsing: OnlineMetrics<RunId>,
+
+    /// The time per run to check the proof.
     pub checking: OnlineMetrics<RunId>,
+
+    /// The time per run to elaborate the proof.
     pub elaborating: OnlineMetrics<RunId>,
+
+    /// The time per run to schedule the checking tasks.
     pub scheduling: OnlineMetrics<RunId>,
+
+    /// The combined time per run to parse, check, and elaborate.
     pub total_accounted_for: OnlineMetrics<RunId>,
+
+    /// The total time spent per run.
     pub total: OnlineMetrics<RunId>,
+
+    /// The time spent checking each step.
     pub step_time: OnlineMetrics<StepId>,
+
+    /// For each file, the time spent checking each step in the file.
     pub step_time_by_file: IndexMap<String, OnlineMetrics<StepId>>,
+
+    /// For each rule, the time spent checking each step that uses that rule.
     pub step_time_by_rule: IndexMap<String, OnlineMetrics<StepId>>,
 
+    /// The time spent checking polyequality.
     pub polyeq_time: OnlineMetrics<RunId>,
+
+    /// The proportion of the checking time that was spent checking polyequality.
     pub polyeq_time_ratio: OnlineMetrics<RunId, f64>,
+
+    /// The time spent on `assume` steps.
     pub assume_time: OnlineMetrics<RunId>,
+
+    /// The proportion of the checking time that was spent on `assume` steps.
     pub assume_time_ratio: OnlineMetrics<RunId, f64>,
+
+    /// The time spent comparing `assume`d terms with their premises.
     pub assume_core_time: OnlineMetrics<RunId>,
 
+    /// The depth of each polyequality check that was performed.
     pub polyeq_depths: OnlineMetrics<(), usize>,
+
+    /// The total number of `assume` steps checked.
     pub num_assumes: usize,
+
+    /// The number of `assume` steps that required no polyequality.
     pub num_easy_assumes: usize,
 
+    /// Whether any of the checked proofs contained holes.
     pub is_holey: bool,
+
+    /// Whether any of the runs finished with an error.
     pub had_error: bool,
 }
 
 impl OnlineBenchmarkResults {
+    /// Creates a new, empty `OnlineBenchmarkResults`.
     pub fn new() -> Self {
         Default::default()
     }
@@ -93,12 +150,12 @@ impl OnlineBenchmarkResults {
         self.total.is_empty()
     }
 
-    /// The time per run to completely parse the proof.
+    /// The time per run to parse the proof.
     pub fn parsing(&self) -> &OnlineMetrics<RunId> {
         &self.parsing
     }
 
-    /// The time per run to check all the steps in the proof.
+    /// The time per run to check the proof.
     pub fn checking(&self) -> &OnlineMetrics<RunId> {
         &self.checking
     }
@@ -108,12 +165,12 @@ impl OnlineBenchmarkResults {
         &self.elaborating
     }
 
-    /// The time per run to schedule the threads tasks.
+    /// The time per run to schedule the checking tasks.
     pub fn scheduling(&self) -> &OnlineMetrics<RunId> {
         &self.scheduling
     }
 
-    /// The combined time per run to parse, check, and elaborate all the steps in the proof.
+    /// The combined time per run to parse, check, and elaborate.
     pub fn total_accounted_for(&self) -> &OnlineMetrics<RunId> {
         &self.total_accounted_for
     }
@@ -263,6 +320,7 @@ impl OnlineBenchmarkResults {
     }
 }
 
+/// The identifier of a single proof step, with its strings interned to improve memory usage.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InternedStepId {
     pub(crate) file: Arc<str>,
@@ -278,6 +336,7 @@ impl fmt::Display for InternedStepId {
 
 type InternedRunId = (Arc<str>, usize);
 
+/// Benchmark results that can be written to CSV files.
 #[derive(Default)]
 pub struct CsvBenchmarkResults {
     strings: IndexSet<Arc<str>>,
@@ -288,14 +347,17 @@ pub struct CsvBenchmarkResults {
 }
 
 impl CsvBenchmarkResults {
+    /// Creates a new, empty `CsvBenchmarkResults`.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Returns `true` if any of the checked proofs contained holes.
     pub fn is_holey(&self) -> bool {
         self.is_holey
     }
 
+    /// Returns the number of runs that finished with an error.
     pub fn num_errors(&self) -> usize {
         self.num_errors
     }
@@ -311,6 +373,8 @@ impl CsvBenchmarkResults {
         }
     }
 
+    /// Writes the benchmark results to the given writers: one CSV for the run measurements and one
+    /// for the step measurements.
     pub fn write_csv(
         self,
         runs_dest: &mut dyn io::Write,
@@ -379,14 +443,27 @@ impl CsvBenchmarkResults {
     }
 }
 
+/// A sink for benchmark results, which receives measurements as proofs are checked and elaborated.
 pub trait CollectResults {
+    /// Records the time spent checking a single step.
     fn add_step_measurement(&mut self, file: &str, step_id: &str, rule: &str, time: Duration);
+
+    /// Records the time spent checking an `assume` step.
     fn add_assume_measurement(&mut self, file: &str, id: &str, is_easy: bool, time: Duration);
+
+    /// Records the depth of a polyequality check.
     fn add_polyeq_depth(&mut self, depth: usize);
+
+    /// Records the timing measurements of a single run.
     fn add_run_measurement(&mut self, id: &RunId, measurement: RunMeasurement);
+
+    /// Records that a checked proof contained holes.
     fn register_holey(&mut self);
+
+    /// Records that a run finished with an error.
     fn register_error(&mut self, error: &crate::Error);
 
+    /// Combines two sets of results into one.
     fn combine(a: Self, b: Self) -> Self
     where
         Self: Sized;

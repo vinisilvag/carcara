@@ -1,3 +1,5 @@
+//! An elaborator for Alethe proofs
+
 pub mod error;
 mod hole;
 mod local;
@@ -25,39 +27,64 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Configuration options for [`Elaborator`].
 #[derive(Debug, Default, Clone, GenerateSetters)]
 pub struct Config {
-    /// If `Some`, enables the elaboration of `lia_generic` steps using an external solver. When
-    /// checking a proof, this means calling the solver to solve the linear integer arithmetic
-    /// problem, checking the proof, and discarding it. When elaborating, the proof will instead be
-    /// inserted in the place of the `lia_generic` step.
+    /// If `Some`, enables the elaboration of `lia_generic` steps using an external solver.
+    ///
+    /// This involves calling the solver to solve the linear integer arithmetic problem, checking
+    /// the proof, and inserting it in the place of the `lia_generic` step.
     lia_solver: Option<ExternalTool>,
 
     /// Enables an optimization that reorders premises when uncrowding resolution steps, in order to
     /// further minimize the number of `contraction` steps added.
     uncrowd_rotation: bool,
 
+    /// If `Some`, enables the elaboration of `all_simplify` and `rare_rewrite` steps using an
+    /// external solver, inserting the solver's proof in the place of those steps.
     hole_solver: Option<ExternalTool>,
 
+    /// The external tools used to elaborate `sat_refutation` steps.
     sat_ref_tools: Option<SatTools>,
 }
 
 impl Config {
+    /// Constructs a new `Config`, with default settings.
     pub fn new() -> Self {
         Self::default()
     }
 }
 
+/// An elaboration pass, to be applied to a proof.
 #[derive(Debug, Clone, Copy)]
 pub enum ElaborationPass {
+    /// Elaborates away all uses of polyequality in the proof.
     Polyeq,
+    /// Fills holes in the proof using an external solver.
     Hole,
+    /// Performs small local elaborations.
+    ///
+    /// Currently, this affects the rules:
+    /// - `eq_transitive`
+    /// - `trans`
+    /// - `resolution`
+    /// - `cong`
+    /// - `eq_congruent`
+    /// - `eq_congruent_pred`
+    /// - `bounded_farkas`
+    /// - `eq_mp`
     Local,
+    /// Uncrowds `resolution` steps, removing the implicit removal of duplicates by adding
+    /// `contraction` steps.
     Uncrowd,
+    /// Removes `reordering` steps from the proof, recomputing the conclusions of order-sensitive
+    /// steps when necessary.
     Reordering,
+    /// Elaborates `sat_refutation` steps using an external SAT solver.
     SatRefutation,
 }
 
+/// A proof elaborator for Alethe.
 pub struct Elaborator<'e> {
     pool: &'e mut PrimitivePool,
     problem: &'e Problem,
@@ -65,10 +92,12 @@ pub struct Elaborator<'e> {
 }
 
 impl<'e> Elaborator<'e> {
+    /// Constructs a new [`Elaborator`] with the given `pool`, `problem`, and `config`.
     pub fn new(pool: &'e mut PrimitivePool, problem: &'e Problem, config: Config) -> Self {
         Self { pool, problem, config }
     }
 
+    /// Elaborates a proof, applying the default pipeline of passes.
     pub fn elaborate_with_default_pipeline(
         &mut self,
         proof: ProofNodeForest,
@@ -78,6 +107,7 @@ impl<'e> Elaborator<'e> {
         self.elaborate(proof, pipeline)
     }
 
+    /// Elaborates a proof, applying the given `pipeline` of passes, in order.
     pub fn elaborate(
         &mut self,
         proof: ProofNodeForest,
@@ -86,6 +116,8 @@ impl<'e> Elaborator<'e> {
         Ok(self.elaborate_with_stats(proof, pipeline)?.0)
     }
 
+    /// Elaborates a proof, applying the given `pipeline` of passes in order, and returns the
+    /// elaborated proof together with the time spent on each pass.
     pub fn elaborate_with_stats(
         &mut self,
         proof: ProofNodeForest,
@@ -319,7 +351,15 @@ fn add_trans_step(
 type ElaborationFunc =
     fn(&mut PrimitivePool, &mut ContextStack, &StepNode) -> Result<Rc<ProofNode>, ElaborationError>;
 
+/// A proof that can be mutated by applying a function to each of its nodes.
+///
+/// The function is applied to the nodes in a bottom-up order, so that the premises of a step are
+/// always processed before the step itself. Shared nodes are only processed once.
 pub trait Mutate: Sized {
+    /// Applies `mutate_func` to every node of the proof, returning the new proof.
+    ///
+    /// `mutate_func` receives the current context, the node, and whether the node's premises were
+    /// modified, and returns the new node.
     fn mutate<F, E>(self, mutate_func: F) -> Result<Self, E>
     where
         F: FnMut(&mut ContextStack, &Rc<ProofNode>, bool) -> Result<Rc<ProofNode>, E>;
@@ -451,12 +491,14 @@ where
     Ok(cache[root].clone())
 }
 
+/// A helper for generating unique step IDs from a root ID, by appending numeric suffixes to it.
 pub struct IdHelper {
     root: String,
     stack: Vec<usize>,
 }
 
 impl IdHelper {
+    /// Constructs a new [`IdHelper`] for the given root ID.
     pub fn new(root: &str) -> Self {
         Self {
             root: root.to_owned(),
@@ -464,6 +506,7 @@ impl IdHelper {
         }
     }
 
+    /// Returns the next generated ID, and advances the internal counter.
     pub fn next_id(&mut self) -> String {
         use std::fmt::Write;
 
@@ -475,10 +518,15 @@ impl IdHelper {
         current
     }
 
+    /// Starts a new nesting level.
+    ///
+    /// That is, if the current ID is `t5.t3`, `push` will use that as the root for the next ids,
+    /// such that the following ID will be `t5.t3.t1`. This is reverted by [`IdHelper::pop`].
     pub fn push(&mut self) {
         self.stack.push(0);
     }
 
+    /// Ends the current nesting level.
     pub fn pop(&mut self) {
         assert!(self.stack.len() >= 2, "can't pop last frame from the stack");
         self.stack.pop();

@@ -5,18 +5,32 @@ use std::{
     time::Duration,
 };
 
+/// A type that can be used as a unit of measurement for benchmark metrics.
 pub trait MetricsUnit:
     Copy + Default + PartialOrd + Add<Output = Self> + AddAssign + Sum + Sub<Output = Self>
 {
+    /// The type used to represent the mean and standard deviation of the samples.
+    ///
+    /// This is usually `Self`, but it might be a different type if `Self` is an integer type and we
+    /// need non-integer means.
     type MeanType: MetricsUnit;
 
+    /// Converts the value to an `f64`.
     fn as_f64(&self) -> f64;
+
+    /// Creates a mean value from an `f64`.
     fn from_f64(x: f64) -> Self::MeanType;
+
+    /// Divides `self` by a count, producing a mean value.
     fn div_u32(self, rhs: u32) -> Self::MeanType;
+
+    /// Computes the difference between a sample and a mean.
     fn mean_diff(self, mean: Self::MeanType) -> Self::MeanType;
 
+    /// Displays the value into the given formatter.
     fn display(&self, f: &mut fmt::Formatter) -> fmt::Result;
 
+    /// Returns the absolute difference between `self` and `other`.
     fn absolute_diff(self, other: Self) -> Self {
         if self > other {
             self - other
@@ -106,16 +120,34 @@ impl<T: MetricsUnit> fmt::Display for DisplayUnit<T> {
     }
 }
 
+/// A collection of samples with an associated key, from which aggregate statistics can be
+/// computed.
 pub trait Metrics<K, T: MetricsUnit>: fmt::Display {
+    /// Adds a new sample to the collection.
     fn add_sample(&mut self, key: &K, value: T);
+
+    /// Combines two collections of samples into one.
     fn combine(self, other: Self) -> Self;
+
+    /// Returns `true` if the collection contains no samples.
     fn is_empty(&self) -> bool;
 
+    /// Returns the key and value of the largest sample.
     fn max(&self) -> &(K, T);
+
+    /// Returns the key and value of the smallest sample.
     fn min(&self) -> &(K, T);
+
+    /// Returns the sum of all samples.
     fn total(&self) -> T;
+
+    /// Returns the number of samples.
     fn count(&self) -> usize;
+
+    /// Returns the mean of the samples.
     fn mean(&self) -> T::MeanType;
+
+    /// Returns the standard deviation of the samples.
     fn standard_deviation(&self) -> T::MeanType;
 }
 
@@ -142,6 +174,10 @@ where
     }
 }
 
+/// Metrics whose aggregate statistics are updated incrementally as samples are added.
+///
+/// This avoids actually storing all samples, reducing the memory footprint, but at the cost of some
+/// numerical stability.
 #[derive(Debug, Clone)]
 pub struct OnlineMetrics<K, T: MetricsUnit = Duration> {
     total: T,
@@ -155,6 +191,7 @@ pub struct OnlineMetrics<K, T: MetricsUnit = Duration> {
 }
 
 impl<K, T: MetricsUnit> OnlineMetrics<K, T> {
+    /// Creates a new, empty `OnlineMetrics`.
     pub fn new() -> Self {
         Default::default()
     }
@@ -293,15 +330,20 @@ impl<K: Clone, T: MetricsUnit> Metrics<K, T> for OnlineMetrics<K, T> {
     }
 }
 
+/// Metrics that store every sample and compute aggregate statistics on demand.
+///
+/// This is more numerically stable than [`OnlineMetrics`], but can use a lot more memory.
 pub struct OfflineMetrics<K, T = Duration> {
     data: Vec<(K, T)>,
 }
 
 impl<K, T: MetricsUnit> OfflineMetrics<K, T> {
+    /// Creates a new, empty `OfflineMetrics`.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Sorts the samples and returns the values at the 5%, 25%, 50%, 75%, and 95% percentiles.
     pub fn quartiles(&mut self) -> [&(K, T); 5] {
         assert!(!self.data.is_empty());
         self.data
@@ -375,54 +417,5 @@ impl<K: Clone, T: MetricsUnit> Metrics<K, T> for OfflineMetrics<K, T> {
             .sum();
         let variance = sum_of_squared_distances / (cmp::max(2, self.count()) - 1) as f64;
         T::from_f64(variance.sqrt())
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct NullMetrics;
-
-impl fmt::Display for NullMetrics {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "<null>")
-    }
-}
-
-fn null_metrics_panic() -> ! {
-    panic!("trying to extract data from null metrics")
-}
-
-impl<K: Clone, T: MetricsUnit> Metrics<K, T> for NullMetrics {
-    fn add_sample(&mut self, _: &K, _: T) {}
-
-    fn combine(self, _: Self) -> Self {
-        self
-    }
-
-    fn is_empty(&self) -> bool {
-        true
-    }
-
-    fn max(&self) -> &(K, T) {
-        null_metrics_panic()
-    }
-
-    fn min(&self) -> &(K, T) {
-        null_metrics_panic()
-    }
-
-    fn total(&self) -> T {
-        null_metrics_panic()
-    }
-
-    fn count(&self) -> usize {
-        null_metrics_panic()
-    }
-
-    fn mean(&self) -> T::MeanType {
-        null_metrics_panic()
-    }
-
-    fn standard_deviation(&self) -> T::MeanType {
-        null_metrics_panic()
     }
 }
