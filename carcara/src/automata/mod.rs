@@ -185,6 +185,14 @@ impl Automaton {
         }
     }
 
+    pub fn empty_automaton() -> Automaton {
+        Automaton {
+            name: "empty_automaton".to_owned(),
+            initial_state: 0,
+            all_states: vec![State::new("initial", false)],
+        }
+    }
+
     /// Checks whether the automaton is non-deterministic (contains epsilon transitions,
     /// overlapping ranges, or incomplete symbol coverage).
     pub fn is_nfa(&self) -> bool {
@@ -699,8 +707,17 @@ impl Automaton {
                     let Term::Const(Constant::String(s2)) = c2_term.as_ref() else {
                         unreachable!()
                     };
-                    let c1 = s1.chars().next().ok_or(CheckerError::Unspecified)? as u16;
-                    let c2 = s2.chars().next().ok_or(CheckerError::Unspecified)? as u16;
+                    let mut s1_chars = s1.chars();
+                    let mut s2_chars = s2.chars();
+                    let (Some(c1), None) = (s1_chars.next(), s1_chars.next()) else {
+                        return Ok(Automaton::empty_automaton());
+                    };
+                    let (Some(c2), None) = (s2_chars.next(), s2_chars.next()) else {
+                        return Ok(Automaton::empty_automaton());
+                    };
+                    if c1 > c2 {
+                        return Ok(Automaton::empty_automaton());
+                    }
                     Ok(Automaton {
                         name: "re_range".to_owned(),
                         all_states: vec![
@@ -709,7 +726,7 @@ impl Automaton {
                                 accept: false,
                                 transitions: HashSet::from([Transition {
                                     to: 1,
-                                    trigger: Trigger::Range((c1, c2)),
+                                    trigger: Trigger::Range((c1 as u16, c2 as u16)),
                                 }]),
                             },
                             State {
@@ -1342,5 +1359,27 @@ mod tests {
         assert!(accepts_regex(diff, "a"));
         assert!(!accepts_regex(diff, "aa"));
         assert!(accepts_regex(diff, "aaa"));
+    }
+
+    #[test]
+    fn test_create_from_regex_operators_range() {
+        // valid ranges
+        assert!(accepts_regex(r#"(re.range "a" "c")"#, "a"));
+        assert!(accepts_regex(r#"(re.range "a" "c")"#, "b"));
+        assert!(accepts_regex(r#"(re.range "a" "c")"#, "c"));
+        assert!(!accepts_regex(r#"(re.range "a" "c")"#, "d"));
+        assert!(!accepts_regex(r#"(re.range "a" "c")"#, ""));
+        assert!(!accepts_regex(r#"(re.range "a" "c")"#, "ab"));
+
+        // empty range: c1 > c2
+        assert!(!accepts_regex(r#"(re.range "z" "a")"#, "a"));
+        assert!(!accepts_regex(r#"(re.range "z" "a")"#, "z"));
+        assert!(!accepts_regex(r#"(re.range "z" "a")"#, ""));
+
+        // empty range: non-singleton arguments
+        assert!(!accepts_regex(r#"(re.range "" "a")"#, "a"));
+        assert!(!accepts_regex(r#"(re.range "a" "")"#, "a"));
+        assert!(!accepts_regex(r#"(re.range "ab" "c")"#, "a"));
+        assert!(!accepts_regex(r#"(re.range "a" "bc")"#, "a"));
     }
 }
