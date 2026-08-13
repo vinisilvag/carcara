@@ -48,6 +48,9 @@ pub enum CheckerError {
     #[error(transparent)]
     Subproof(#[from] SubproofError),
 
+    #[error(transparent)]
+    String(#[from] Box<StringError>),
+
     #[error("reflexivity failed with terms '{0}' and '{1}'")]
     ReflexivityFailed(Rc<Term>, Rc<Term>),
 
@@ -241,32 +244,6 @@ pub enum CheckerError {
 
     #[error("unknown rule")]
     UnknownRule,
-
-    // RCP errors
-    #[error("expected two ranges to calculate the intersection between then, got '{0}' and '{1}'")]
-    ExpectedRangesToCalculateTheIntersection(Trigger, Trigger),
-
-    #[error("expected a string constant inside the str.to_re operator, got '{0}'")]
-    ExpectedStringConstantInsideStrToRe(Rc<Term>),
-
-    #[error("unexpected term when converting '{0}' to his automaton form")]
-    UnexpectedTermOnAutomatonConversion(Rc<Term>),
-
-    #[error("regular expression match failed: expected '{s}' in '{regex}' to be {expected}")]
-    RegexMatchFailed {
-        s: String,
-        regex: Rc<Term>,
-        expected: bool,
-    },
-
-    #[error("regular expression replace failed: replacing in '{s}' with regex '{regex}' and replacement '{replacement}' expected to result in '{expected}', got '{got}'")]
-    RegexReplaceFailed {
-        s: String,
-        regex: Rc<Term>,
-        replacement: String,
-        expected: String,
-        got: String,
-    },
 }
 
 /// Errors in which we expected two things to be equal but they weren't.
@@ -450,6 +427,41 @@ pub enum SubproofError {
 
     #[error("expected binding list in right-hand side to be '{0}'")]
     OnepointWrongRightBindings(BindingList),
+}
+
+/// Errors relevant to all String rules (CPC and RCP calculus).
+#[derive(Debug, Error)]
+pub enum StringError {
+    #[error("expected two ranges to calculate the intersection between then, got '{0}' and '{1}'")]
+    ExpectedRangesToCalculateTheIntersection(Trigger, Trigger),
+
+    #[error("expected a string constant inside the str.to_re operator, got '{0}'")]
+    ExpectedStringConstantInsideStrToRe(Rc<Term>),
+
+    #[error("unexpected term when converting '{0}' to his automaton form")]
+    UnexpectedTermOnAutomatonConversion(Rc<Term>),
+
+    #[error("regular expression match failed: expected '{s}' in '{regex}' to be {expected}")]
+    RegexMatchFailed {
+        s: String,
+        regex: Rc<Term>,
+        expected: bool,
+    },
+
+    #[error("regular expression replace failed: replacing in '{s}' with regex '{regex}' and replacement '{replacement}' expected to result in '{expected}', got '{got}'")]
+    RegexReplaceFailed {
+        s: String,
+        regex: Rc<Term>,
+        replacement: String,
+        expected: String,
+        got: String,
+    },
+}
+
+impl From<StringError> for CheckerError {
+    fn from(e: StringError) -> Self {
+        CheckerError::String(Box::new(e))
+    }
 }
 
 /// A wrapper struct that implements `fmt::Display` for linear combinations.

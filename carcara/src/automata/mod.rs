@@ -9,7 +9,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::ast::{Constant, Operator, Rc, Term, TermPool};
 use crate::automata::utils::{has_overlapping_ranges, missing_ranges};
-use crate::checker::error::CheckerError;
+use crate::checker::error::{CheckerError, StringError};
 
 /// Type alias representing the index of a state within an [`Automaton`]'s state vector.
 pub type StateId = usize;
@@ -595,7 +595,9 @@ impl Automaton {
                 Term::Op(Operator::StrToRe, s) => {
                     let s = s.first().unwrap();
                     let Term::Const(Constant::String(s)) = s.as_ref() else {
-                        return Err(CheckerError::ExpectedStringConstantInsideStrToRe(s.clone()));
+                        return Err(
+                            StringError::ExpectedStringConstantInsideStrToRe(s.clone()).into()
+                        );
                     };
 
                     let characters: Vec<char> = s.chars().collect();
@@ -689,7 +691,7 @@ impl Automaton {
                     Ok(dfa.complement())
                 }
                 Term::Op(Operator::ReRange, args) => {
-                    let c1_term = args.get(0).ok_or(CheckerError::Unspecified)?;
+                    let c1_term = args.first().ok_or(CheckerError::Unspecified)?;
                     let c2_term = args.get(1).ok_or(CheckerError::Unspecified)?;
                     let Term::Const(Constant::String(s1)) = c1_term.as_ref() else {
                         return Err(CheckerError::Unspecified);
@@ -787,7 +789,7 @@ impl Automaton {
                     })
                 }
                 Term::Const(Constant::RegLan(_, a)) => Ok(a.clone()),
-                _ => Err(CheckerError::UnexpectedTermOnAutomatonConversion(t.clone())),
+                _ => Err(StringError::UnexpectedTermOnAutomatonConversion(t.clone()).into()),
             }
         }
 
@@ -901,31 +903,25 @@ impl Automaton {
 impl fmt::Display for Automaton {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "automaton {} {{", self.name)?;
-
         writeln!(f, "  init {};", self.all_states[self.initial_state].id)?;
-
         for state in &self.all_states {
             for transition in &state.transitions {
                 let target = &self.all_states[transition.to];
-
                 match &transition.trigger {
                     Trigger::Epsilon => {
                         writeln!(f, "  {} -> {} [ε];", state.id, target.id)?;
                     }
-
                     Trigger::Range((l, r)) => {
                         writeln!(f, "  {} -> {} [{}, {}];", state.id, target.id, l, r)?;
                     }
                 }
             }
         }
-
         for state in &self.all_states {
             if state.accept {
                 writeln!(f, "  accepting {};", state.id)?;
             }
         }
-
         write!(f, "}}")
     }
 }

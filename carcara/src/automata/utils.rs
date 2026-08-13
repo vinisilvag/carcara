@@ -1,6 +1,6 @@
 use crate::{
     automata::{State, Transition, Trigger},
-    checker::error::CheckerError,
+    checker::error::{CheckerError, StringError},
 };
 
 /// Computes the intersection range of two range triggers, returning `None` if they are disjoint.
@@ -15,9 +15,9 @@ pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u16, u16)>, 
                 Ok(None)
             }
         }
-        _ => Err(CheckerError::ExpectedRangesToCalculateTheIntersection(
+        _ => Err(StringError::ExpectedRangesToCalculateTheIntersection(
             r1, r2,
-        )),
+        ).into()),
     }
 }
 
