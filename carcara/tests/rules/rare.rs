@@ -1,4 +1,4 @@
-use carcara::{ast::ProofCommand, checker, parser};
+use carcara::{ast::ProofCommand, checker, parser, Status};
 
 // Custom rare rules for testing
 const RARE_RULES: &str = r#"
@@ -209,7 +209,7 @@ fn run_rare_file_test(
     problem: &str,
     proof: &str,
     rare_rules: &str,
-    expected_holey: bool,
+    expected_status: Status,
 ) {
     let (problem, proof, rare_rules, mut pool) = parser::parse_instance(
         problem,
@@ -227,10 +227,10 @@ fn run_rare_file_test(
     let check_result = checker.check(&problem, &proof);
 
     match check_result {
-        Ok(is_holey) => assert_eq!(
-            is_holey, expected_holey,
-            "test '{}' expected holey={} but got holey={}",
-            test_name, expected_holey, is_holey
+        Ok(status) => assert_eq!(
+            status, expected_status,
+            "test '{}' expected status={} but got status={}",
+            test_name, expected_status, status
         ),
         Err(e) => panic!("checker error during test \"{}\": {}", test_name, e),
     }
@@ -328,13 +328,13 @@ fn encoded_rare_examples() {
         DD_CHECK_CC_BVXOR_XSIMP_SMT2,
         DD_CHECK_CC_BVXOR_XSIMP_ALETHE,
         SMALL_RARE_RULES,
-        true,
+        Status::Holey,
     );
     run_rare_file_test(
         "bv-concat-extract-merge",
         BV_CONCAT_EXTRACT_MERGE_SMT2,
         BV_CONCAT_EXTRACT_MERGE_ALETHE,
         SMALL_RARE_RULES,
-        false,
+        Status::Valid,
     );
 }

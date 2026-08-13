@@ -69,6 +69,23 @@ use thiserror::Error;
 /// A type alias for a `Result` whose error type is a Carcara error.
 pub type CarcaraResult<T> = Result<T, Error>;
 
+/// The result of a checking a proof, if no errors were found. Can be either "valid" or "holey"
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Status {
+    Valid,
+    Holey,
+}
+
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Status::Valid => "valid",
+            Status::Holey => "holey",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 fn wrap_parser_error_message(e: &ParserError, pos: &Position) -> String {
     // For unclosed subproof errors, we don't print the position
     if matches!(e, ParserError::UnclosedSubproof(_)) {
@@ -124,9 +141,7 @@ pub enum Error {
 
 /// Parses and checks an Alethe proof against an SMT-LIB problem.
 ///
-/// The `Result` returned is `Ok` if the proof did not have errors, and contains a boolean
-/// indicating whether the proof contained holes.
-///
+/// The `Result` returned is `Ok` if the proof did not have errors, and contains the proof status.
 /// The `problem` and `proof` strings are the SMT-LIB problem and the Alethe proof to check. If
 /// `rules` is `Some`, it should contain a set of Rare rewrite rules to be used when checking.
 ///
@@ -138,7 +153,7 @@ pub fn check<'s>(
     parser_config: parser::Config,
     checker_config: checker::Config,
     collect_stats: bool,
-) -> Result<bool, Error> {
+) -> Result<Status, Error> {
     let mut run_measures: RunMeasurement = RunMeasurement::default();
 
     // Parsing
@@ -200,7 +215,7 @@ pub fn check_parallel<'s>(
     collect_stats: bool,
     num_threads: usize,
     stack_size: usize,
-) -> Result<bool, Error> {
+) -> Result<Status, Error> {
     use crate::checker::Scheduler;
     use std::sync::Arc;
     let mut run_measures: RunMeasurement = RunMeasurement::default();
@@ -275,7 +290,7 @@ pub fn check_and_elaborate<'s>(
     elaborator_config: elaborator::Config,
     pipeline: Vec<elaborator::ElaborationPass>,
     collect_stats: bool,
-) -> Result<(bool, ast::Problem, ast::Proof, ast::pool::PrimitivePool), Error> {
+) -> Result<(Status, ast::Problem, ast::Proof, ast::pool::PrimitivePool), Error> {
     let mut run: RunMeasurement = RunMeasurement::default();
 
     // Parsing (Complete rare rules)
@@ -289,7 +304,7 @@ pub fn check_and_elaborate<'s>(
     // Checking
     let checking = Instant::now();
     let mut checker = checker::ProofChecker::new(&mut pool, &rules, checker_config);
-    let checking_result = if collect_stats {
+    let checking_status = if collect_stats {
         let mut checker_stats = CheckerStatistics {
             file_name: "this",
             polyeq_time: Duration::ZERO,
@@ -332,7 +347,7 @@ pub fn check_and_elaborate<'s>(
         stats.print(false);
     }
 
-    Ok((checking_result, problem, elaborated, pool))
+    Ok((checking_status, problem, elaborated, pool))
 }
 
 /// Generates an SMT-LIB problem for each `lia_generic` step in a proof.

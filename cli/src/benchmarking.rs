@@ -24,7 +24,7 @@ fn run_job<T: CollectResults + Default + Send>(
     parser_config: parser::Config,
     checker_config: checker::Config,
     elaborator_config: Option<(elaborator::Config, Vec<elaborator::ElaborationPass>)>,
-) -> Result<bool, carcara::Error> {
+) -> Result<carcara::Status, carcara::Error> {
     let proof_file_name = job.proof_file.to_str().unwrap();
     let mut checker_stats = checker::CheckerStatistics {
         file_name: proof_file_name,
@@ -101,7 +101,7 @@ fn worker_thread<T: CollectResults + Default + Send>(
             elaborator_config.clone(),
         );
         match result {
-            Ok(true) => results.register_holey(),
+            Ok(carcara::Status::Holey) => results.register_holey(),
             Err(e) => {
                 log::error!("encountered error in file '{}'", job.proof_file.display());
                 results.register_error(&e);

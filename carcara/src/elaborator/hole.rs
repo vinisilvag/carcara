@@ -2,6 +2,7 @@ use super::{ElaborationError, Elaborator};
 use crate::{
     ast::{build_term, pool::TermPool, ProblemPrelude, ProofNode, Rc, StepNode},
     external::{self, ExternalError},
+    Status,
 };
 
 pub fn hole(
@@ -24,8 +25,8 @@ pub fn hole(
         .collect();
     let problem = external::get_problem_string(elaborator.pool, &prelude, &asserts);
     let solver = elaborator.config.hole_solver.as_ref().unwrap();
-    let (commands, holey) = external::get_solver_proof(elaborator.pool, problem.clone(), solver)?;
-    if holey {
+    let (commands, status) = external::get_solver_proof(elaborator.pool, problem.clone(), solver)?;
+    if status == Status::Holey {
         return Err(ExternalError::InnerProofHoley.into());
     }
 

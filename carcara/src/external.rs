@@ -7,7 +7,7 @@ use crate::{
     },
     checker,
     elaborator::{IdHelper, Mutate},
-    parser, CarcaraResult,
+    parser, CarcaraResult, Status,
 };
 use std::{
     borrow::ToOwned,
@@ -149,7 +149,7 @@ pub fn parse_and_check_solver_proof(
     pool: &mut PrimitivePool,
     problem: &str,
     proof: &str,
-) -> CarcaraResult<(Vec<ProofCommand>, bool)> {
+) -> CarcaraResult<(Vec<ProofCommand>, Status)> {
     let config = parser::Config::new()
         .expand_lets(true)
         .allow_int_real_subtyping(true);
@@ -165,7 +165,7 @@ pub fn get_solver_proof(
     pool: &mut PrimitivePool,
     problem: String,
     solver: &ExternalTool,
-) -> Result<(Vec<ProofCommand>, bool), ExternalError> {
+) -> Result<(Vec<ProofCommand>, Status), ExternalError> {
     let output = solver.call(problem.as_bytes())?;
     if !output.status.success() {
         if let Ok(s) = std::str::from_utf8(&output.stderr) {

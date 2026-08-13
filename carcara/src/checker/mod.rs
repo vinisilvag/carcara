@@ -12,7 +12,7 @@ use crate::{
     },
     benchmarking::{CollectResults, OnlineBenchmarkResults},
     external::{ExternalTool, SatTools},
-    CarcaraResult, Error,
+    CarcaraResult, Error, Status,
 };
 use carcara_macros::GenerateSetters;
 use error::CheckerError;
@@ -148,8 +148,8 @@ impl<'c> ProofChecker<'c> {
 
     /// Checks that `proof` is a valid proof for the given problem.
     ///
-    /// Returns `Ok` if the proof is valid, with a boolean indicating if it had holes.
-    pub fn check(&mut self, problem: &Problem, proof: &Proof) -> CarcaraResult<bool> {
+    /// Returns `Ok` if the proof is valid, with the proof status.
+    pub fn check(&mut self, problem: &Problem, proof: &Proof) -> CarcaraResult<Status> {
         self.check_impl(
             problem,
             proof,
@@ -164,7 +164,7 @@ impl<'c> ProofChecker<'c> {
         problem: &Problem,
         proof: &Proof,
         stats: &mut CheckerStatistics<CR>,
-    ) -> CarcaraResult<bool> {
+    ) -> CarcaraResult<Status> {
         self.check_impl(problem, proof, Some(stats))
     }
 
@@ -173,7 +173,7 @@ impl<'c> ProofChecker<'c> {
         problem: &Problem,
         proof: &Proof,
         mut stats: Option<&mut CheckerStatistics<CR>>,
-    ) -> CarcaraResult<bool> {
+    ) -> CarcaraResult<Status> {
         // Similarly to the parser, to avoid stack overflows in proofs with many nested subproofs,
         // we check the subproofs iteratively, instead of recursively
         let mut iter = proof.iter();
@@ -245,7 +245,11 @@ impl<'c> ProofChecker<'c> {
             }
         }
         if self.reached_empty_clause {
-            Ok(self.is_holey)
+            Ok(if self.is_holey {
+                Status::Holey
+            } else {
+                Status::Valid
+            })
         } else {
             Err(Error::DoesNotReachEmptyClause)
         }

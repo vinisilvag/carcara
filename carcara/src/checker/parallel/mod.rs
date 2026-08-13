@@ -13,7 +13,7 @@ use crate::{
         ContextStack, Problem, ProblemPrelude, Proof, ProofCommand, ProofStep, Rc, Term,
     },
     benchmarking::{CollectResults, OnlineBenchmarkResults},
-    CarcaraResult, Error,
+    CarcaraResult, Error, Status,
 };
 use indexmap::IndexSet;
 use std::{
@@ -78,13 +78,13 @@ impl<'c> ParallelProofChecker<'c> {
 
     /// Checks that `proof` is a valid proof for the given problem.
     ///
-    /// Returns `Ok` if the proof is valid, with a boolean indicating if it had holes.
+    /// Returns `Ok` if the proof is valid, with the proof status.
     pub fn check(
         &mut self,
         problem: &Problem,
         proof: &Proof,
         scheduler: &Scheduler,
-    ) -> CarcaraResult<bool> {
+    ) -> CarcaraResult<Status> {
         // Used to stimulate threads to abort prematurely (only happens when a
         // thread already found out an invalid step)
         let premature_abort = Arc::new(AtomicBool::new(false));
@@ -104,7 +104,7 @@ impl<'c> ParallelProofChecker<'c> {
                     thread::Builder::new()
                         .name(format!("worker-{i}"))
                         .stack_size(self.stack_size)
-                        .spawn_scoped(s, move || -> CarcaraResult<(bool, bool)> {
+                        .spawn_scoped(s, move || -> CarcaraResult<(bool, Status)> {
                             local_self.worker_thread_check(
                                 problem,
                                 proof,
@@ -128,9 +128,12 @@ impl<'c> ParallelProofChecker<'c> {
                 .map(|t| t.join().unwrap())
                 .try_for_each(|opt| {
                     match opt {
-                        Ok((local_reached, local_holey)) => {
+                        Ok((local_reached, local_status)) => {
                             // Mask the result booleans
-                            (reached, holey) = (reached | local_reached, holey | local_holey);
+                            (reached, holey) = (
+                                reached || local_reached,
+                                holey || local_status == Status::Holey,
+                            );
                             ControlFlow::Continue(())
                         }
                         Err(e) => {
@@ -144,7 +147,7 @@ impl<'c> ParallelProofChecker<'c> {
             err?;
 
             if reached {
-                Ok(holey)
+                Ok(if holey { Status::Holey } else { Status::Valid })
             } else {
                 Err(Error::DoesNotReachEmptyClause)
             }
@@ -159,7 +162,7 @@ impl<'c> ParallelProofChecker<'c> {
         proof: &Proof,
         scheduler: &Scheduler,
         stats: &mut CheckerStatistics<CR>,
-    ) -> CarcaraResult<bool> {
+    ) -> CarcaraResult<Status> {
         // Used to stimulate threads to abort prematurely (only happens when a
         // thread already found out an invalid step)
         let premature_abort = Arc::new(AtomicBool::new(false));
@@ -188,7 +191,7 @@ impl<'c> ParallelProofChecker<'c> {
                         .stack_size(self.stack_size)
                         .spawn_scoped(
                             s,
-                            move || -> CarcaraResult<(bool, bool, CheckerStatistics<CR>)> {
+                            move || -> CarcaraResult<(bool, Status, CheckerStatistics<CR>)> {
                                 local_self
                                     .worker_thread_check(
                                         problem,
@@ -215,7 +218,7 @@ impl<'c> ParallelProofChecker<'c> {
                 .map(|t| t.join().unwrap())
                 .for_each(|opt| {
                     match opt {
-                        Ok((local_reached, local_holey, mut local_stats)) => {
+                        Ok((local_reached, local_status, mut local_stats)) => {
                             // Combine the statistics
                             // Takes the external and local benchmark results to local variables and combine them
                             let main = std::mem::take(&mut stats.results);
@@ -228,7 +231,10 @@ impl<'c> ParallelProofChecker<'c> {
                             stats.assume_core_time += local_stats.assume_core_time;
 
                             // Mask the result booleans
-                            (reached, holey) = (reached | local_reached, holey | local_holey);
+                            (reached, holey) = (
+                                reached || local_reached,
+                                holey || local_status == Status::Holey,
+                            );
                         }
                         Err(e) => {
                             // Since we want the statistics of the whole run (even in a error case)
@@ -243,7 +249,7 @@ impl<'c> ParallelProofChecker<'c> {
             err?;
 
             if reached {
-                Ok(holey)
+                Ok(if holey { Status::Holey } else { Status::Valid })
             } else {
                 Err(Error::DoesNotReachEmptyClause)
             }
@@ -258,7 +264,7 @@ impl<'c> ParallelProofChecker<'c> {
         mut pool: LocalPool,
         should_abort: Arc<AtomicBool>,
         mut stats: Option<&mut CheckerStatistics<CR>>,
-    ) -> CarcaraResult<(bool, bool)> {
+    ) -> CarcaraResult<(bool, Status)> {
         use std::sync::atomic::Ordering;
 
         let mut iter = schedule.iter(&proof.commands[..]);
@@ -347,11 +353,16 @@ impl<'c> ParallelProofChecker<'c> {
             }
         }
 
-        // Returns Ok(reached empty clause, isHoley)
-        if self.reached_empty_clause {
-            Ok((true, self.is_holey))
+        let status = if self.is_holey {
+            Status::Holey
         } else {
-            Ok((false, self.is_holey))
+            Status::Valid
+        };
+        // Returns Ok(reached empty clause, status)
+        if self.reached_empty_clause {
+            Ok((true, status))
+        } else {
+            Ok((false, status))
         }
     }
 

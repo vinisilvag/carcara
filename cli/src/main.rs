@@ -37,8 +37,7 @@ fn main() {
         }),
         Command::Check(options) => {
             match check_command(options) {
-                Ok(false) => println!("valid"),
-                Ok(true) => println!("holey"),
+                Ok(s) => println!("{}", s),
                 Err(e) => {
                     log::error!("{}", e);
                     println!("invalid");
@@ -49,11 +48,7 @@ fn main() {
         }
         Command::Elaborate(options) => {
             elaborate_command(options).and_then(|(res, pb, pf, mut pool)| {
-                if res {
-                    println!("holey");
-                } else {
-                    println!("valid");
-                }
+                println!("{}", res);
                 ast::printer::print_proof(&mut pool, &pb.prelude, &pf, !cli.no_print_with_sharing)?;
                 Ok(())
             })
@@ -128,7 +123,7 @@ fn parse_command(
     Ok(result)
 }
 
-fn check_command(options: CheckCommandOptions) -> CliResult<bool> {
+fn check_command(options: CheckCommandOptions) -> CliResult<carcara::Status> {
     let (problem, proof, rules) = get_instance(&options.input)?;
     let parser_config = options.parsing.into_config();
     let checker_config = (options.checking, options.tools).into_config();
@@ -160,7 +155,12 @@ fn check_command(options: CheckCommandOptions) -> CliResult<bool> {
 
 fn elaborate_command(
     options: ElaborateCommandOptions,
-) -> CliResult<(bool, ast::Problem, ast::Proof, ast::pool::PrimitivePool)> {
+) -> CliResult<(
+    carcara::Status,
+    ast::Problem,
+    ast::Proof,
+    ast::pool::PrimitivePool,
+)> {
     let (problem, proof, rules) = get_instance(&options.input)?;
 
     let checker_config = (options.checking, options.tools.clone()).into_config();
