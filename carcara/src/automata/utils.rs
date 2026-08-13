@@ -15,9 +15,7 @@ pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u16, u16)>, 
                 Ok(None)
             }
         }
-        _ => Err(StringError::ExpectedRangesToCalculateTheIntersection(
-            r1, r2,
-        ).into()),
+        _ => Err(StringError::ExpectedRangesToCalculateTheIntersection(r1, r2).into()),
     }
 }
 
