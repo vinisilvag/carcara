@@ -714,6 +714,11 @@ impl<'p, 's> Parser<'p, 's> {
                 }
                 self.check_sort_all_eq(&sorts)?;
             }
+            Operator::BvIte => {
+                assert_num_args(&args, 3)?;
+                self.check_sort_eq(&Sort::BitVec(1), &sorts[0])?;
+                self.check_sort_all_eq(&sorts[1..])?;
+            }
             Operator::RareList => (),
             Operator::Pow2 | Operator::Log2 | Operator::IsPow2 => {
                 assert_num_args(&args, 1)?;

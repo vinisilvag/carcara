@@ -477,6 +477,12 @@ pub enum Operator {
     /// The `@bvsize` operator.
     BvSize,
 
+    /// The `bvite` operator.
+    ///
+    /// This operator is not standard SMT-LIB, but from an extension of the bit-vectors theory used
+    /// by cvc5. We have support for it to facilitate checking cvc5 proofs.
+    BvIte,
+
     // Misc.
     /// The `rare-list` operator, used to represent RARE lists.
     RareList,
@@ -737,6 +743,7 @@ impl Operator {
             | Operator::BvBbTerm
             | Operator::BvConst
             | Operator::BvSize
+            | Operator::BvIte
             | Operator::Pow2
             | Operator::IsPow2
             | Operator::Log2
@@ -942,6 +949,8 @@ impl_str_conversion_traits!(Operator {
     BvBbTerm: "@bbterm",
     BvConst: "@bv",
     BvSize: "@bvsize",
+
+    BvIte: "bvite",
 
     RareList: "rare-list",
 

@@ -215,6 +215,7 @@ impl PrimitivePool {
                     );
                     self.sorts.add(s)
                 }
+                Operator::BvIte => self.compute_sort(&args[1]).clone(),
                 Operator::Ite => self.compute_sort(&args[1]).clone(),
                 Operator::Abs => self.compute_sort(&args[0]).clone(),
                 Operator::Add | Operator::Sub | Operator::Mult => {

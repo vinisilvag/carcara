@@ -666,6 +666,14 @@ fn eval_op(pool: &mut dyn TermPool, op: Operator, arg_terms: &[Rc<Term>]) -> Opt
             }
             Value::BitVec(result, width)
         }
+        Operator::BvIte => {
+            let (cond, _) = args[0].as_ref()?.as_bitvec()?;
+            if *cond == 1 {
+                args[1].as_ref()?.clone()
+            } else {
+                args[2].as_ref()?.clone()
+            }
+        }
 
         // TODO: Rare
         Operator::RareList | Operator::Cl | Operator::Delete => return None,
