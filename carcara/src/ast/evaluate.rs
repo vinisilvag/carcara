@@ -1,4 +1,4 @@
-use super::{pool::TermPool, Constant, Operator, ParamOperator, Rc, Term};
+use super::{pool::TermPool, Constant, Operator, ParamOperator, Rc, Sort, Term};
 use rug::{Integer, Rational};
 use std::collections::{HashMap, HashSet};
 
@@ -75,6 +75,14 @@ impl Value {
         }
     }
 
+    /// Tries to extract a [`&str`] from the value.
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Value::String(s) => Some(s),
+            _ => None,
+        }
+    }
+
     /// Tries to extract a bitvector from the value, interpreting the bits as an unsigned integer.
     pub fn as_bitvec(&self) -> Option<(&Integer, usize)> {
         match self {
@@ -138,7 +146,7 @@ impl Rc<Term> {
                     .iter()
                     .map(|a| a.evaluate_impl(cache, pool).clone())
                     .collect();
-                eval_op(*op, &args).map_or_else(|| Term::Op(*op, args), Value::into_term)
+                eval_op(pool, *op, &args).map_or_else(|| Term::Op(*op, args), Value::into_term)
             }
             Term::ParamOp { op, op_args, args } => {
                 let op_args: Vec<_> = op_args
@@ -188,7 +196,7 @@ macro_rules! mixed_type_arith {
 macro_rules! arith_op {
     ($op:tt, $args:expr $(, $flag:literal)?) => {{
         let args = $args;
-        let first = args[0].clone();
+        let first = args[0].as_ref()?.clone();
         if !matches!(first, Value::Integer(_) | Value::Real(_)) {
             return None;
         }
@@ -196,18 +204,18 @@ macro_rules! arith_op {
         let real = $($flag == "real" ||)? false;
         args[1..]
             .iter()
-            .try_fold(first, |acc, arg| mixed_type_arith!($op, acc, arg, real))?
+            .try_fold(first, |acc, arg| mixed_type_arith!($op, acc, arg.as_ref()?, real))?
     }};
 }
 
 macro_rules! bitvec_op {
     ($op:tt, $args:expr) => {{
         let args = $args;
-        let Value::BitVec(first, w) = args[0].clone() else {
+        let Value::BitVec(first, w) = args[0].as_ref()?.clone() else {
             return None;
         };
         let res = args[1..].iter().try_fold(first, |acc, arg| {
-            let (arg, _) = arg.as_bitvec()?;
+            let (arg, _) = arg.as_ref()?.as_bitvec()?;
             Some((acc $op arg).keep_bits(w as u32))
         })?;
         Value::new_bitvec(res, w)
@@ -216,12 +224,12 @@ macro_rules! bitvec_op {
 
 macro_rules! comparison_op {
     ($op:tt, $args:expr) => {{
-        fn compare(window: &[Value]) -> Option<bool> {
+        fn compare(window: &[Option<Value>]) -> Option<bool> {
             match window {
-                [Value::Integer(l), Value::Integer(r)] => Some(l $op r),
-                [Value::Integer(l), Value::Real(r)] => Some(l $op r),
-                [Value::Real(l), Value::Integer(r)] => Some(l $op r),
-                [Value::Real(l), Value::Real(r)] => Some(l $op r),
+                [Some(Value::Integer(l)), Some(Value::Integer(r))] => Some(l $op r),
+                [Some(Value::Integer(l)), Some(Value::Real(r))] => Some(l $op r),
+                [Some(Value::Real(l)), Some(Value::Integer(r))] => Some(l $op r),
+                [Some(Value::Real(l)), Some(Value::Real(r))] => Some(l $op r),
                 _ => None,
             }
         }
@@ -236,55 +244,72 @@ macro_rules! comparison_op {
 macro_rules! bitvec_comparison_op {
     ($op:tt, $args:expr, "signed") => {{
         let args = $args;
-        let ((a, _), (b, _)) = (args[0].as_signed_bitvec()?, args[1].as_signed_bitvec()?);
+        let ((a, _), (b, _)) = (
+            args[0].as_ref()?.as_signed_bitvec()?,
+            args[1].as_ref()?.as_signed_bitvec()?,
+        );
         Value::Bool(a $op b)
     }};
     ($op:tt, $args:expr) => {{
         let args = $args;
-        let ((a, _), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+        let ((a, _), (b, _)) = (
+            args[0].as_ref()?.as_bitvec()?,
+            args[1].as_ref()?.as_bitvec()?,
+        );
         Value::Bool(a $op b)
     }};
 }
 
-fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
-    let args: Vec<_> = args.iter().map(Value::from_term).collect::<Option<_>>()?;
+fn eval_op(pool: &mut dyn TermPool, op: Operator, arg_terms: &[Rc<Term>]) -> Option<Value> {
+    let args: Vec<_> = arg_terms.iter().map(Value::from_term).collect();
     Some(match op {
         Operator::True => Value::Bool(true),
         Operator::False => Value::Bool(false),
-        Operator::Not => Value::Bool(!args[0].as_bool()?),
+        Operator::Not => Value::Bool(!args[0].as_ref()?.as_bool()?),
         Operator::Implies => {
             let left = args[0..args.len() - 1]
                 .iter()
-                .try_fold(false, |acc, arg| Some(acc || !arg.as_bool()?))?;
-            let right = args.last().unwrap().as_bool()?;
+                .try_fold(false, |acc, arg| Some(acc || !arg.as_ref()?.as_bool()?))?;
+            let right = args.last().unwrap().as_ref()?.as_bool()?;
             Value::Bool(left || right)
         }
         Operator::And => Value::Bool(
             args.iter()
-                .try_fold(true, |acc, arg| Some(acc && arg.as_bool()?))?,
+                .try_fold(true, |acc, arg| Some(acc && arg.as_ref()?.as_bool()?))?,
         ),
         Operator::Or => Value::Bool(
             args.iter()
-                .try_fold(false, |acc, arg| Some(acc || arg.as_bool()?))?,
+                .try_fold(false, |acc, arg| Some(acc || arg.as_ref()?.as_bool()?))?,
         ),
         Operator::Xor => Value::Bool(
             args.iter()
-                .try_fold(false, |acc, arg| Some(acc != arg.as_bool()?))?,
+                .try_fold(false, |acc, arg| Some(acc != arg.as_ref()?.as_bool()?))?,
         ),
-        Operator::Equals => Value::Bool(args.windows(2).all(|w| w[0] == w[1])),
+        Operator::Equals => {
+            let result = 'block: {
+                for w in args.windows(2) {
+                    if w[0].as_ref()? != w[1].as_ref()? {
+                        break 'block false;
+                    }
+                }
+                true
+            };
+            Value::Bool(result)
+        }
         Operator::Distinct => {
-            let set: HashSet<&Value> = args.iter().collect();
-            Value::Bool(set.len() == args.len())
+            let n = args.len();
+            let set: HashSet<Value> = args.into_iter().collect::<Option<_>>()?;
+            Value::Bool(set.len() == n)
         }
         Operator::Ite => {
-            if args[0].as_bool()? {
-                args[1].clone()
+            if args[0].as_ref()?.as_bool()? {
+                args[1].as_ref()?.clone()
             } else {
-                args[2].clone()
+                args[2].as_ref()?.clone()
             }
         }
         Operator::Add => arith_op!(+, args),
-        Operator::Sub if args.len() == 1 => match &args[0] {
+        Operator::Sub if args.len() == 1 => match args[0].as_ref()? {
             Value::Integer(i) => Value::Integer(-i.clone()),
             Value::Real(r) => Value::Real(-r.clone()),
             _ => return None,
@@ -293,14 +318,14 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
         Operator::Mult => arith_op!(*, args),
         Operator::IntDiv => arith_op!(/, args),
         Operator::RealDiv => arith_op!(/, args, "real"),
-        Operator::Mod => Value::Integer(args[0].as_int()? % args[1].as_int()?),
-        Operator::Abs => match &args[0] {
+        Operator::Mod => Value::Integer(args[0].as_ref()?.as_int()? % args[1].as_ref()?.as_int()?),
+        Operator::Abs => match &args[0].as_ref()? {
             Value::Integer(i) => Value::Integer(i.clone().abs()),
             Value::Real(r) => Value::Real(r.clone().abs()),
             _ => return None,
         },
         Operator::Pow2 => {
-            let v = args[0].as_int()?;
+            let v = args[0].as_ref()?.as_int()?;
             if v < 0 {
                 return Some(Value::Integer(Integer::from(0)));
             }
@@ -308,7 +333,7 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
             Value::Integer(Integer::from(1) << v)
         }
         Operator::Log2 => {
-            let v = args[0].as_int()?;
+            let v = args[0].as_ref()?.as_int()?;
             if v <= 0 {
                 Value::Integer(Integer::from(0))
             } else {
@@ -316,7 +341,7 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
             }
         }
         Operator::IsPow2 => {
-            let v = args[0].as_int()?;
+            let v = args[0].as_ref()?.as_int()?;
             Value::Bool(v.is_power_of_two())
         }
 
@@ -342,35 +367,118 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
         Operator::LessEq => comparison_op!(<=, args),
         Operator::GreaterEq => comparison_op!(>=, args),
 
-        Operator::ToReal => Value::Real(args[0].as_int()?.into()),
-        Operator::ToInt => Value::Integer(args[0].as_real()?.floor().into_numer_denom().0),
-        Operator::IsInt => Value::Bool(args[0].as_real()?.is_integer()),
+        Operator::ToReal => Value::Real(args[0].as_ref()?.as_int()?.into()),
+        Operator::ToInt => {
+            Value::Integer(args[0].as_ref()?.as_real()?.floor().into_numer_denom().0)
+        }
+        Operator::IsInt => Value::Bool(args[0].as_ref()?.as_real()?.is_integer()),
 
         // TODO: Arrays
         Operator::Select | Operator::Store => return None,
 
-        // TODO: Strings
-        Operator::StrConcat
-        | Operator::StrLen
-        | Operator::StrLessThan
-        | Operator::StrLessEq
-        | Operator::CharAt
-        | Operator::Substring
-        | Operator::PrefixOf
-        | Operator::SuffixOf
-        | Operator::Contains
-        | Operator::IndexOf
-        | Operator::IndexOfRe
+        Operator::StrConcat => {
+            let mut result = String::new();
+            for a in args {
+                result += a.as_ref()?.as_str()?;
+            }
+            Value::String(result)
+        }
+        Operator::StrLen => Value::Integer(args[0].as_ref()?.as_str()?.chars().count().into()),
+        Operator::StrLessThan => {
+            let a = args[0].as_ref()?.as_str()?;
+            let b = args[0].as_ref()?.as_str()?;
+            Value::Bool(a < b)
+        }
+        Operator::StrLessEq => {
+            let a = args[0].as_ref()?.as_str()?;
+            let b = args[0].as_ref()?.as_str()?;
+            Value::Bool(a <= b)
+        }
+        Operator::CharAt => {
+            let s = args[0].as_ref()?.as_str()?;
+            let Some(i) = args[1].as_ref()?.as_int()?.to_usize() else {
+                return Some(Value::String(String::new()));
+            };
+            s.chars().nth(i).map_or(Value::String(String::new()), |ch| {
+                Value::String(ch.to_string())
+            })
+        }
+        Operator::Substring => {
+            let a = args[0].as_ref()?.as_str()?;
+            let Some(i) = args[1].as_ref()?.as_int()?.to_usize() else {
+                // If `i` is too large, we return the empty string
+                return Some(Value::String(String::new()));
+            };
+            // If `n` is too large however, we trucate
+            let n = args[2].as_ref()?.as_int()?.to_usize().unwrap_or(usize::MAX);
+            Value::String(a.chars().skip(i).take(n).collect())
+        }
+        Operator::PrefixOf => {
+            let a = args[0].as_ref()?.as_str()?;
+            let b = args[1].as_ref()?.as_str()?;
+            Value::Bool(b.strip_prefix(a).is_some())
+        }
+        Operator::SuffixOf => {
+            let a = args[0].as_ref()?.as_str()?;
+            let b = args[1].as_ref()?.as_str()?;
+            Value::Bool(b.strip_suffix(a).is_some())
+        }
+        Operator::Contains => {
+            let a = args[0].as_ref()?.as_str()?;
+            let b = args[1].as_ref()?.as_str()?;
+            Value::Bool(a.contains(b))
+        }
+        Operator::IndexOf => {
+            let a = args[0].as_ref()?.as_str()?;
+            let b = args[1].as_ref()?.as_str()?;
+            let Some(i) = args[2].as_ref()?.as_int()?.to_usize() else {
+                // If `i` is too large, we return -1
+                return Some(Value::Integer(Integer::from(-1)));
+            };
+            if i > a.chars().count() {
+                return Some(Value::Integer(Integer::from(-1)));
+            }
+            let trimmed: String = a.chars().skip(i).collect();
+            let Some(index_found) = trimmed.find(b) else {
+                // If we don't find it, return -1
+                return Some(Value::Integer(Integer::from(-1)));
+            };
+            Value::Integer(Integer::from(i + index_found))
+        }
+        Operator::IndexOfRe
         | Operator::Replace
         | Operator::ReplaceAll
         | Operator::ReplaceRe
         | Operator::ReplaceReAll
-        | Operator::StrIsDigit
-        | Operator::StrToCode
-        | Operator::StrFromCode
-        | Operator::StrToInt
-        | Operator::StrFromInt
-        | Operator::StrToRe
+        | Operator::StrIsDigit => return None, // TODO
+        Operator::StrToCode => {
+            let mut chars = args[0].as_ref()?.as_str()?.chars();
+            let Some(first) = chars.next() else {
+                return Some(Value::String(String::new()));
+            };
+            if chars.next().is_some() {
+                Value::String(String::new())
+            } else {
+                Value::Integer(Integer::from(first as usize))
+            }
+        }
+        Operator::StrFromCode => {
+            let code = args[0].as_ref()?.as_int()?;
+
+            // SMT-LIB only recognizes the planes 0 to 2 of Unicode, meaning values up to 0x2FFFF.
+            // Invalid values become the empty string.
+            let string = if code.is_negative() || code > 0x2FFFF {
+                String::new()
+            } else {
+                char::from_u32(code.to_u32().unwrap()).unwrap().to_string()
+            };
+            Value::String(string)
+        }
+        Operator::StrToInt => return None, // TODO
+        Operator::StrFromInt => Value::String(args[0].as_ref()?.as_int()?.to_string()),
+
+        // TODO: Regular expressions
+        Operator::StrToRe
         | Operator::StrInRe
         | Operator::ReNone
         | Operator::ReAll
@@ -388,11 +496,11 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
 
         // Bitvectors
         Operator::BvNot => {
-            let (val, width) = args[0].as_bitvec()?;
+            let (val, width) = args[0].as_ref()?.as_bitvec()?;
             Value::new_bitvec(!val.clone(), width)
         }
         Operator::BvNeg => {
-            let (val, width) = args[0].as_bitvec()?;
+            let (val, width) = args[0].as_ref()?.as_bitvec()?;
             Value::new_bitvec(-val.clone(), width)
         }
         Operator::BvAnd => bitvec_op!(&, args),
@@ -401,11 +509,17 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
         Operator::BvAdd => bitvec_op!(+, args),
         Operator::BvMul => bitvec_op!(*, args),
         Operator::BvSub => {
-            let ((a, w), (b, _)) = (args[0].as_signed_bitvec()?, args[1].as_signed_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_signed_bitvec()?,
+                args[1].as_ref()?.as_signed_bitvec()?,
+            );
             Value::new_bitvec(a - b, w)
         }
         Operator::BvUDiv => {
-            let ((a, w), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_bitvec()?,
+                args[1].as_ref()?.as_bitvec()?,
+            );
             let value = if b.is_zero() {
                 (Integer::from(1) << w) - 1
             } else {
@@ -414,7 +528,10 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
             Value::new_bitvec(value, w)
         }
         Operator::BvURem => {
-            let ((a, w), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_bitvec()?,
+                args[1].as_ref()?.as_bitvec()?,
+            );
             let value = if b.is_zero() {
                 a.clone()
             } else {
@@ -423,14 +540,20 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
             Value::new_bitvec(value, w)
         }
         Operator::BvSDiv => {
-            let ((a, w), (b, _)) = (args[0].as_signed_bitvec()?, args[1].as_signed_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_signed_bitvec()?,
+                args[1].as_ref()?.as_signed_bitvec()?,
+            );
             if b.is_zero() {
                 return None;
             }
             Value::new_bitvec(a / b, w)
         }
         Operator::BvSRem | Operator::BvSMod => {
-            let ((a, w), (b, _)) = (args[0].as_signed_bitvec()?, args[1].as_signed_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_signed_bitvec()?,
+                args[1].as_ref()?.as_signed_bitvec()?,
+            );
             if b.is_zero() {
                 return None;
             }
@@ -441,15 +564,24 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
             Value::new_bitvec(value * signum, w)
         }
         Operator::BvShl => {
-            let ((a, w), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_bitvec()?,
+                args[1].as_ref()?.as_bitvec()?,
+            );
             Value::new_bitvec(a.clone() << b.to_usize()?, w)
         }
         Operator::BvLShr => {
-            let ((a, w), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_bitvec()?,
+                args[1].as_ref()?.as_bitvec()?,
+            );
             Value::new_bitvec(a.clone() >> b.to_usize()?, w)
         }
         Operator::BvAShr => {
-            let ((a, w), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_bitvec()?,
+                args[1].as_ref()?.as_bitvec()?,
+            );
             let b = b.to_usize().unwrap();
             let mut result = a.clone() >> b;
             if a.get_bit((w - 1) as u32) {
@@ -474,40 +606,55 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
         Operator::BvConcat => {
             let (value, width) = args.iter().try_fold((Integer::new(), 0), |acc, arg| {
                 let (a, i) = acc;
-                let (b, j) = arg.as_bitvec()?;
+                let (b, j) = arg.as_ref()?.as_bitvec()?;
                 Some(((a << j) + b, i + j))
             })?;
             Value::new_bitvec(value, width)
         }
         Operator::BvNAnd => {
-            let ((a, w), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_bitvec()?,
+                args[1].as_ref()?.as_bitvec()?,
+            );
             Value::new_bitvec(!(a.clone() & b), w)
         }
         Operator::BvNOr => {
-            let ((a, w), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_bitvec()?,
+                args[1].as_ref()?.as_bitvec()?,
+            );
             Value::new_bitvec(!(a.clone() | b), w)
         }
         Operator::BvXNor => {
-            let ((a, w), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+            let ((a, w), (b, _)) = (
+                args[0].as_ref()?.as_bitvec()?,
+                args[1].as_ref()?.as_bitvec()?,
+            );
             Value::new_bitvec(!(a.clone() ^ b), w)
         }
         Operator::BvComp => {
-            let ((a, _), (b, _)) = (args[0].as_bitvec()?, args[1].as_bitvec()?);
+            let ((a, _), (b, _)) = (
+                args[0].as_ref()?.as_bitvec()?,
+                args[1].as_ref()?.as_bitvec()?,
+            );
             Value::new_bitvec(Integer::from(if a == b { 1 } else { 0 }), 1)
         }
-        Operator::UBvToInt => Value::Integer(args[0].as_bitvec()?.0.clone()),
-        Operator::SBvToInt => Value::Integer(args[0].as_signed_bitvec()?.0),
-        Operator::BvSize => Value::Integer(args[0].as_bitvec()?.1.into()),
+        Operator::UBvToInt => Value::Integer(args[0].as_ref()?.as_bitvec()?.0.clone()),
+        Operator::SBvToInt => Value::Integer(args[0].as_ref()?.as_signed_bitvec()?.0),
+        Operator::BvSize => match pool.sort(&arg_terms[0]).as_ref() {
+            Sort::BitVec(width) => Value::Integer(Integer::from(*width)),
+            _ => return None,
+        },
         Operator::BvConst => {
-            let value = args[0].as_int()?;
-            let width = args[1].as_int()?.to_usize().unwrap();
+            let value = args[0].as_ref()?.as_int()?;
+            let width = args[1].as_ref()?.as_int()?.to_usize().unwrap();
             Value::new_bitvec(value, width)
         }
         Operator::BvBbTerm => {
             let width = args.len();
             let mut result = Integer::with_capacity(width);
             for (i, b) in args.into_iter().enumerate() {
-                result.set_bit(i as u32, b.as_bool()?);
+                result.set_bit(i as u32, b?.as_bool()?);
             }
             Value::BitVec(result, width)
         }
@@ -515,7 +662,7 @@ fn eval_op(op: Operator, args: &[Rc<Term>]) -> Option<Value> {
             let width = args.len();
             let mut result = Integer::with_capacity(width);
             for (i, b) in args.into_iter().enumerate() {
-                result.set_bit(i as u32, b.as_int()? == 1);
+                result.set_bit(i as u32, b?.as_int()? == 1);
             }
             Value::BitVec(result, width)
         }
