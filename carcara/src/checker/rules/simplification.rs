@@ -756,6 +756,7 @@ fn is_assoc(op: Operator) -> bool {
             | Operator::BvAnd
             | Operator::BvXor
             | Operator::BvConcat
+            | Operator::StrConcat
     )
 }
 
@@ -810,6 +811,7 @@ fn identity_of_op(pool: &mut dyn TermPool, op: Operator, term: &Rc<Term>) -> Opt
             }
             _ => unreachable!(),
         },
+        Operator::StrConcat => Some(Term::new_string("")),
         _ => None,
     }
 }
