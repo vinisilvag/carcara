@@ -144,6 +144,13 @@ pub struct ParsingOptions {
     #[clap(long)]
     pub allow_int_real_subtyping: bool,
 
+    /// Allows indexed operators to be used in "higher-order" fashion.
+    ///
+    /// That is, in addition to the usual syntax `((_ <op> <op_args>...) <args>...)`, Carcara will
+    /// also accept `(<op> <op_args>... <args>...)`.
+    #[clap(long)]
+    pub allow_higher_order_indexed_ops: bool,
+
     /// Enables strict parsing.
     ///
     /// When this flag is enabled: unary `and`, `or` and `xor` terms are not allowed;
@@ -466,7 +473,7 @@ impl IntoConfig for ParsingOptions {
             .allow_int_real_subtyping(self.allow_int_real_subtyping)
             .strict(self.strict)
             .parse_hole_args(self.parse_hole_args)
-            .allow_higher_order_indexed_ops(false)
+            .allow_higher_order_indexed_ops(self.allow_higher_order_indexed_ops)
             .implicit_at_sort_alias(false)
             .allow_legacy_tester_syntax(self.allow_legacy_tester_syntax)
     }
