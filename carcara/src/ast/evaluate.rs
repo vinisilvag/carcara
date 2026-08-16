@@ -712,7 +712,7 @@ fn eval_param_op(op: ParamOperator, op_args: &[Rc<Term>], args: &[Rc<Term>]) -> 
             let i = op_args[0].as_int()?.to_usize().unwrap();
             let j = op_args[1].as_int()?.to_usize().unwrap();
             let (bits, _) = args[0].as_bitvec()?;
-            let bits = bits.clone().keep_bits(i as u32) >> j;
+            let bits = bits.clone().keep_bits(i as u32 + 1) >> j;
             Value::new_bitvec(bits, i - j + 1)
         }
         ParamOperator::ZeroExtend => {

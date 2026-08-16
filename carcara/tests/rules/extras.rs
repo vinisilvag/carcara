@@ -461,6 +461,9 @@ fn evaluate() {
                 (bvashr ((_ rotate_left 3) #b0101100) #b0000001)
                 #b1110001
             )) :rule evaluate)": true,
+
+            // Regression
+            "(step t1 (cl (= ((_ extract 0 0) (_ bv1 1)) #b1)) :rule evaluate)": true,
         }
         "Partial evaluation" {
             "(step t1 (cl (= (+ x (+ 1 1)) (+ x 2))) :rule evaluate)": true,
