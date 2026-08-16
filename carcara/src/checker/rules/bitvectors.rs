@@ -773,3 +773,39 @@ pub fn urem(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
 
     assert_eq(&expected, res)
 }
+
+pub fn bitwise_slicing(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    // NOTE: This implementation for `bv_bitwise_slicing` is still a work in progress. This is not
+    // a standardized rule in Alethe (it's a cvc5 extension), and the documentation for it is a bit
+    // unclear, and doesn't match the way the rule is used in actual proofs.
+    //
+    // Given that, this is a best-effort attempt to cover common `bv_bitwise_slicing` uses, while
+    // remaining simple enough to be obviously valid. Once this rule is standardized or documented
+    // better, this implementation should be revisited.
+
+    assert_clause_len(conclusion, 1)?;
+    let (a, c, slices) = match_term_err!((= (bvand a c) (concat ...)) = &conclusion[0])?;
+
+    let width = bitvector_size(pool, c);
+    let mut done = width.into();
+    for slice in slices {
+        let (i, j, slice_a, slice_c) =
+            match_term_err!((bvand ((_ extract i j) a) ((_ extract i j) c)) = slice)?;
+
+        let expected = done - 1;
+        if i.as_integer_err()? != expected {
+            return Err(CheckerError::ExpectedInteger(expected, i.clone()));
+        }
+        done = j.as_integer_err()?;
+
+        assert_eq(a, slice_a)?;
+        assert_eq(c, slice_c)?;
+    }
+    if done != 0 {
+        Err(CheckerError::Explanation(
+            "slices didn't cover entire term!".into(),
+        ))
+    } else {
+        Ok(())
+    }
+}

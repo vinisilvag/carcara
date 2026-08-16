@@ -347,6 +347,7 @@ pub fn get_rule(
         "bitblast_ashr" => bitvectors::ashr,
         "bitblast_udiv" => bitvectors::udiv,
         "bitblast_urem" => bitvectors::urem,
+        "bv_bitwise_slicing" => bitvectors::bitwise_slicing,
 
         // array rules
         "arrays_idx" => arrays::idx,
