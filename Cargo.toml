@@ -1,5 +1,45 @@
+[package]
+name = "carcara"
+version = "1.1.0"
+authors = [
+    "Bruno Andreotti <bandreotti@proton.me>",
+    "Haniel Barbosa <hanielbbarbosa@gmail.com>",
+    "Vinicius Gomes <vinicius.svgomes@gmail.com>",
+    "Bernardo Borges <bernborgess@outlook.com>",
+    "Tiago Campos <tiagocampos@mixrank.com>",
+]
+edition = "2021"
+rust-version = "1.87"
+license = "Apache-2.0"
+
+[dependencies]
+carcara-macros = { path = "carcara-macros" }
+clap = { version = "3.2.25", features = ["derive"] }
+const_format = "0.2.31"
+crossbeam-queue = "0.3.8"
+ansi_term = "0.12"
+git-version = "0.3.5"
+indexmap = "2.0.0"
+log = { version = "0.4.20", features = ["std"] }
+rapidhash = "4.5.1"
+rug = { version = "1.21.0", default-features = false, features = [
+    "integer",
+    "rational",
+] }
+thiserror = "1.0.47"
+nom = "8.0.0"
+
+[dev-dependencies]
+test-generator = { path = "test-generator" }
+rand = "0.8.5"
+colored = "2.1.0"
+
+[[bin]]
+name = "carcara"
+path = "src/bin/cli/main.rs"
+
 [workspace]
-members = ["carcara", "carcara-macros", "cli", "test-generator"]
+members = ["carcara-macros", "test-generator"]
 resolver = "2"
 
 [profile.release]

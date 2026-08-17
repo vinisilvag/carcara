@@ -6,7 +6,7 @@ A research paper describing Carcara has been [published at TACAS
 
 ## Installation
 To build Carcara, you will need Rust and Cargo 1.87 or newer. Clone this repository and build the
-project by running `cargo build --release`. You may also run `cargo install --path cli` to build and
+project by running `cargo build --release`. You may also run `cargo install --path .` to build and
 place the `carcara` binary in Cargo's binary directory (`~/.cargo/bin` by default).
 
 Alternatively, you can install Carcara directly (without cloning this repository) by running:

@@ -9,7 +9,7 @@ cargo install --git https://github.com/ufmg-smite/carcara.git
 This will build the project and place the `carcara` binary in Cargo's binary directory
 (`~/.cargo/bin` by default).
 
-You can uninstall Carcara by running `cargo uninstall carcara-cli`.
+You can uninstall Carcara by running `cargo uninstall carcara`.
 
 ## Pre-built binary
 Alternatively, a pre-compiled executable for the `x86_64-unknown-linux-gnu` platform can be

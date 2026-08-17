@@ -44,8 +44,13 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 name = "carcara"
 version = "1.1.0"
 dependencies = [
+ "ansi_term",
  "carcara-macros",
+ "clap",
  "colored",
+ "const_format",
+ "crossbeam-queue",
+ "git-version",
  "indexmap 2.10.0",
  "log",
  "nom",
@@ -54,19 +59,6 @@ dependencies = [
  "rug",
  "test-generator",
  "thiserror",
-]
-
-[[package]]
-name = "carcara-cli"
-version = "1.1.0"
-dependencies = [
- "ansi_term",
- "carcara",
- "clap",
- "const_format",
- "crossbeam-queue",
- "git-version",
- "log",
 ]
 
 [[package]]

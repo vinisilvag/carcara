@@ -85,7 +85,7 @@ fn test_file(proof_path: &str) {
         (parser::Config::new(), checker::Config::new())
     };
 
-    let proof_path = PathBuf::from(format!("../{}", proof_path));
+    let proof_path = PathBuf::from(proof_path);
     let problem_path = {
         let mut path = proof_path.clone();
         while path.extension().unwrap() != "smt_in" && path.extension().unwrap() != "smt2" {
