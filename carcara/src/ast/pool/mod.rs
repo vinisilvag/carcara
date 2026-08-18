@@ -7,6 +7,7 @@ use super::{
     Binder, Constant, Operator, ParamOperator, Rc, Sort, SortSubstitution, SortedVar, Term,
 };
 use indexmap::{IndexMap, IndexSet};
+use std::borrow::Cow;
 use storage::Storage;
 
 pub use advanced::{ContextPool, LocalPool};
@@ -78,7 +79,7 @@ pub trait TermPool {
     ///
     /// This method uses a cache, so there is no additional cost to computing the free variables of
     /// a term multiple times.
-    fn free_vars(&mut self, term: &Rc<Term>) -> IndexSet<Rc<Term>>;
+    fn free_vars(&mut self, term: &Rc<Term>) -> Cow<IndexSet<Rc<Term>>>;
 
     /// Searches the pool for a defined datatype with the given name. Panics if no datatype is
     /// found.
@@ -498,38 +499,46 @@ impl PrimitivePool {
     // TODO: Try to workaround the lifetime specifiers and return a ref
     /// Computes the free variables of `term`, reusing cached results from the given prior pools
     /// whenever possible.
-    pub fn free_vars_with_priorities<const N: usize>(
-        &mut self,
+    pub fn free_vars_with_priorities<'a, const N: usize>(
+        &'a mut self,
         term: &Rc<Term>,
-        prior_pools: [&PrimitivePool; N],
-    ) -> IndexSet<Rc<Term>> {
+        prior_pools: [&'a PrimitivePool; N],
+    ) -> &'a IndexSet<Rc<Term>> {
         for p in prior_pools {
-            if let Some(set) = p.free_vars_cache.get(term) {
-                return set.clone();
+            if let Some(vars) = p.free_vars_cache.get(term) {
+                return vars;
             }
         }
 
-        if let Some(set) = self.free_vars_cache.get(term) {
-            return set.clone();
+        if self.free_vars_cache.contains_key(term) {
+            return &self.free_vars_cache[term];
         }
 
         let set = match term.as_ref() {
             Term::App(f, args) => {
-                let mut set = self.free_vars_with_priorities(f, prior_pools);
+                let mut set = self.free_vars_with_priorities(f, prior_pools).clone();
                 for a in args {
-                    set.extend(self.free_vars_with_priorities(a, prior_pools).into_iter());
+                    set.extend(
+                        self.free_vars_with_priorities(a, prior_pools)
+                            .iter()
+                            .cloned(),
+                    );
                 }
                 set
             }
             Term::Op(_, args) | Term::ParamOp { args, .. } | Term::AsOp(_, _, args) => {
                 let mut set = IndexSet::new();
                 for a in args {
-                    set.extend(self.free_vars_with_priorities(a, prior_pools).into_iter());
+                    set.extend(
+                        self.free_vars_with_priorities(a, prior_pools)
+                            .iter()
+                            .cloned(),
+                    );
                 }
                 set
             }
             Term::Binder(_, bindings, inner) => {
-                let mut vars = self.free_vars_with_priorities(inner, prior_pools);
+                let mut vars = self.free_vars_with_priorities(inner, prior_pools).clone();
                 for bound_var in bindings {
                     let term = self.add_with_priorities(bound_var.clone().into(), prior_pools);
                     vars.swap_remove(&term);
@@ -537,7 +546,7 @@ impl PrimitivePool {
                 vars
             }
             Term::Let(bindings, inner) => {
-                let mut vars = self.free_vars_with_priorities(inner, prior_pools);
+                let mut vars = self.free_vars_with_priorities(inner, prior_pools).clone();
                 for (var, value) in bindings {
                     let sort = self.sort_with_priorities(value, prior_pools);
                     let term = self.add_with_priorities((var.clone(), sort).into(), prior_pools);
@@ -546,9 +555,11 @@ impl PrimitivePool {
                 vars
             }
             Term::Match(term, cases) => {
-                let mut vars = self.free_vars_with_priorities(term, prior_pools);
+                let mut vars = self.free_vars_with_priorities(term, prior_pools).clone();
                 for case in cases {
-                    let mut res_vars = self.free_vars_with_priorities(&case.body, prior_pools);
+                    let mut res_vars = self
+                        .free_vars_with_priorities(&case.body, prior_pools)
+                        .clone();
                     for bound_var in case.bindings() {
                         let term = self.add_with_priorities(bound_var.clone().into(), prior_pools);
                         res_vars.swap_remove(&term);
@@ -565,7 +576,7 @@ impl PrimitivePool {
             Term::Const(_) => IndexSet::new(),
         };
         self.free_vars_cache.insert(term.clone(), set);
-        self.free_vars_cache.get(term).unwrap().clone()
+        &self.free_vars_cache[term]
     }
 
     /// Registers a user-defined datatype in the pool, under the given name.
@@ -630,8 +641,8 @@ impl TermPool for PrimitivePool {
         self.sorts_cache[term].clone()
     }
 
-    fn free_vars(&mut self, term: &Rc<Term>) -> IndexSet<Rc<Term>> {
-        self.free_vars_with_priorities(term, [])
+    fn free_vars(&mut self, term: &Rc<Term>) -> Cow<IndexSet<Rc<Term>>> {
+        Cow::Borrowed(self.free_vars_with_priorities(term, []))
     }
 
     fn get_datatype(&self, name: &str) -> &Datatype {

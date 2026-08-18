@@ -110,10 +110,8 @@ impl Substitution {
 
         if let Some(should_be_renamed) = &mut self.should_be_renamed {
             if x != t {
-                let free_vars = pool
-                    .free_vars(&t)
-                    .into_iter()
-                    .map(|v| v.as_var().unwrap().to_owned());
+                let free_vars = pool.free_vars(&t);
+                let free_vars = free_vars.iter().map(|v| v.as_var().unwrap().to_owned());
                 should_be_renamed.extend(free_vars);
                 if let Some(var) = x.as_var() {
                     should_be_renamed.insert(var.to_owned());
@@ -169,10 +167,8 @@ impl Substitution {
             if x == t {
                 continue; // We ignore reflexive substitutions
             }
-            let free_vars = pool
-                .free_vars(t)
-                .into_iter()
-                .map(|v| v.as_var().unwrap().to_owned());
+            let free_vars = pool.free_vars(t);
+            let free_vars = free_vars.iter().map(|v| v.as_var().unwrap().to_owned());
             should_be_renamed.extend(free_vars);
             if let Some(var) = x.as_var() {
                 should_be_renamed.insert(var.to_owned());

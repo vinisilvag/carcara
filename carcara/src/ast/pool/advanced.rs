@@ -1,7 +1,10 @@
 use super::{Datatype, PrimitivePool, TermPool};
 use crate::ast::{Rc, Sort, Term};
 use indexmap::IndexSet;
-use std::sync::{Arc, RwLock};
+use std::{
+    borrow::Cow,
+    sync::{Arc, RwLock},
+};
 
 /// A pool with a shared mutable *context pool*, and a shared immutable *global pool*.
 #[derive(Clone)]
@@ -65,11 +68,14 @@ impl TermPool for ContextPool {
         }
     }
 
-    fn free_vars(&mut self, term: &Rc<Term>) -> IndexSet<Rc<Term>> {
-        self.inner
-            .write()
-            .unwrap()
-            .free_vars_with_priorities(term, [&self.global_pool])
+    fn free_vars(&mut self, term: &Rc<Term>) -> Cow<IndexSet<Rc<Term>>> {
+        Cow::Owned(
+            self.inner
+                .write()
+                .unwrap()
+                .free_vars_with_priorities(term, [&self.global_pool])
+                .clone(),
+        )
     }
 
     fn get_datatype(&self, name: &str) -> &Datatype {
@@ -147,13 +153,17 @@ impl TermPool for LocalPool {
         }
     }
 
-    fn free_vars(&mut self, term: &Rc<Term>) -> IndexSet<Rc<Term>> {
-        self.inner.free_vars_with_priorities(
-            term,
-            [
-                &self.ctx_pool.global_pool,
-                &self.ctx_pool.inner.read().unwrap(),
-            ],
+    fn free_vars(&mut self, term: &Rc<Term>) -> Cow<IndexSet<Rc<Term>>> {
+        Cow::Owned(
+            self.inner
+                .free_vars_with_priorities(
+                    term,
+                    [
+                        &self.ctx_pool.global_pool,
+                        &self.ctx_pool.inner.read().unwrap(),
+                    ],
+                )
+                .clone(),
         )
     }
 

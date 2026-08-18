@@ -102,6 +102,9 @@ pub fn qnt_rm_unused(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult 
         )));
     }
 
+    // We call free vars again so we can drop the borrow on pool in between uses of `free_vars`
+    let free_vars = pool.free_vars(phi_1);
+
     // and (2) that they only remove variables which are unused.
     for removed in left.difference(&right) {
         if free_vars.contains(removed) {
@@ -306,8 +309,7 @@ pub fn qnt_cnf(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
         .find(|&clause| clause == phi_prime)
         .ok_or_else(|| QuantifierError::ClauseDoesntAppearInCnf(phi_prime.clone()))?;
 
-    // Cloning here may be unnecessary
-    let free_vars = pool.free_vars(selected_clause);
+    let free_vars = pool.free_vars(selected_clause).into_owned();
 
     // While all bindings in `r_bindings` must also be in `new_bindings`, the same is not true in
     // the opposite direction. That is because some variables from the set may be omitted in the
@@ -379,7 +381,7 @@ pub fn miniscope_split(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResul
     }
 
     let right_term = pool.add(Term::Op(op, right_args.to_vec()));
-    let free_vars = pool.free_vars(&right_term);
+    let free_vars = pool.free_vars(&right_term).into_owned();
     for v in bindings {
         if free_vars.contains(&pool.add(v.clone().into())) {
             return Err(QuantifierError::MiniscopeFreeVar(v.0.clone(), right_term).into());
@@ -397,7 +399,7 @@ pub fn miniscope_ite(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult 
     )?;
     assert_eq(bindings_1, bindings_2)?;
     assert_eq(bindings_1, bindings_3)?;
-    let free_vars = pool.free_vars(phi1);
+    let free_vars = pool.free_vars(phi1).into_owned();
     for v in bindings_1 {
         if free_vars.contains(&pool.add(v.clone().into())) {
             return Err(QuantifierError::MiniscopeFreeVar(v.0.clone(), phi1.clone()).into());
