@@ -123,6 +123,9 @@ pub struct OnlineBenchmarkResults {
     /// The time spent comparing `assume`d terms with their premises.
     pub assume_core_time: OnlineMetrics<RunId>,
 
+    /// The time spent in each elaboration pass.
+    pub pipeline_times: Vec<Duration>,
+
     /// The depth of each polyequality check that was performed.
     pub polyeq_depths: OnlineMetrics<(), usize>,
 
@@ -221,6 +224,9 @@ impl OnlineBenchmarkResults {
         println!("checking:            {}", checking);
         if !elaborating.is_empty() {
             println!("elaborating:         {}", elaborating);
+            for (i, p) in self.pipeline_times.iter().enumerate() {
+                println!("    pass {}:  {:?}", i, p);
+            }
         }
         println!("scheduling:          {}", scheduling);
 
@@ -509,7 +515,7 @@ impl CollectResults for OnlineBenchmarkResults {
             polyeq,
             assume,
             assume_core,
-            elaboration_pipeline: _, // TODO: store elaboration pipeline durations
+            elaboration_pipeline,
         } = measurement;
 
         self.parsing.add_sample(id, parsing);
@@ -528,6 +534,8 @@ impl CollectResults for OnlineBenchmarkResults {
         let assume_ratio = assume.as_secs_f64() / checking.as_secs_f64();
         self.polyeq_time_ratio.add_sample(id, polyeq_ratio);
         self.assume_time_ratio.add_sample(id, assume_ratio);
+
+        self.pipeline_times = elaboration_pipeline;
     }
 
     fn combine(a: Self, b: Self) -> Self {
@@ -553,6 +561,12 @@ impl CollectResults for OnlineBenchmarkResults {
             num_easy_assumes: a.num_easy_assumes + b.num_easy_assumes,
             is_holey: a.is_holey || b.is_holey,
             had_error: a.had_error || b.had_error,
+            pipeline_times: a
+                .pipeline_times
+                .into_iter()
+                .zip(b.pipeline_times)
+                .map(|(a, b)| a + b)
+                .collect(),
         }
     }
 
