@@ -4,28 +4,9 @@ use carcara::{
     parser,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use const_format::{formatcp, str_index};
-use git_version::git_version;
 use std::error::Error;
 
-// `git describe --all` will try to find any ref (including tags) that describes the current commit.
-// This will include tags like `carcara-0.1.0`, that we create for github releases. To account for
-// that, we pass the arguments `--exclude 'carcara-*'`, ignoring these tags.
-const GIT_BRANCH_NAME: &str = git_version!(
-    args = ["--all", "--exclude", "carcara-*"],
-    fallback = "heads/none",
-);
-const GIT_COMMIT_HASH: &str = git_version!(fallback = "unknown");
-const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-const VERSION_STRING: &str = formatcp!(
-    "{} [git {} {}]",
-    APP_VERSION,
-    // By default, `git describe` returns something like "heads/main". We ignore the "heads/" part
-    // to get only the branch name
-    str_index!(GIT_BRANCH_NAME, 6..),
-    GIT_COMMIT_HASH,
-);
+const VERSION_STRING: &str = carcara_macros::version_string!();
 
 /// Parse a single key-value pair
 fn parse_rule_checkers(
