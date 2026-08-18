@@ -190,11 +190,11 @@ pub enum CheckerError {
     ExpectedDifferentConstantPrefixes(Rc<Term>, Rc<Term>),
 
     /// A term was expected to be a specific numeric constant.
-    #[error("expected term '{1}' to be numerical constant {:?}", .0.to_f64())]
+    #[error("expected term '{}' to be numerical constant {:?}", .1, .0.to_f64())]
     ExpectedNumber(Rational, Rc<Term>),
 
     /// A term was expected to be a specific integer constant.
-    #[error("expected term '{1}' to be integer constant {:?}", .0.to_i32())]
+    #[error("expected term '{}' to be integer constant {:?}", .1, .0.to_i32())]
     ExpectedInteger(Integer, Rc<Term>),
 
     /// A term was expected to be a numeric constant.
@@ -314,7 +314,7 @@ pub enum EqualityError<T: TypeName> {
     /// The two values were expected to be equal.
     ///
     /// This implies no preference to either value.
-    #[error("expected {}s to be equal: '{0}' and '{1}'", T::NAME)]
+    #[error("expected {}s to be equal: '{}' and '{}'", T::NAME, .0, .1)]
     ExpectedEqual(T, T),
 
     /// We expected a specific value, but got another.

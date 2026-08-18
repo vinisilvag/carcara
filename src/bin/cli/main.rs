@@ -162,7 +162,7 @@ fn check_command(options: CheckCommandOptions) -> CliResult<carcara::Status> {
             parser_config,
             checker_config,
             collect_stats,
-            options.num_threads,
+            options.num_threads as usize,
             options.stack.stack_size,
         )
     }

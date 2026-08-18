@@ -1,5 +1,5 @@
 use super::{Duration, Metrics, MetricsUnit, OfflineMetrics, OnlineMetrics};
-use rand::{Rng, prelude::ThreadRng};
+use rand::{RngExt, prelude::ThreadRng};
 use std::fmt;
 
 trait IsClose {
@@ -32,15 +32,15 @@ impl IsClose for usize {
 }
 
 fn usize_generator(max_value: usize) -> impl Fn(&mut ThreadRng) -> usize {
-    move |rng| rng.gen_range(0..max_value)
+    move |rng| rng.random_range(0..max_value)
 }
 
 fn duration_generator(max_value: u64) -> impl Fn(&mut ThreadRng) -> Duration {
-    move |rng| Duration::from_nanos(rng.gen_range(0..max_value))
+    move |rng| Duration::from_nanos(rng.random_range(0..max_value))
 }
 
 fn f64_generator(max_value: f64) -> impl Fn(&mut ThreadRng) -> f64 {
-    move |rng| rng.gen_range(0.0..max_value)
+    move |rng| rng.random_range(0.0..max_value)
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn test_metrics_add() {
         T::MeanType: fmt::Debug + IsClose,
         F: Fn(&mut ThreadRng) -> T,
     {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut offline = OfflineMetrics::new();
         let mut online = OnlineMetrics::new();
 
@@ -91,13 +91,13 @@ fn test_metrics_add() {
 #[test]
 fn test_metrics_combine() {
     fn run_tests(num_chunks: usize, chunk_size: usize, error_margin: f64) {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut overall_metrics = OnlineMetrics::new();
         let mut combined_metrics = OnlineMetrics::new();
         for _ in 0..num_chunks {
             let mut chunk_metrics = OnlineMetrics::new();
             for _ in 0..chunk_size {
-                let sample = Duration::from_nanos(rng.gen_range(0..10_000));
+                let sample = Duration::from_nanos(rng.random_range(0..10_000));
                 overall_metrics.add_sample(&(), sample);
                 chunk_metrics.add_sample(&(), sample);
             }

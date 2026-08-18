@@ -113,13 +113,13 @@ fn test_file(proof_path: &str) {
     }
 }
 
-#[test_generator::from_dir("benchmarks/small")]
+#[test_generator::from_dir(path = "benchmarks/small")]
 #[allow(dead_code)]
 fn small(proof_path: &str) {
     test_file(proof_path)
 }
 
-#[test_generator::from_dir("benchmarks/full", ignore)]
+#[test_generator::from_dir(path = "benchmarks/full", ignore)]
 #[allow(dead_code)]
 fn full(proof_path: &str) {
     test_file(proof_path)

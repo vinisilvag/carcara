@@ -8,36 +8,21 @@ use syn::{parse_macro_input, spanned::Spanned};
 pub fn from_dir(args: TokenStream, input: TokenStream) -> TokenStream {
     let original_input = input.clone();
 
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    if args.is_empty() || args.len() > 2 {
-        return TokenStream::from(
-            syn::Error::new(
-                proc_macro2::Span::call_site(),
-                "expected between one and two arguments",
-            )
-            .into_compile_error(),
-        );
-    }
-    let arg = args.first().unwrap();
-    let syn::NestedMeta::Lit(syn::Lit::Str(arg)) = arg else {
-        return TokenStream::from(
-            syn::Error::new(arg.span(), "macro argument must be string literal")
-                .into_compile_error(),
-        );
-    };
-    let arg = arg.value();
-    let is_ignore = if args.len() > 1 {
-        match &args[1] {
-            syn::NestedMeta::Meta(syn::Meta::Path(path)) if path.is_ident("ignore") => true,
-            _ => {
-                return TokenStream::from(
-                    syn::Error::new(args[1].span(), "invalid argument").into_compile_error(),
-                );
-            }
+    let mut arg: Option<syn::LitStr> = None;
+    let mut is_ignore = false;
+    let parser = syn::meta::parser(|meta| {
+        if meta.path.is_ident("path") {
+            arg = Some(meta.value()?.parse()?);
+            Ok(())
+        } else if meta.path.is_ident("ignore") {
+            is_ignore = true;
+            Ok(())
+        } else {
+            Err(meta.error("unsupported argument"))
         }
-    } else {
-        false
-    };
+    });
+    parse_macro_input!(args with parser);
+    let arg = arg.expect("no path given").value();
 
     let func = parse_macro_input!(input as syn::ItemFn);
     if func.sig.inputs.len() != 1 {

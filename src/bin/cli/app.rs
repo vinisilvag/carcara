@@ -3,7 +3,7 @@ use carcara::{
     external::{ExternalTool, SatTools},
     parser,
 };
-use clap::{AppSettings, ArgEnum, Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use const_format::{formatcp, str_index};
 use git_version::git_version;
 use std::error::Error;
@@ -41,14 +41,13 @@ fn parse_rule_checkers(
 #[clap(
     name = "carcara",
     version = VERSION_STRING,
-    setting = AppSettings::DeriveDisplayOrder
 )]
 pub struct Cli {
     #[clap(subcommand)]
     pub command: Command,
 
     /// Sets the maximum logging level.
-    #[clap(arg_enum, global = true, long = "log", default_value_t = LogLevel::Warn)]
+    #[clap(value_enum, global = true, long = "log", default_value_t = LogLevel::Warn)]
     pub log_level: LogLevel,
 
     /// Disables output coloring.
@@ -174,7 +173,7 @@ pub struct ParsingOptions {
     pub allow_legacy_tester_syntax: bool,
 }
 
-#[derive(ArgEnum, Clone, Copy, PartialEq, Eq)]
+#[derive(ValueEnum, Clone, Copy, PartialEq, Eq)]
 pub enum CheckGranularity {
     Normal,
     Elaborated,
@@ -187,7 +186,7 @@ pub struct CheckingOptions {
     pub ignore_unknown_rules: bool,
 
     /// A set of extra rules to be allowed by the checker, and considered as holes.
-    #[clap(long, multiple = true)]
+    #[clap(long, num_args = 1..)]
     pub allowed_rules: Option<Vec<String>>,
 
     /// Check resolution steps using only Reverse Unit Propagation (RUP), instead of first trying a
@@ -202,7 +201,7 @@ pub struct CheckingOptions {
     /// Carcara, and will enforce extra restrictions. In particular:
     /// - the implicit reordering of equalities is not allowed
     /// - the pivots for `resolution` steps must be given as arguments
-    #[clap(arg_enum, long, default_value = "normal", verbatim_doc_comment)]
+    #[clap(value_enum, long, default_value = "normal", verbatim_doc_comment)]
     pub check_granularity: CheckGranularity,
 
     // TODO: add help messages for remaining options
@@ -220,7 +219,7 @@ pub struct CheckingOptions {
     pub sat_ref_checker: Option<ExternalTool>,
 }
 
-#[derive(ArgEnum, Clone)]
+#[derive(ValueEnum, Clone)]
 pub enum ElaborationPass {
     Polyeq,
     Hole,
@@ -239,9 +238,9 @@ pub struct ElaborationOptions {
 
     /// The pipeline of elaboration passes to use.
     #[clap(
-        arg_enum,
+        value_enum,
         long,
-        multiple = true,
+        num_args = 1..,
         default_values = &["polyeq", "hole", "local", "uncrowd", "reordering"]
     )]
     pub pipeline: Vec<ElaborationPass>,
@@ -271,18 +270,16 @@ pub struct CheckCommandOptions {
     pub tools: ToolOptions,
 
     /// Defines the number of cores for proof checking.
-    #[clap(short = 'u', long, required = false, default_value = "1", validator = |s: &str| -> Result<(), String> {
-        if let Ok(n) = s.to_string().parse() as Result<u32, _> {
-            if n < 1 {
-                Err(format!("The threads number can't be {n}."))
-            } else {
-                Ok(())
-            }
-        } else {
-            Err(String::from("Not a number."))
-        }
-    })]
-    pub num_threads: usize,
+    #[clap(
+        short = 'u',
+        long,
+        required = false,
+        default_value = "1",
+        // This has to be u32 because clap does not have a range value parser for usize. See:
+        // https://github.com/clap-rs/clap/issues/4253
+        value_parser = clap::value_parser!(u32).range(1..)
+    )]
+    pub num_threads: u32,
 
     #[clap(flatten)]
     pub stats: StatsOptions,
@@ -377,11 +374,11 @@ pub struct SliceCommandOptions {
     // subcommand
     #[clap(short, long)]
     ignore_unknown_rules: bool,
-    #[clap(long, multiple = true, hide = true)]
+    #[clap(long, num_args = 1.., hide = true)]
     allowed_rules: Option<Vec<String>>,
     #[clap(long, hide = true)]
     rup_resolution: bool,
-    #[clap(arg_enum, long, default_value = "normal", hide = true)]
+    #[clap(value_enum, long, default_value = "normal", hide = true)]
     check_granularity: CheckGranularity,
     #[clap(short = 'x', value_parser = parse_rule_checkers, hide = true)]
     rule_checkers: Vec<(String, ExternalTool)>,
@@ -400,7 +397,7 @@ pub struct SliceCommandOptions {
 }
 
 // Translation-related options.
-#[derive(ArgEnum, Clone)]
+#[derive(ValueEnum, Clone)]
 pub enum TranslationTarget {
     // NOTE: currently supporting translation into Eunoia.
     Eunoia,
@@ -408,7 +405,7 @@ pub enum TranslationTarget {
 
 #[derive(Args)]
 pub struct TranslateCommandOptions {
-    #[clap(arg_enum)]
+    #[clap(value_enum)]
     pub target: TranslationTarget,
 
     /// When translating into Eunoia, we need to pass a path to the folder
@@ -423,7 +420,7 @@ pub struct TranslateCommandOptions {
     pub parsing: ParsingOptions,
 }
 
-#[derive(ArgEnum, Clone)]
+#[derive(ValueEnum, Clone)]
 pub enum LogLevel {
     Off,
     Error,
