@@ -1,9 +1,8 @@
 use super::{IdHelper, PolyeqElaborator};
 use crate::{
     ast::{
-        build_term,
+        ContextStack, ProofNode, Rc, StepNode, build_term,
         pool::{PrimitivePool, TermPool},
-        ContextStack, ProofNode, Rc, StepNode,
     },
     checker::{apply_bfun_elim, error::CheckerError},
     elaborator::error::ElaborationError,

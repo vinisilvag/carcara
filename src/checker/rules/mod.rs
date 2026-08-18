@@ -1,10 +1,10 @@
 use super::{
-    error::{CheckerError, EqualityError},
     ContextStack,
+    error::{CheckerError, EqualityError},
 };
 use crate::{
     ast::{
-        alpha_equiv, polyeq, pool::TermPool, rare_rules::Rules, Operator, ProofCommand, Rc, Term,
+        Operator, ProofCommand, Rc, Term, alpha_equiv, polyeq, pool::TermPool, rare_rules::Rules,
     },
     utils::{Range, TypeName},
 };

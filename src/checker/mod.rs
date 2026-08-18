@@ -6,26 +6,26 @@ mod sat_refutation;
 mod shared;
 
 use crate::{
+    CarcaraResult, Error, Status,
     ast::{
-        pool::PrimitivePool, rare_rules::Rules, ContextStack, Problem, ProblemPrelude, Proof,
-        ProofCommand, ProofIter, ProofStep, Rc, Term,
+        ContextStack, Problem, ProblemPrelude, Proof, ProofCommand, ProofIter, ProofStep, Rc, Term,
+        pool::PrimitivePool, rare_rules::Rules,
     },
     benchmarking::{CollectResults, OnlineBenchmarkResults},
     external::{ExternalTool, SatTools},
-    CarcaraResult, Error, Status,
 };
 use carcara_macros::GenerateSetters;
 use error::CheckerError;
 use indexmap::{IndexMap, IndexSet};
 use rules::{Premise, RuleArgs, RuleResult};
-use shared::{check_assume_shared, check_step_core, StepCheckContext};
+use shared::{StepCheckContext, check_assume_shared, check_step_core};
 use std::{
     collections::HashSet,
     fmt,
     time::{Duration, Instant},
 };
 
-pub use parallel::{scheduler::Scheduler, ParallelProofChecker};
+pub use parallel::{ParallelProofChecker, scheduler::Scheduler};
 
 // The elaborator needs to use this function to elaborate `bfun_elim` steps
 pub(crate) use rules::clausification::apply_bfun_elim;

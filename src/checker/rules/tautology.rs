@@ -1,6 +1,6 @@
 use super::{
-    assert_clause_len, assert_eq, assert_num_args, assert_num_premises, assert_polyeq,
-    get_premise_term, CheckerError, RuleArgs, RuleResult,
+    CheckerError, RuleArgs, RuleResult, assert_clause_len, assert_eq, assert_num_args,
+    assert_num_premises, assert_polyeq, get_premise_term,
 };
 use crate::{ast::*, checker::rules::assert_operation_len};
 
@@ -294,12 +294,12 @@ pub fn ite_intro(RuleArgs { conclusion, polyeq_time, .. }: RuleArgs) -> RuleResu
 
         let mut is_valid = |r_1, s_1, r_2, s_2| {
             // s_1 == s_2 == (ite cond r_1 r_2)
-            if polyeq(s_1, s_2, polyeq_time) {
-                if let Some((a, b, c)) = match_term!((ite a b c) = s_1) {
-                    return polyeq(a, cond, polyeq_time)
-                        && polyeq(b, r_1, polyeq_time)
-                        && polyeq(c, r_2, polyeq_time);
-                }
+            if polyeq(s_1, s_2, polyeq_time)
+                && let Some((a, b, c)) = match_term!((ite a b c) = s_1)
+            {
+                return polyeq(a, cond, polyeq_time)
+                    && polyeq(b, r_1, polyeq_time)
+                    && polyeq(c, r_2, polyeq_time);
             }
             false
         };

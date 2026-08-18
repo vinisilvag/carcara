@@ -2,9 +2,9 @@ use indexmap::{IndexMap, IndexSet};
 use rug::Integer;
 
 use crate::ast::{
-    pool::TermPool,
-    rare_rules::{build_equation, pseudo_term, RewriteTerm},
     Operator, Rc, Sort, Term,
+    pool::TermPool,
+    rare_rules::{RewriteTerm, build_equation, pseudo_term},
 };
 
 #[derive(Debug, Default)]

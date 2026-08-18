@@ -1,6 +1,6 @@
 use super::{Parser, ParserError, Reserved, Token};
-use crate::ast::{rare_rules::*, *};
 use crate::CarcaraResult;
+use crate::ast::{rare_rules::*, *};
 
 #[derive(Debug, Clone)]
 enum Body {

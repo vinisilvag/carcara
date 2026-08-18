@@ -1,7 +1,7 @@
 use carcara::{
     ast::{
-        pool::PrimitivePool, printer::write_proof_to_dest, ProblemPrelude, Proof, ProofCommand,
-        ProofNodeForest,
+        ProblemPrelude, Proof, ProofCommand, ProofNodeForest, pool::PrimitivePool,
+        printer::write_proof_to_dest,
     },
     elaborator, parser,
 };

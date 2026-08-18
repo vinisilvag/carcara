@@ -8,8 +8,8 @@ authors = [
     "Bernardo Borges <bernborgess@outlook.com>",
     "Tiago Campos <tiagocampos@mixrank.com>",
 ]
-edition = "2021"
-rust-version = "1.87"
+edition = "2024"
+rust-version = "1.93"
 license = "Apache-2.0"
 
 [dependencies]

@@ -32,7 +32,7 @@ pub fn from_dir(args: TokenStream, input: TokenStream) -> TokenStream {
             _ => {
                 return TokenStream::from(
                     syn::Error::new(args[1].span(), "invalid argument").into_compile_error(),
-                )
+                );
             }
         }
     } else {

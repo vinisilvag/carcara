@@ -1,10 +1,10 @@
 use super::{Parser, ParserError, Reserved, Token};
 use crate::{
-    ast::{
-        pool::{Datatype, DatatypeConstructor, TermPool},
-        MatchCase, MatchPattern, Rc, Sort, Term,
-    },
     CarcaraResult,
+    ast::{
+        MatchCase, MatchPattern, Rc, Sort, Term,
+        pool::{Datatype, DatatypeConstructor, TermPool},
+    },
 };
 use indexmap::IndexMap;
 

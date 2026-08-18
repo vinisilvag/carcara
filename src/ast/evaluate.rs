@@ -1,4 +1,4 @@
-use super::{pool::TermPool, Constant, Operator, ParamOperator, Rc, Sort, Term};
+use super::{Constant, Operator, ParamOperator, Rc, Sort, Term, pool::TermPool};
 use rug::{Integer, Rational};
 use std::collections::{HashMap, HashSet};
 

@@ -61,14 +61,14 @@ impl<'a> PolyeqElaborator<'a> {
             return add_refl_step(pool, a, b, id, self.depth());
         }
 
-        if let Some((a_left, a_right)) = match_term!((= x y) = a) {
-            if let Some((b_left, b_right)) = match_term!((= x y) = b) {
-                if self.polyeq(pool, a_left, b_right) && self.polyeq(pool, a_right, b_left) {
-                    let [a_left, a_right, b_left, b_right] =
-                        [a_left, a_right, b_left, b_right].map(Clone::clone);
-                    return self.flip_equality(pool, (a, a_left, a_right), (b, b_left, b_right));
-                }
-            }
+        if let Some((a_left, a_right)) = match_term!((= x y) = a)
+            && let Some((b_left, b_right)) = match_term!((= x y) = b)
+            && self.polyeq(pool, a_left, b_right)
+            && self.polyeq(pool, a_right, b_left)
+        {
+            let [a_left, a_right, b_left, b_right] =
+                [a_left, a_right, b_left, b_right].map(Clone::clone);
+            return self.flip_equality(pool, (a, a_left, a_right), (b, b_left, b_right));
         }
 
         match (a.as_ref(), b.as_ref()) {

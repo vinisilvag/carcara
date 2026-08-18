@@ -1,14 +1,14 @@
 use super::{
-    assert_clause_len, assert_eq, assert_is_bool_constant, assert_num_args, assert_num_premises,
-    CheckerError, Premise, RuleArgs, RuleResult,
+    CheckerError, Premise, RuleArgs, RuleResult, assert_clause_len, assert_eq,
+    assert_is_bool_constant, assert_num_args, assert_num_premises,
 };
 use crate::{
-    ast::{match_term, pool::TermPool, Rc, Term},
-    resolution::{greedy_resolution, literal_to_term, ClauseCollection, Literal, ResolutionError},
+    ast::{Rc, Term, match_term, pool::TermPool},
+    resolution::{ClauseCollection, Literal, ResolutionError, greedy_resolution, literal_to_term},
     utils::MultiSet,
 };
 use indexmap::IndexSet;
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, hash_map::Entry};
 
 pub fn resolution(rule_args: RuleArgs) -> RuleResult {
     if !rule_args.args.is_empty() {
@@ -20,12 +20,12 @@ pub fn resolution(rule_args: RuleArgs) -> RuleResult {
 
     // In some cases, this rule is used with a single premise `(not true)` to justify an empty
     // conclusion clause
-    if conclusion.is_empty() && premises.len() == 1 {
-        if let [t] = premises[0].clause {
-            if match_term!((not true) = t).is_some() {
-                return Ok(());
-            }
-        }
+    if conclusion.is_empty()
+        && premises.len() == 1
+        && let [t] = premises[0].clause
+        && match_term!((not true) = t).is_some()
+    {
+        return Ok(());
     }
     // Aside from this special case, all resolution steps must be between at least two clauses
     assert_num_premises(premises, 2..)?;

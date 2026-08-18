@@ -1,6 +1,6 @@
 use super::{
-    assert_clause_len, assert_eq, assert_is_expected, assert_num_premises, assert_polyeq,
-    get_premise_term, CheckerError, EqualityError, RuleArgs, RuleResult,
+    CheckerError, EqualityError, RuleArgs, RuleResult, assert_clause_len, assert_eq,
+    assert_is_expected, assert_num_premises, assert_polyeq, get_premise_term,
 };
 use crate::{ast::*, checker::error::SubproofError};
 use indexmap::{IndexMap, IndexSet};
@@ -40,7 +40,7 @@ pub fn subproof(
                 previous_command.id.to_owned(),
                 (..2).into(),
                 other.len(),
-            ))
+            ));
         }
     };
 

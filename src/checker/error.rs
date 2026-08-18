@@ -570,7 +570,9 @@ pub enum StringError {
         expected: bool,
     },
 
-    #[error("regular expression replace failed: replacing in '{s}' with regex '{regex}' and replacement '{replacement}' expected to result in '{expected}', got '{got}'")]
+    #[error(
+        "regular expression replace failed: replacing in '{s}' with regex '{regex}' and replacement '{replacement}' expected to result in '{expected}', got '{got}'"
+    )]
     RegexReplaceFailed {
         s: String,
         regex: Rc<Term>,

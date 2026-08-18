@@ -28,10 +28,10 @@ pub fn ite_intro(
         let (cond, a, b, c, d) = match_term!((ite cond (= a b) (= c d)) = u_i).unwrap();
         let mut is_valid = |r_1, s_1, r_2, s_2| {
             // s_1 == s_2 == (ite cond r_1 r_2)
-            if polyeq.eq(s_1, s_2) {
-                if let Some((a, b, c)) = match_term!((ite a b c) = s_1) {
-                    return polyeq.eq(a, cond) && polyeq.eq(b, r_1) && polyeq.eq(c, r_2);
-                }
+            if polyeq.eq(s_1, s_2)
+                && let Some((a, b, c)) = match_term!((ite a b c) = s_1)
+            {
+                return polyeq.eq(a, cond) && polyeq.eq(b, r_1) && polyeq.eq(c, r_2);
             }
             false
         };

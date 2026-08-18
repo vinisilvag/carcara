@@ -17,14 +17,14 @@ pub fn remove_reorderings(
         }
 
         // If the rule is order-sensitive, and any premise was modified, we recompute the conclusion
-        if let Some(recompute) = get_recomputation_func(&step.rule) {
-            if premises_changed {
-                let new = Rc::new(ProofNode::Step(StepNode {
-                    clause: recompute(step).map_err(|e| e.at(step))?,
-                    ..step.clone()
-                }));
-                return Ok(new);
-            }
+        if let Some(recompute) = get_recomputation_func(&step.rule)
+            && premises_changed
+        {
+            let new = Rc::new(ProofNode::Step(StepNode {
+                clause: recompute(step).map_err(|e| e.at(step))?,
+                ..step.clone()
+            }));
+            return Ok(new);
         }
 
         // Otherwise the node is unchanged

@@ -1,10 +1,10 @@
 use super::{
-    assert_clause_len, assert_eq, assert_is_bool_constant, CheckerError, EqualityError, RuleArgs,
-    RuleResult,
+    CheckerError, EqualityError, RuleArgs, RuleResult, assert_clause_len, assert_eq,
+    assert_is_bool_constant,
 };
 use crate::{
     ast::{
-        build_term, match_term, match_term_err, pool::TermPool, Constant, Operator, Rc, Sort, Term,
+        Constant, Operator, Rc, Sort, Term, build_term, match_term, match_term_err, pool::TermPool,
     },
     utils::{DedupIterator, MultiSet},
 };
@@ -620,10 +620,10 @@ pub fn minus_simplify(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
     // The equality in the conclusion may be flipped, but one of the terms in it must be of the
     // form '(- t_1 t_2)'. We first check assuming that 't' is in the right. If that fails, we
     // check the other case and return any error it finds
-    if let Some((t_1, t_2)) = match_term!((- t_1 t_2) = right) {
-        if check(t_1, t_2, left).is_ok() {
-            return Ok(());
-        }
+    if let Some((t_1, t_2)) = match_term!((- t_1 t_2) = right)
+        && check(t_1, t_2, left).is_ok()
+    {
+        return Ok(());
     }
     let (t_1, t_2) = match_term_err!((- t_1 t_2) = left)?;
     check(t_1, t_2, right)

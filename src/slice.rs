@@ -3,8 +3,8 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::ast::{
-    pool::{PrimitivePool, TermPool},
     Proof, ProofCommand, ProofStep, Rc, Subproof, Term,
+    pool::{PrimitivePool, TermPool},
 };
 
 enum PremiseType {
@@ -373,7 +373,7 @@ pub fn slice(
 mod tests {
     use super::*;
     use crate::{
-        ast::{compare_forests, ProofNodeForest},
+        ast::{ProofNodeForest, compare_forests},
         parser::{self, parse_instance, parse_instance_with_pool},
     };
 

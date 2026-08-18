@@ -1,8 +1,8 @@
-use crate::ast::{build_term, match_term, pool::TermPool, Rc, Term};
+use crate::ast::{Rc, Term, build_term, match_term, pool::TermPool};
 use indexmap::IndexSet;
 use std::{
     borrow::{Borrow, BorrowMut},
-    collections::{hash_map::DefaultHasher, HashMap},
+    collections::{HashMap, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
 };
 use thiserror::Error;

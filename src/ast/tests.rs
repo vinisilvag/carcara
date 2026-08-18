@@ -1,7 +1,7 @@
 use super::{
+    Polyeq,
     node::ProofNodeForest,
     pool::{PrimitivePool, TermPool},
-    Polyeq,
 };
 use crate::parser::tests::parse_terms;
 use indexmap::IndexSet;

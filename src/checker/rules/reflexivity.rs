@@ -1,4 +1,4 @@
-use super::{assert_clause_len, assert_eq, CheckerError, RuleArgs, RuleResult};
+use super::{CheckerError, RuleArgs, RuleResult, assert_clause_len, assert_eq};
 use crate::ast::*;
 
 pub fn eq_reflexive(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {

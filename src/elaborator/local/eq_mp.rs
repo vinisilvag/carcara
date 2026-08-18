@@ -1,10 +1,9 @@
 use crate::{
     ast::{
-        build_term, match_term, match_term_err,
+        ContextStack, ProofNode, Rc, StepNode, build_term, match_term, match_term_err,
         pool::{PrimitivePool, TermPool},
-        ContextStack, ProofNode, Rc, StepNode,
     },
-    elaborator::{error::ElaborationError, IdHelper},
+    elaborator::{IdHelper, error::ElaborationError},
 };
 
 /// Elaborates an `eq_mp` step into a `resolution` step taking the

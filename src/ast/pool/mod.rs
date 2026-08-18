@@ -80,7 +80,7 @@ pub trait TermPool {
     ///
     /// This method uses a cache, so there is no additional cost to computing the free variables of
     /// a term multiple times.
-    fn free_vars(&mut self, term: &Rc<Term>) -> Cow<IndexSet<Rc<Term>>>;
+    fn free_vars(&'_ mut self, term: &Rc<Term>) -> Cow<'_, IndexSet<Rc<Term>>>;
 
     /// Searches the pool for a defined datatype with the given name. Panics if no datatype is
     /// found.
@@ -440,7 +440,7 @@ impl PrimitivePool {
                 }
             }
             ParamOperator::RotateLeft | ParamOperator::RotateRight => {
-                return Some(self.compute_sort(&args[0]).clone())
+                return Some(self.compute_sort(&args[0]).clone());
             }
             ParamOperator::Repeat => {
                 let repetitions = op_args[0].as_integer()?;
@@ -642,7 +642,7 @@ impl TermPool for PrimitivePool {
         self.sorts_cache[term].clone()
     }
 
-    fn free_vars(&mut self, term: &Rc<Term>) -> Cow<IndexSet<Rc<Term>>> {
+    fn free_vars(&'_ mut self, term: &Rc<Term>) -> Cow<'_, IndexSet<Rc<Term>>> {
         Cow::Borrowed(self.free_vars_with_priorities(term, []))
     }
 

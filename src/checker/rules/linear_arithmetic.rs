@@ -1,10 +1,10 @@
-use super::{assert_clause_len, assert_eq, assert_num_args, RuleArgs, RuleResult};
+use super::{RuleArgs, RuleResult, assert_clause_len, assert_eq, assert_num_args};
 use crate::{
     ast::*,
     checker::error::{CheckerError, LinearArithmeticError},
 };
-use indexmap::{map::Entry, IndexMap};
-use rug::{ops::NegAssign, Integer, Rational};
+use indexmap::{IndexMap, map::Entry};
+use rug::{Integer, Rational, ops::NegAssign};
 
 pub fn la_rw_eq(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
     assert_clause_len(conclusion, 1)?;
@@ -351,8 +351,8 @@ pub fn la_generic_partial(
 
     let LinearComb(left_side, right_side): &LinearComb = &final_disequality;
     let is_disequality_true = {
-        use std::cmp::Ordering;
         use Operator::*;
+        use std::cmp::Ordering;
 
         // If the operator encompasses the actual relationship between 0 and the right side, the
         // disequality is true

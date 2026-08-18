@@ -1,7 +1,7 @@
 //! Helpers for checking and elaborating `resolution` steps.
 
-use crate::ast::{build_term, pool::TermPool, Rc, Term};
-use indexmap::{map::Entry, IndexMap, IndexSet};
+use crate::ast::{Rc, Term, build_term, pool::TermPool};
+use indexmap::{IndexMap, IndexSet, map::Entry};
 use thiserror::Error;
 
 /// Errors related to the resolution checking and elaboration algorithms.

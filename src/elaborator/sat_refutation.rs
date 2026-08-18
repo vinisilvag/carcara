@@ -1,9 +1,8 @@
 use super::{Elaborator, IdHelper};
 use crate::{
     ast::{
-        build_term,
+        Operator, ProofCommand, ProofNode, ProofStep, Rc, StepNode, Term, build_term,
         pool::{PrimitivePool, TermPool},
-        Operator, ProofCommand, ProofNode, ProofStep, Rc, StepNode, Term,
     },
     external::*,
 };

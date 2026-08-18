@@ -1,13 +1,13 @@
-use super::{assert_clause_len, assert_eq, RuleArgs, RuleResult};
+use super::{RuleArgs, RuleResult, assert_clause_len, assert_eq};
 use crate::{
-    ast::{match_term, match_term_err, Operator, Rc, Sort, Term},
+    ast::{Operator, Rc, Sort, Term, match_term, match_term_err},
     checker::{
         error::PolynomialError,
         rules::{assert_num_premises, get_premise_term},
     },
 };
-use indexmap::{map::Entry, IndexMap};
-use rug::{ops::NegAssign, Integer, Rational};
+use indexmap::{IndexMap, map::Entry};
+use rug::{Integer, Rational, ops::NegAssign};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct Monomial(Vec<Rc<Term>>);

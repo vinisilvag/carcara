@@ -1,5 +1,5 @@
 use super::{Duration, Metrics, MetricsUnit, OfflineMetrics, OnlineMetrics};
-use rand::{prelude::ThreadRng, Rng};
+use rand::{Rng, prelude::ThreadRng};
 use std::fmt;
 
 trait IsClose {

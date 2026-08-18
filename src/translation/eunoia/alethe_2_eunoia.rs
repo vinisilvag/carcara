@@ -1,8 +1,8 @@
 //! Translator for `EunoiaProof`.
 use crate::ast::*;
 use crate::translation::{
-    eunoia::{alethe_signature::theory::*, ast::*},
     Symbol, Translator, TranslatorData, VecToVecTranslator,
+    eunoia::{alethe_signature::theory::*, ast::*},
 };
 
 pub struct EunoiaTranslator {
@@ -677,7 +677,8 @@ impl VecToVecTranslator<'_> for EunoiaTranslator {
     /// expressed within Eunoia.
     fn translate_assume(&mut self, id: &str, term: &Rc<Term>) -> EunoiaCommand {
         // Check last instruction in actual subproof
-        let ret = if self
+
+        if self
             .get_read_translator_data()
             .last_steps
             .last_steps_empty()
@@ -716,9 +717,7 @@ impl VecToVecTranslator<'_> for EunoiaTranslator {
                     ),
                 },
             }
-        };
-
-        ret
+        }
     }
 
     /// Implements the translation of an Alethe `ProofStep`, taking into

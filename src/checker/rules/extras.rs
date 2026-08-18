@@ -1,8 +1,8 @@
 //! This module contains rules that are not yet in the specification for the Alethe format.
 
 use super::{
-    assert_clause_len, assert_eq, assert_num_premises, get_premise_term, CheckerError,
-    EqualityError, RuleArgs, RuleResult,
+    CheckerError, EqualityError, RuleArgs, RuleResult, assert_clause_len, assert_eq,
+    assert_num_premises, get_premise_term,
 };
 use crate::{
     ast::*,

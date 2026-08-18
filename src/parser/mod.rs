@@ -7,17 +7,16 @@ mod rare;
 pub(crate) mod tests;
 
 use crate::{
+    CarcaraResult, Error,
     ast::{
-        build_term,
-        pool::{PrimitivePool, TermPool},
-        rare_rules::{RareStatements, Rules},
         AnchorArg, Binder, BindingList, Constant, Operator, ParamOperator, Problem, ProblemPrelude,
         Proof, ProofCommand, ProofStep, QualifiedOperator, Rc, Sort, SortSubstitution, SortedVar,
-        Subproof, Substitution, Term,
+        Subproof, Substitution, Term, build_term,
+        pool::{PrimitivePool, TermPool},
+        rare_rules::{RareStatements, Rules},
     },
     automata::parser::parse_automaton,
     utils::{HashCache, HashMapStack},
-    CarcaraResult, Error,
 };
 use carcara_macros::GenerateSetters;
 use error::{assert_indexed_op_args_value, assert_num_args, check_relation_sort, check_set_sort};
@@ -1257,7 +1256,7 @@ impl<'p, 's> Parser<'p, 's> {
                 return Err(self.err(
                     ParserError::UnclosedSubproof(stack.pop().unwrap().1),
                     self.current_position,
-                ))
+                ));
             }
         };
         Ok(Proof {
@@ -1865,10 +1864,10 @@ impl<'p, 's> Parser<'p, 's> {
 
                 // j >= 0 is ensured by the parser. We need to ensure that m > i && i >= j, if they
                 // are all statically known
-                if let (Some(i), Some(j), Sort::BitVec(m)) = (i, j, sorts[0].as_ref()) {
-                    if !(*m > i && i >= j) {
-                        return Err(ParserError::InvalidExtractArgs(i, j, *m));
-                    }
+                if let (Some(i), Some(j), Sort::BitVec(m)) = (i, j, sorts[0].as_ref())
+                    && !(*m > i && i >= j)
+                {
+                    return Err(ParserError::InvalidExtractArgs(i, j, *m));
                 }
             }
             ParamOperator::IntToBv => {
@@ -2105,32 +2104,31 @@ impl<'p, 's> Parser<'p, 's> {
                                 .make_var(op_symbol.clone())
                                 .map_err(|err| self.err(err, self.current_position))?;
                             let var_sort = self.pool.sort(&var);
-                            if let Sort::Par(_, f_sort) = var_sort.as_ref() {
-                                if let Sort::Function(sorts) = f_sort.as_ref() {
-                                    let sort = self.parse_sort()?;
-                                    self.expect_token(Token::CloseParen)?;
-                                    // unify return sort with as_sort
-                                    let ret_sort = sorts.last().unwrap();
-                                    let mut map = RapidHashMap::new();
-                                    if !ret_sort.is_compatible_with_map(&sort, &mut map) {
-                                        return Err(self.err(
-                                            ParserError::IncompatibleSorts(
-                                                ret_sort.clone(),
-                                                sort.clone(),
-                                            ),
-                                            self.current_position,
-                                        ));
-                                    }
-                                    // if types are unifiable, create variable with sort after applying the substitution
-                                    let result =
-                                        SortSubstitution::new(map).apply(self.pool, &var_sort);
-                                    let func = self.pool.add(Term::new_var(op_symbol, result));
-                                    // now apply it to args
-                                    let args = self.parse_sequence(Self::parse_term, true)?;
-                                    return self
-                                        .make_app(func, args)
-                                        .map_err(|err| self.err(err, head_pos));
+                            if let Sort::Par(_, f_sort) = var_sort.as_ref()
+                                && let Sort::Function(sorts) = f_sort.as_ref()
+                            {
+                                let sort = self.parse_sort()?;
+                                self.expect_token(Token::CloseParen)?;
+                                // unify return sort with as_sort
+                                let ret_sort = sorts.last().unwrap();
+                                let mut map = RapidHashMap::new();
+                                if !ret_sort.is_compatible_with_map(&sort, &mut map) {
+                                    return Err(self.err(
+                                        ParserError::IncompatibleSorts(
+                                            ret_sort.clone(),
+                                            sort.clone(),
+                                        ),
+                                        self.current_position,
+                                    ));
                                 }
+                                // if types are unifiable, create variable with sort after applying the substitution
+                                let result = SortSubstitution::new(map).apply(self.pool, &var_sort);
+                                let func = self.pool.add(Term::new_var(op_symbol, result));
+                                // now apply it to args
+                                let args = self.parse_sequence(Self::parse_term, true)?;
+                                return self
+                                    .make_app(func, args)
+                                    .map_err(|err| self.err(err, head_pos));
                             }
                             Err(self.err(
                                 ParserError::InvalidQualifiedOp(op_symbol),
@@ -2159,7 +2157,7 @@ impl<'p, 's> Parser<'p, 's> {
         let sort = match name.as_str() {
             "->" => Sort::Function(args),
             "Bool" | "Int" | "Real" | "String" | "RegLan" | "Type" if !args.is_empty() => {
-                return Err(ParserError::WrongNumberOfArgs(0.into(), args.len()))
+                return Err(ParserError::WrongNumberOfArgs(0.into(), args.len()));
             }
             "Bool" => Sort::Bool,
             "Int" => Sort::Int,

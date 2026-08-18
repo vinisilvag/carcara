@@ -1,6 +1,6 @@
 //! Algorithms for creating and applying capture-avoiding substitutions over terms.
 
-use super::{pool::TermPool, BindingList, MatchCase, MatchPattern, Rc, Sort, Term};
+use super::{BindingList, MatchCase, MatchPattern, Rc, Sort, Term, pool::TermPool};
 use crate::utils::{HashMapStack, MultiSet};
 use rapidhash::{HashMapExt, HashSetExt, RapidHashMap, RapidHashSet};
 use thiserror::Error;

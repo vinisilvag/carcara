@@ -1,11 +1,10 @@
 use crate::{
     ast::{
-        build_term, match_term,
+        ContextStack, ProofNode, Rc, StepNode, build_term, match_term,
         pool::{PrimitivePool, TermPool},
-        ContextStack, ProofNode, Rc, StepNode,
     },
     elaborator::{ElaborationError, IdHelper},
-    resolution::{greedy_resolution, ResolutionTrace},
+    resolution::{ResolutionTrace, greedy_resolution},
     utils::DedupIterator,
 };
 
@@ -22,28 +21,28 @@ pub fn resolution(
 
     // In the cases where the rule is used to get an empty clause from `(not true)`, we add a `true`
     // step to get an actual resolution step
-    if step.clause.is_empty() && step.premises.len() == 1 {
-        if let [t] = step.premises[0].clause() {
-            if match_term!((not true) = t).is_some() {
-                let true_step = Rc::new(ProofNode::Step(StepNode {
-                    id: ids.next_id(),
-                    depth: step.depth,
-                    clause: vec![pool.bool_true()],
-                    rule: "true".to_owned(),
-                    ..Default::default()
-                }));
+    if step.clause.is_empty()
+        && step.premises.len() == 1
+        && let [t] = step.premises[0].clause()
+        && match_term!((not true) = t).is_some()
+    {
+        let true_step = Rc::new(ProofNode::Step(StepNode {
+            id: ids.next_id(),
+            depth: step.depth,
+            clause: vec![pool.bool_true()],
+            rule: "true".to_owned(),
+            ..Default::default()
+        }));
 
-                return Ok(Rc::new(ProofNode::Step(StepNode {
-                    id: ids.next_id(),
-                    depth: step.depth,
-                    clause: Vec::new(),
-                    rule: "resolution".to_owned(),
-                    premises: vec![step.premises[0].clone(), true_step],
-                    args: [true, false].map(|a| pool.bool_constant(a)).to_vec(),
-                    ..Default::default()
-                })));
-            }
-        }
+        return Ok(Rc::new(ProofNode::Step(StepNode {
+            id: ids.next_id(),
+            depth: step.depth,
+            clause: Vec::new(),
+            rule: "resolution".to_owned(),
+            premises: vec![step.premises[0].clone(), true_step],
+            args: [true, false].map(|a| pool.bool_constant(a)).to_vec(),
+            ..Default::default()
+        })));
     }
 
     // In some cases, due to a bug in veriT, a resolution step will conclude the empty clause, and

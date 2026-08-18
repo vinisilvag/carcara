@@ -1,11 +1,11 @@
 use super::{
-    assert_alpha_equiv_expected, assert_clause_len, assert_eq, assert_is_expected, assert_num_args,
-    assert_operation_len, CheckerError, RuleArgs, RuleResult,
+    CheckerError, RuleArgs, RuleResult, assert_alpha_equiv_expected, assert_clause_len, assert_eq,
+    assert_is_expected, assert_num_args, assert_operation_len,
 };
 use crate::{
     ast::{
-        build_term, match_term, match_term_err, pool::TermPool, Binder, Operator, Rc, Sort,
-        SortedVar, Substitution, Term,
+        Binder, Operator, Rc, Sort, SortedVar, Substitution, Term, build_term, match_term,
+        match_term_err, pool::TermPool,
     },
     checker::error::QuantifierError,
     utils::DedupIterator,

@@ -21,5 +21,5 @@ clippy --fix` to let Clippy try to automatically fix the detected issues.
 
 When opening a pull request, make sure that your code compiles without warnings, and is formatted
 with Rustfmt. Run `cargo test` to ensure your changes do not break any existing behaviour.
-Additionally, we strive to support Rust versions as old as 1.87---please refrain from using features
+Additionally, we strive to support Rust versions as old as 1.93---please refrain from using features
 introduced in newer versions of Rust.

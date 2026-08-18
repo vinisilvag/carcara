@@ -1,6 +1,6 @@
-use super::{assert_eq, assert_num_args, RuleArgs, RuleResult};
+use super::{RuleArgs, RuleResult, assert_eq, assert_num_args};
 use crate::{
-    ast::{build_term, match_term, match_term_err, pool::TermPool, Binder, Rc, Sort, Term},
+    ast::{Binder, Rc, Sort, Term, build_term, match_term, match_term_err, pool::TermPool},
     checker::{error::CheckerError, rules::cutting_planes::split_summation},
 };
 use rug::Integer;

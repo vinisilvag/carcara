@@ -1,6 +1,6 @@
-use super::{assert_eq, CheckerError, RuleArgs, RuleResult};
+use super::{CheckerError, RuleArgs, RuleResult, assert_eq};
 use crate::{
-    ast::{build_term, match_term_err, pool::TermPool, Operator, ParamOperator, Rc, Sort, Term},
+    ast::{Operator, ParamOperator, Rc, Sort, Term, build_term, match_term_err, pool::TermPool},
     checker::rules::assert_clause_len,
 };
 use rug::Integer;
@@ -14,7 +14,7 @@ fn bitvector_size(pool: &mut dyn TermPool, term: &Rc<Term>) -> usize {
 }
 
 fn get_term_bits(term: &Rc<Term>, pool: &mut dyn TermPool) -> Vec<Rc<Term>> {
-    let term = if let Some((Operator::BvBbTerm, args_x)) = term.as_op() {
+    if let Some((Operator::BvBbTerm, args_x)) = term.as_op() {
         args_x.to_vec()
     } else {
         (0..bitvector_size(pool, term))
@@ -27,8 +27,7 @@ fn get_term_bits(term: &Rc<Term>, pool: &mut dyn TermPool) -> Vec<Rc<Term>> {
                 })
             })
             .collect()
-    };
-    term
+    }
 }
 
 fn ripple_carry_adder(

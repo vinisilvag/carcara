@@ -1,11 +1,10 @@
 use crate::{
     ast::{
-        build_term, match_term, match_term_err,
+        ContextStack, ProofNode, Rc, StepNode, Term, build_term, match_term, match_term_err,
         pool::{PrimitivePool, TermPool},
-        ContextStack, ProofNode, Rc, StepNode, Term,
     },
     checker::error::CheckerError,
-    elaborator::{add_symm_step, add_trans_step, error::ElaborationError, IdHelper},
+    elaborator::{IdHelper, add_symm_step, add_trans_step, error::ElaborationError},
     utils::{DedupIterator, MultiSet},
 };
 use std::collections::HashSet;

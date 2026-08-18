@@ -6,8 +6,9 @@ use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, Ident, Spacing, TokenStream as TokenStream2, TokenTree};
 use quote::{format_ident, quote};
 use syn::{
+    DataStruct, DeriveInput, Expr, Token,
     parse::{Parse, ParseStream},
-    parse_macro_input, DataStruct, DeriveInput, Expr, Token,
+    parse_macro_input,
 };
 
 // Represents the full macro input: '<pattern> = <expr>'
@@ -115,10 +116,10 @@ fn read_op(tokens: &[TokenTree]) -> (String, usize) {
     match &tokens[0] {
         TokenTree::Ident(id) => (id.to_string(), 1),
         TokenTree::Punct(p) => {
-            if p.spacing() == Spacing::Joint {
-                if let Some(TokenTree::Punct(p2)) = tokens.get(1) {
-                    return (format!("{}{}", p.as_char(), p2.as_char()), 2);
-                }
+            if p.spacing() == Spacing::Joint
+                && let Some(TokenTree::Punct(p2)) = tokens.get(1)
+            {
+                return (format!("{}{}", p.as_char(), p2.as_char()), 2);
             }
             (p.as_char().to_string(), 1)
         }
@@ -233,15 +234,15 @@ fn parse_pat(tt: TokenTree, ctx: &mut ParseCtx) -> Pat {
 
             // Detect ((_ op op_args...) args...) - ParamOp pattern.
             // The '_' here is an Ident token, not a Punct.
-            if let TokenTree::Group(inner) = &tokens[0] {
-                if inner.delimiter() == Delimiter::Parenthesis {
-                    let inner_tokens: Vec<_> = inner.stream().into_iter().collect();
-                    if matches!(&inner_tokens[0], TokenTree::Ident(id) if *id == "_") {
-                        let (op, op_len) = read_op(&inner_tokens[1..]);
-                        let op_args = parse_args(&inner_tokens[1 + op_len..], ctx);
-                        let args = parse_args(&tokens[1..], ctx);
-                        return Pat::ParamOp { op, op_args, args };
-                    }
+            if let TokenTree::Group(inner) = &tokens[0]
+                && inner.delimiter() == Delimiter::Parenthesis
+            {
+                let inner_tokens: Vec<_> = inner.stream().into_iter().collect();
+                if matches!(&inner_tokens[0], TokenTree::Ident(id) if *id == "_") {
+                    let (op, op_len) = read_op(&inner_tokens[1..]);
+                    let op_args = parse_args(&inner_tokens[1 + op_len..], ctx);
+                    let args = parse_args(&tokens[1..], ctx);
+                    return Pat::ParamOp { op, op_args, args };
                 }
             }
 
@@ -400,19 +401,19 @@ fn gen_match(pat: &Pat, var: &TokenStream2, inner: TokenStream2, ctr: &mut usize
             let variant = op_to_variant(op);
 
             // Special case: sole variadic arg — capture entire args slice directly.
-            if args.len() == 1 {
-                if let Pat::Variadic(var_id) = &args[0] {
-                    *ctr += 1;
-                    let args_ident = format_ident!("__mt_args_{}", ctr);
-                    let body = gen_sole_variadic_body(var_id, &args_ident, inner);
-                    return quote! {
-                        if let crate::ast::Term::Op(#variant, #args_ident) = (&(#var) as &crate::ast::Term) {
-                            #body
-                        } else {
-                            None
-                        }
-                    };
-                }
+            if args.len() == 1
+                && let Pat::Variadic(var_id) = &args[0]
+            {
+                *ctr += 1;
+                let args_ident = format_ident!("__mt_args_{}", ctr);
+                let body = gen_sole_variadic_body(var_id, &args_ident, inner);
+                return quote! {
+                    if let crate::ast::Term::Op(#variant, #args_ident) = (&(#var) as &crate::ast::Term) {
+                        #body
+                    } else {
+                        None
+                    }
+                };
             }
 
             // Normal fixed-arity case.
@@ -462,26 +463,26 @@ fn gen_match(pat: &Pat, var: &TokenStream2, inner: TokenStream2, ctr: &mut usize
             let args_vec = format_ident!("__mt_args_{}", ctr);
 
             // Special case: sole variadic in args — capture entire args slice directly.
-            if args.len() == 1 {
-                if let Pat::Variadic(var_id) = &args[0] {
-                    let slice_body = gen_sole_variadic_body(var_id, &args_vec, inner);
-                    let mut body = slice_body;
-                    for (sub_pat, arg_id) in op_args.iter().zip(op_arg_idents.iter()).rev() {
-                        let v = quote! { #arg_id };
-                        body = gen_match(sub_pat, &v, body, ctr);
-                    }
-                    return quote! {
-                        if let crate::ast::Term::ParamOp {
-                            op: #variant,
-                            op_args: #op_args_vec,
-                            args: #args_vec,
-                        } = (&(#var) as &crate::ast::Term) {
-                            if let [#(#op_arg_idents),*] = #op_args_vec.as_slice() {
-                                #body
-                            } else { None }
-                        } else { None }
-                    };
+            if args.len() == 1
+                && let Pat::Variadic(var_id) = &args[0]
+            {
+                let slice_body = gen_sole_variadic_body(var_id, &args_vec, inner);
+                let mut body = slice_body;
+                for (sub_pat, arg_id) in op_args.iter().zip(op_arg_idents.iter()).rev() {
+                    let v = quote! { #arg_id };
+                    body = gen_match(sub_pat, &v, body, ctr);
                 }
+                return quote! {
+                    if let crate::ast::Term::ParamOp {
+                        op: #variant,
+                        op_args: #op_args_vec,
+                        args: #args_vec,
+                    } = (&(#var) as &crate::ast::Term) {
+                        if let [#(#op_arg_idents),*] = #op_args_vec.as_slice() {
+                            #body
+                        } else { None }
+                    } else { None }
+                };
             }
 
             let n_arg = args.len();

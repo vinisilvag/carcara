@@ -1,13 +1,14 @@
 use crate::{
+    CarcaraResult, Status,
     ast::{
-        build_term, match_term,
+        Binder, Operator, Polyeq, ProblemPrelude, ProofCommand, ProofNode, ProofNodeForest, Rc,
+        StepNode, SubproofNode, Term, build_term, match_term,
         pool::{PrimitivePool, TermPool},
-        printer, Binder, Operator, Polyeq, ProblemPrelude, ProofCommand, ProofNode,
-        ProofNodeForest, Rc, StepNode, SubproofNode, Term,
+        printer,
     },
     checker,
     elaborator::{IdHelper, Mutate},
-    parser, CarcaraResult, Status,
+    parser,
 };
 use std::{
     borrow::ToOwned,
@@ -171,10 +172,10 @@ pub fn get_solver_proof(
 ) -> Result<(Vec<ProofCommand>, Status), ExternalError> {
     let output = solver.call(problem.as_bytes())?;
     if !output.status.success() {
-        if let Ok(s) = std::str::from_utf8(&output.stderr) {
-            if s.contains("interrupted by timeout.") {
-                return Err(ExternalError::Timeout);
-            }
+        if let Ok(s) = std::str::from_utf8(&output.stderr)
+            && s.contains("interrupted by timeout.")
+        {
+            return Err(ExternalError::Timeout);
         }
         return Err(ExternalError::InvalidOutput);
     }
@@ -417,10 +418,10 @@ pub fn get_core_lemmas(
                 })
                 .collect();
             sat_clause_lits.sort();
-            if let Some(lemma) = sat_clause_to_lemma.get(&sat_clause_lits) {
-                if let Some((Operator::RareList, lemma_lits)) = lemma.as_op() {
-                    core_lemmas.push(lemma_lits.to_vec().clone());
-                }
+            if let Some(lemma) = sat_clause_to_lemma.get(&sat_clause_lits)
+                && let Some((Operator::RareList, lemma_lits)) = lemma.as_op()
+            {
+                core_lemmas.push(lemma_lits.to_vec().clone());
             }
         });
     log::info!("[get_core_lemmas] {} lemmas in core", core_lemmas.len());

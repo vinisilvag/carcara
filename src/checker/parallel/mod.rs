@@ -1,24 +1,24 @@
 pub mod scheduler;
 
 use super::{
+    CheckerStatistics, Config,
     error::CheckerError,
     rules::{Premise, RuleArgs, RuleResult},
-    shared::{check_assume_shared, check_step_core, StepCheckContext},
-    CheckerStatistics, Config,
+    shared::{StepCheckContext, check_assume_shared, check_step_core},
 };
 use crate::{
+    CarcaraResult, Error, Status,
     ast::{
+        ContextStack, Problem, ProblemPrelude, Proof, ProofCommand, ProofStep, Rc, Term,
         pool::{ContextPool, LocalPool, PrimitivePool},
         rare_rules::Rules,
-        ContextStack, Problem, ProblemPrelude, Proof, ProofCommand, ProofStep, Rc, Term,
     },
     benchmarking::{CollectResults, OnlineBenchmarkResults},
-    CarcaraResult, Error, Status,
 };
 use indexmap::IndexSet;
 use std::{
     ops::ControlFlow,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{Arc, atomic::AtomicBool},
     thread,
     time::{Duration, Instant},
 };

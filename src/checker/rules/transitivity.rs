@@ -1,4 +1,4 @@
-use super::{assert_clause_len, get_premise_term, CheckerError, RuleArgs, RuleResult};
+use super::{CheckerError, RuleArgs, RuleResult, assert_clause_len, get_premise_term};
 use crate::ast::*;
 
 /// Function to find a transitive chain given a conclusion equality and a series of premise

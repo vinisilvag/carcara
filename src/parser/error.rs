@@ -122,7 +122,9 @@ pub enum ParserError {
     WrongValueOfArgs(Range, Integer),
 
     /// Constant arguments given to `extract` do not follow required restrictions.
-    #[error("extract arguments do not follow restrictions. Expected: {2} > {0} and {0} >= {1} and {1} >= 0")]
+    #[error(
+        "extract arguments do not follow restrictions. Expected: {2} > {0} and {0} >= {1} and {1} >= 0"
+    )]
     InvalidExtractArgs(usize, usize, usize),
 
     /// A step id was used in more than one step.

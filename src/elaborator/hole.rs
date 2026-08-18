@@ -1,8 +1,8 @@
 use super::{ElaborationError, Elaborator};
 use crate::{
-    ast::{build_term, pool::TermPool, ProblemPrelude, ProofNode, Rc, StepNode},
-    external::{self, ExternalError},
     Status,
+    ast::{ProblemPrelude, ProofNode, Rc, StepNode, build_term, pool::TermPool},
+    external::{self, ExternalError},
 };
 
 pub fn hole(

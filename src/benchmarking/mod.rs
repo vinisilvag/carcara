@@ -6,7 +6,7 @@ mod tests;
 
 pub use metrics::*;
 
-use indexmap::{map::Entry, IndexMap, IndexSet};
+use indexmap::{IndexMap, IndexSet, map::Entry};
 use std::{fmt, fs, hash::Hash, io, sync::Arc, time::Duration};
 
 fn combine_map<S, K, V, M>(mut a: IndexMap<S, M>, b: IndexMap<S, M>) -> IndexMap<S, M>
@@ -200,25 +200,34 @@ impl OnlineBenchmarkResults {
 
     /// Prints the benchmark results
     pub fn print(&self, sort_by_total: bool) {
-        let [parsing, checking, elaborating, scheduling, accounted_for, total, assume_time, assume_core_time, polyeq_time] =
-            [
-                self.parsing(),
-                self.checking(),
-                self.elaborating(),
-                self.scheduling(),
-                self.total_accounted_for(),
-                self.total(),
-                &self.assume_time,
-                &self.assume_core_time,
-                &self.polyeq_time,
-            ]
-            .map(|m| {
-                if sort_by_total {
-                    format!("{:#}", m)
-                } else {
-                    format!("{}", m)
-                }
-            });
+        let [
+            parsing,
+            checking,
+            elaborating,
+            scheduling,
+            accounted_for,
+            total,
+            assume_time,
+            assume_core_time,
+            polyeq_time,
+        ] = [
+            self.parsing(),
+            self.checking(),
+            self.elaborating(),
+            self.scheduling(),
+            self.total_accounted_for(),
+            self.total(),
+            &self.assume_time,
+            &self.assume_core_time,
+            &self.polyeq_time,
+        ]
+        .map(|m| {
+            if sort_by_total {
+                format!("{:#}", m)
+            } else {
+                format!("{}", m)
+            }
+        });
 
         println!("parsing:             {}", parsing);
         println!("checking:            {}", checking);
@@ -270,33 +279,33 @@ impl OnlineBenchmarkResults {
         let worst_file_parsing = self.parsing().max();
         println!(
             "    file (parsing):  {} ({:?})",
-            worst_file_parsing.0 .0, worst_file_parsing.1
+            worst_file_parsing.0.0, worst_file_parsing.1
         );
 
         let worst_file_checking = self.checking().max();
         println!(
             "    file (checking): {} ({:?})",
-            worst_file_checking.0 .0, worst_file_checking.1
+            worst_file_checking.0.0, worst_file_checking.1
         );
 
         let worst_file_assume = self.assume_time_ratio.max();
         println!(
             "    file (assume):   {} ({:.04}%)",
-            worst_file_assume.0 .0,
+            worst_file_assume.0.0,
             worst_file_assume.1 * 100.0
         );
 
         let worst_file_polyeq = self.polyeq_time_ratio.max();
         println!(
             "    file (polyeq):   {} ({:.04}%)",
-            worst_file_polyeq.0 .0,
+            worst_file_polyeq.0.0,
             worst_file_polyeq.1 * 100.0
         );
 
         let worst_file_total = self.total().max();
         println!(
             "    file overall:    {} ({:?})",
-            worst_file_total.0 .0, worst_file_total.1
+            worst_file_total.0.0, worst_file_total.1
         );
 
         let num_hard_assumes = self.num_assumes - self.num_easy_assumes;

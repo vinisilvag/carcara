@@ -2,12 +2,12 @@
 
 use crate::{
     ast::{
-        pool::{PrimitivePool, TermPool},
         AnchorArg, Binder, BindingList, Constant, MatchCase, MatchPattern, Operator, ParamOperator,
         ProblemPrelude, Proof, ProofCommand, ProofIter, ProofStep, Rc, Sort, SortedVar, Term,
+        pool::{PrimitivePool, TermPool},
     },
     parser::Token,
-    utils::{is_symbol_character, DedupIterator},
+    utils::{DedupIterator, is_symbol_character},
 };
 use indexmap::IndexMap;
 use std::{

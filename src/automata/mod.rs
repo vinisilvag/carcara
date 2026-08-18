@@ -7,7 +7,7 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::hash::Hash;
 
-use crate::ast::{pool::TermPool, Constant, Operator, Rc, Term};
+use crate::ast::{Constant, Operator, Rc, Term, pool::TermPool};
 use crate::automata::utils::{has_overlapping_ranges, missing_ranges};
 use crate::checker::error::{CheckerError, StringError};
 
@@ -820,10 +820,11 @@ impl Automaton {
         let mut next = Vec::new();
         for &state in current {
             for t in &self.all_states[state].transitions {
-                if let Trigger::Range((l, r)) = t.trigger {
-                    if symbol >= l && symbol <= r {
-                        next.extend_from_slice(&closures[t.to]);
-                    }
+                if let Trigger::Range((l, r)) = t.trigger
+                    && symbol >= l
+                    && symbol <= r
+                {
+                    next.extend_from_slice(&closures[t.to]);
                 }
             }
         }

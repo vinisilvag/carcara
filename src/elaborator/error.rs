@@ -1,7 +1,6 @@
 //! Errors produced while elaborating a proof.
+use crate::{CheckerError, resolution::ResolutionError};
 use std::path::Path;
-
-use crate::{resolution::ResolutionError, CheckerError};
 use thiserror::Error;
 
 use super::ElaborationPass;

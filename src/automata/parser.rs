@@ -1,10 +1,10 @@
 use nom::{
+    IResult, Parser,
     bytes::complete::tag,
     character::complete::{alpha1, char, digit1, multispace0, multispace1},
     combinator::{map, map_res, recognize, verify},
     multi::{many0, separated_list1},
     sequence::{delimited, pair, preceded, separated_pair, terminated},
-    IResult, Parser,
 };
 use std::str::FromStr;
 

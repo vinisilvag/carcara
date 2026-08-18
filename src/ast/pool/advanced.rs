@@ -68,7 +68,7 @@ impl TermPool for ContextPool {
         }
     }
 
-    fn free_vars(&mut self, term: &Rc<Term>) -> Cow<IndexSet<Rc<Term>>> {
+    fn free_vars(&'_ mut self, term: &Rc<Term>) -> Cow<'_, IndexSet<Rc<Term>>> {
         Cow::Owned(
             self.inner
                 .write()
@@ -153,7 +153,7 @@ impl TermPool for LocalPool {
         }
     }
 
-    fn free_vars(&mut self, term: &Rc<Term>) -> Cow<IndexSet<Rc<Term>>> {
+    fn free_vars(&'_ mut self, term: &Rc<Term>) -> Cow<'_, IndexSet<Rc<Term>>> {
         Cow::Owned(
             self.inner
                 .free_vars_with_priorities(

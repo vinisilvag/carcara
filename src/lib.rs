@@ -37,7 +37,6 @@
 #![warn(clippy::redundant_pub_crate)]
 #![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(clippy::str_to_string)]
-#![warn(clippy::string_to_string)]
 #![warn(clippy::trivially_copy_pass_by_ref)]
 #![warn(clippy::unnecessary_wraps)]
 #![warn(clippy::unnested_or_patterns)]
@@ -58,9 +57,9 @@ pub mod translation;
 mod utils;
 
 use benchmarking::{CollectResults, OnlineBenchmarkResults, RunMeasurement};
-use checker::{error::CheckerError, CheckerStatistics};
-use elaborator::error::ElaborationError;
+use checker::{CheckerStatistics, error::CheckerError};
 use elaborator::ElaborationPass;
+use elaborator::error::ElaborationError;
 use parser::{ParserError, Position};
 use std::io;
 use std::path::PathBuf;
@@ -389,34 +388,32 @@ pub fn generate_lia_smt_instances<'s>(
     let mut iter = proof.iter();
     let mut result = Vec::new();
     while let Some(command) = iter.next() {
-        if let ast::ProofCommand::Step(step) = command {
-            if step.rule == "lia_generic" {
-                if iter.depth() > 0 {
-                    log::error!(
-                        "generating SMT instance for step inside subproof is not supported"
-                    );
-                    continue;
-                }
-
-                let mut problem_string = String::new();
-                write!(&mut problem_string, "{}", problem.prelude).unwrap();
-
-                let mut bytes = Vec::new();
-                ast::printer::write_clause_smt_problem(
-                    &mut pool,
-                    &problem.prelude,
-                    &mut bytes,
-                    &step.clause,
-                    use_sharing,
-                )
-                .unwrap();
-                write!(&mut problem_string, "{}", String::from_utf8(bytes).unwrap()).unwrap();
-
-                writeln!(&mut problem_string, "(check-sat)").unwrap();
-                writeln!(&mut problem_string, "(exit)").unwrap();
-
-                result.push((step.id.clone(), problem_string));
+        if let ast::ProofCommand::Step(step) = command
+            && step.rule == "lia_generic"
+        {
+            if iter.depth() > 0 {
+                log::error!("generating SMT instance for step inside subproof is not supported");
+                continue;
             }
+
+            let mut problem_string = String::new();
+            write!(&mut problem_string, "{}", problem.prelude).unwrap();
+
+            let mut bytes = Vec::new();
+            ast::printer::write_clause_smt_problem(
+                &mut pool,
+                &problem.prelude,
+                &mut bytes,
+                &step.clause,
+                use_sharing,
+            )
+            .unwrap();
+            write!(&mut problem_string, "{}", String::from_utf8(bytes).unwrap()).unwrap();
+
+            writeln!(&mut problem_string, "(check-sat)").unwrap();
+            writeln!(&mut problem_string, "(exit)").unwrap();
+
+            result.push((step.id.clone(), problem_string));
         }
     }
     Ok(result)

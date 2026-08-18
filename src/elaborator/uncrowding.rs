@@ -1,11 +1,11 @@
-use super::{error::ElaborationError, IdHelper};
+use super::{IdHelper, error::ElaborationError};
 use crate::{
     ast::{
-        pool::{PrimitivePool, TermPool},
         ProofNode, Rc, StepNode, Term,
+        pool::{PrimitivePool, TermPool},
     },
     checker::error::CheckerError,
-    resolution::{literal_to_term, Literal, ResolutionError},
+    resolution::{Literal, ResolutionError, literal_to_term},
     utils::MultiSet,
 };
 use rapidhash::{HashMapExt, HashSetExt, RapidHashMap, RapidHashSet};
@@ -417,7 +417,7 @@ fn reorder_premises<'a>(
 mod tests {
     use super::*;
     use crate::{
-        ast::{compare_nodes, ProofNodeForest},
+        ast::{ProofNodeForest, compare_nodes},
         parser::{self, parse_instance, parse_instance_with_pool},
     };
 

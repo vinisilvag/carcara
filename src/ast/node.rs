@@ -191,10 +191,10 @@ impl Rc<ProofNode> {
     pub fn get_assumptions_of_depth(&self, of_depth: usize) -> Vec<Rc<ProofNode>> {
         let mut result = Vec::new();
         self.traverse(|node| {
-            if let ProofNode::Assume { depth, .. } = node.as_ref() {
-                if *depth == of_depth {
-                    result.push(node.clone());
-                }
+            if let ProofNode::Assume { depth, .. } = node.as_ref()
+                && *depth == of_depth
+            {
+                result.push(node.clone());
             }
         });
         result

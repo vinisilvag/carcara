@@ -148,9 +148,7 @@ macro_rules! pseudo_term {
 }
 
 macro_rules! build_equation {
-    ($r:tt ~> $rr:tt) => {{
-        (pseudo_term!($r), pseudo_term!($rr))
-    }};
+    ($r:tt ~> $rr:tt) => {{ (pseudo_term!($r), pseudo_term!($rr)) }};
 }
 
 pub(crate) use {build_equation, pseudo_term};

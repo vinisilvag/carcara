@@ -1,10 +1,10 @@
 use super::{
+    Rc, Sort,
     macros::impl_str_conversion_traits,
     match_term, match_term_err,
     pool::{PrimitivePool, TermPool},
-    Rc, Sort,
 };
-use crate::{automata::Automaton, CheckerError};
+use crate::{CheckerError, automata::Automaton};
 use rug::{Integer, Rational};
 use std::{collections::HashSet, hash::Hash, ops::Deref};
 
@@ -1350,10 +1350,10 @@ impl Rc<Term> {
 
     /// Similar to `Term::as_integer_err`, but also checks if non-negative.
     pub fn as_usize_err(&self) -> Result<usize, CheckerError> {
-        if let Some(i) = self.as_integer() {
-            if i >= 0 {
-                return Ok(i.to_usize().unwrap());
-            }
+        if let Some(i) = self.as_integer()
+            && i >= 0
+        {
+            return Ok(i.to_usize().unwrap());
         }
         Err(CheckerError::ExpectedNonnegInteger(self.clone()))
     }

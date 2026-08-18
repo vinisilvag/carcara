@@ -9,14 +9,13 @@ mod sat_refutation;
 mod uncrowding;
 
 use crate::{
+    Error,
     ast::{
-        build_term, match_term,
-        pool::{PrimitivePool, TermPool},
         ContextStack, Polyeq, Problem, ProofNode, ProofNodeForest, Rc, StepNode, SubproofNode,
-        Term,
+        Term, build_term, match_term,
+        pool::{PrimitivePool, TermPool},
     },
     external::{ExternalTool, SatTools},
-    Error,
 };
 use carcara_macros::GenerateSetters;
 use error::{ElaborationError, ElaborationErrorAtStep};

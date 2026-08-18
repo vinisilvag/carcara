@@ -1,9 +1,9 @@
 use super::{
-    assert_clause_len, assert_eq, assert_num_args, assert_num_premises, RuleArgs, RuleResult, Term,
+    RuleArgs, RuleResult, Term, assert_clause_len, assert_eq, assert_num_args, assert_num_premises,
 };
-use crate::ast::{build_term, match_term, match_term_err, Constant, Operator};
-use crate::checker::error::{CheckerError, EqualityError};
+use crate::ast::{Constant, Operator, build_term, match_term, match_term_err};
 use crate::checker::Rc;
+use crate::checker::error::{CheckerError, EqualityError};
 use rug::Integer;
 use std::collections::HashMap;
 
@@ -23,16 +23,16 @@ fn get_pb_hashmap(pbsum: &Rc<Term>) -> Result<PbHash, CheckerError> {
     let pbsum = split_summation(pbsum);
 
     //  Special case: single 0
-    if pbsum.len() == 1 {
-        if let Some(constant) = pbsum[0].as_integer() {
-            if constant == 0 {
-                return Ok(hm);
-            }
-            return Err(CheckerError::ExpectedInteger(
-                Integer::from(0),
-                pbsum[0].clone(),
-            ));
+    if pbsum.len() == 1
+        && let Some(constant) = pbsum[0].as_integer()
+    {
+        if constant == 0 {
+            return Ok(hm);
         }
+        return Err(CheckerError::ExpectedInteger(
+            Integer::from(0),
+            pbsum[0].clone(),
+        ));
     }
 
     for term in pbsum {
@@ -711,14 +711,14 @@ pub fn cp_normalize(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
 mod tests {
     use rug::Integer;
 
-    use super::{flatten_addition_tree, CoeffTimesVar};
+    use super::{CoeffTimesVar, flatten_addition_tree};
     use crate::{
         ast::{
             build_term,
             pool::{PrimitivePool, TermPool},
         },
-        checker::rules::{RuleResult, Term},
         checker::Rc,
+        checker::rules::{RuleResult, Term},
     };
 
     fn flatten_addition_test_gen(

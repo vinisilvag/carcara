@@ -1,5 +1,5 @@
 use super::{
-    assert_clause_len, assert_num_premises, get_premise_term, CheckerError, RuleArgs, RuleResult,
+    CheckerError, RuleArgs, RuleResult, assert_clause_len, assert_num_premises, get_premise_term,
 };
 use crate::{ast::*, checker::error::CongruenceError};
 

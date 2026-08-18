@@ -1,11 +1,11 @@
 use super::{
-    assert_clause_len, assert_eq, assert_num_args, assert_num_premises, assert_polyeq_expected,
-    get_premise_term, RuleArgs, RuleResult,
+    RuleArgs, RuleResult, assert_clause_len, assert_eq, assert_num_args, assert_num_premises,
+    assert_polyeq_expected, get_premise_term,
 };
 use crate::{
     ast::{
-        build_term, match_term, match_term_err, polyeq, pool::TermPool, Binder, BindingList,
-        Constant, Operator, Rc, Sort, Term,
+        Binder, BindingList, Constant, Operator, Rc, Sort, Term, build_term, match_term,
+        match_term_err, polyeq, pool::TermPool,
     },
     checker::{error::CheckerError, rules::assert_polyeq},
 };
@@ -305,10 +305,10 @@ fn strip_prefix_or_suffix(
 /// constant (we can't compute lengths properly in this case) or isn't a String
 /// constant of size one.
 fn string_check_length_one(term: Rc<Term>) -> Result<(), CheckerError> {
-    if let Term::Const(Constant::String(s)) = term.as_ref() {
-        if s.len() == 1 {
-            return Ok(());
-        }
+    if let Term::Const(Constant::String(s)) = term.as_ref()
+        && s.len() == 1
+    {
+        return Ok(());
     }
     Err(CheckerError::ExpectedStringConstantOfLengthOne(term))
 }
@@ -363,7 +363,7 @@ fn extract_arguments(t: &Rc<Term>) -> Result<Vec<Rc<Term>>, CheckerError> {
             return Err(CheckerError::TermOfWrongForm(
                 "(str.++ t1 t2 t3)",
                 t.clone(),
-            ))
+            ));
         }
     };
     Ok(args_t.clone())

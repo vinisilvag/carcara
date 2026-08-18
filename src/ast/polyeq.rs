@@ -265,14 +265,13 @@ impl Polyeq {
         }
 
         // Modulo reordering of equalities
-        if self.is_mod_reordering {
-            if let (Operator::Equals, [a_1, a_2], Operator::Equals, [b_1, b_2]) =
+        if self.is_mod_reordering
+            && let (Operator::Equals, [a_1, a_2], Operator::Equals, [b_1, b_2]) =
                 (op_a, args_a, op_b, args_b)
-            {
-                // If the term is an equality of two terms, we also check if they would be
-                // equal if one of them was flipped
-                return self.eq(&(a_1, a_2), &(b_1, b_2)) || self.eq(&(a_1, a_2), &(b_2, b_1));
-            }
+        {
+            // If the term is an equality of two terms, we also check if they would be
+            // equal if one of them was flipped
+            return self.eq(&(a_1, a_2), &(b_1, b_2)) || self.eq(&(a_1, a_2), &(b_2, b_1));
         }
 
         // Modulo n-ary expansion
@@ -328,11 +327,7 @@ impl Polyeq {
                 return None;
             };
             let (term_op, args) = term.as_op()?;
-            if term_op == op {
-                Some(args)
-            } else {
-                None
-            }
+            if term_op == op { Some(args) } else { None }
         }
 
         match (left.len(), right.len()) {

@@ -2,9 +2,9 @@ use crate::{
     ast::*,
     benchmarking::CollectResults,
     checker::{
-        error::{CheckerError, SubproofError},
-        rules::{rare::check_rare, RuleArgs, RuleResult},
         CheckerStatistics, Config,
+        error::{CheckerError, SubproofError},
+        rules::{RuleArgs, RuleResult, rare::check_rare},
     },
     external::ExternalTool,
 };
@@ -137,10 +137,10 @@ pub fn check_step_core<CR: CollectResults + Send + Default>(
     // Execute the rule with the provided arguments
     rule(rule_args)?;
 
-    if context.is_end_step {
-        if let Some(subproof) = context.current_subproof {
-            check_discharge_shared(subproof, context.subproof_depth, &step.discharge)?;
-        }
+    if context.is_end_step
+        && let Some(subproof) = context.current_subproof
+    {
+        check_discharge_shared(subproof, context.subproof_depth, &step.discharge)?;
     }
 
     if let Some(s) = stats {
@@ -179,10 +179,10 @@ fn check_external(args: &[Rc<Term>], checker: &ExternalTool) -> RuleResult {
     let output = checker.call(string.as_bytes())?;
 
     if !output.status.success() {
-        if let Ok(s) = std::str::from_utf8(&output.stderr) {
-            if s.contains("interrupted by timeout.") {
-                return Err(CheckerError::Unspecified);
-            }
+        if let Ok(s) = std::str::from_utf8(&output.stderr)
+            && s.contains("interrupted by timeout.")
+        {
+            return Err(CheckerError::Unspecified);
         }
         return Err(CheckerError::Unspecified);
     }

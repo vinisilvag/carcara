@@ -6,7 +6,7 @@ mod path_args;
 
 use app::*;
 use carcara::{
-    ast::{self, rare_rules::Rules, Proof},
+    ast::{self, Proof, rare_rules::Rules},
     benchmarking::OnlineBenchmarkResults,
     check, check_and_elaborate, check_parallel, generate_lia_smt_instances, parser, slice,
     translation::{self, ProofPrinter, Translator},
@@ -79,15 +79,15 @@ struct Instance {
 }
 
 impl Instance {
-    fn problem(&self) -> parser::Source {
+    fn problem(&self) -> parser::Source<'_> {
         parser::Source::new(&self.problem.0, &self.problem.1)
     }
 
-    fn proof(&self) -> parser::Source {
+    fn proof(&self) -> parser::Source<'_> {
         parser::Source::new(&self.proof.0, &self.proof.1)
     }
 
-    fn rules(&self) -> Option<parser::Source> {
+    fn rules(&self) -> Option<parser::Source<'_>> {
         let (name, contents) = self.rules.as_ref()?;
         Some(parser::Source::new(name, contents))
     }

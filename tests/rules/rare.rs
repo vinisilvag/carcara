@@ -1,4 +1,4 @@
-use carcara::{ast::ProofCommand, checker, parser, Status};
+use carcara::{Status, ast::ProofCommand, checker, parser};
 
 // Custom rare rules for testing
 const RARE_RULES: &str = r#"

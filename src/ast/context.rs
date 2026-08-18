@@ -1,5 +1,5 @@
-use super::{pool::TermPool, AnchorArg, Rc, Substitution, Term};
-use std::sync::{atomic::AtomicUsize, Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use super::{AnchorArg, Rc, Substitution, Term, pool::TermPool};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, atomic::AtomicUsize};
 
 /// A single Alethe subproof context.
 #[derive(Debug)]

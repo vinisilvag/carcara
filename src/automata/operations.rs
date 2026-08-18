@@ -1,11 +1,11 @@
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
 use crate::{
-    automata::{utils::totalize, State, Transition, Trigger},
+    automata::{State, Transition, Trigger, utils::totalize},
     checker::error::CheckerError,
 };
 
-use super::{dsu::DSU, utils::intersect_ranges, Automaton, StateId};
+use super::{Automaton, StateId, dsu::DSU, utils::intersect_ranges};
 
 /// Determines whether the automaton contains at least one accepting state reachable
 /// from the initial state using a breadth-first search (BFS).

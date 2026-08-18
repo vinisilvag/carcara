@@ -1,12 +1,12 @@
 //! A lexer for the SMT-LIB and Alethe formats.
 
 use crate::{
+    CarcaraResult, Error,
     ast::impl_str_conversion_traits,
     parser::{ParserError, Source},
     utils::is_symbol_character,
-    CarcaraResult, Error,
 };
-use rug::{ops::Pow, Integer, Rational};
+use rug::{Integer, Rational, ops::Pow};
 use std::{
     path::Path,
     str::{Chars, FromStr},

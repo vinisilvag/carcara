@@ -130,9 +130,8 @@ pub(crate) use {build_term, impl_str_conversion_traits, match_term_err};
 #[cfg(test)]
 mod tests {
     use crate::ast::{
-        build_term, match_term,
+        BindingList, Operator, Rc, Sort, Term, match_term,
         pool::{PrimitivePool, TermPool},
-        BindingList, Operator, Rc, Sort, Term,
     };
     use crate::parser::tests::{parse_term, parse_terms};
 

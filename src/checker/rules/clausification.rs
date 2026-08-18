@@ -1,11 +1,11 @@
 use super::{
-    assert_clause_len, assert_eq, assert_is_expected, assert_num_args, assert_num_premises,
-    assert_operation_len, assert_polyeq_expected, get_premise_term, CheckerError, EqualityError,
-    RuleArgs, RuleResult,
+    CheckerError, EqualityError, RuleArgs, RuleResult, assert_clause_len, assert_eq,
+    assert_is_expected, assert_num_args, assert_num_premises, assert_operation_len,
+    assert_polyeq_expected, get_premise_term,
 };
 use crate::ast::{
-    build_term, match_term_err, pool::TermPool, Binder, BindingList, Operator, Rc, Sort, SortedVar,
-    Substitution, SubstitutionError, Term,
+    Binder, BindingList, Operator, Rc, Sort, SortedVar, Substitution, SubstitutionError, Term,
+    build_term, match_term_err, pool::TermPool,
 };
 use indexmap::IndexMap;
 

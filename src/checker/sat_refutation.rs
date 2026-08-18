@@ -1,11 +1,11 @@
 use crate::{
     ast::{
+        Binder, BindingList, Operator, ProblemPrelude, ProofCommand, Rc, Sort, Substitution, Term,
         build_term, match_term, match_term_err,
         pool::{PrimitivePool, TermPool},
-        printer, Binder, BindingList, Operator, ProblemPrelude, ProofCommand, Rc, Sort,
-        Substitution, Term,
+        printer,
     },
-    checker::{error::CheckerError, rules::RuleResult, SatRefConfig},
+    checker::{SatRefConfig, error::CheckerError, rules::RuleResult},
     external,
 };
 use rapidhash::{HashMapExt, RapidHashMap};
@@ -84,10 +84,10 @@ fn sat_refutation_external_check(
     let output = checker.call(string.as_bytes())?;
 
     if !output.status.success() {
-        if let Ok(s) = std::str::from_utf8(&output.stderr) {
-            if s.contains("interrupted by timeout.") {
-                return Err(CheckerError::Unspecified);
-            }
+        if let Ok(s) = std::str::from_utf8(&output.stderr)
+            && s.contains("interrupted by timeout.")
+        {
+            return Err(CheckerError::Unspecified);
         }
         return Err(CheckerError::Unspecified);
     }
@@ -289,9 +289,8 @@ pub fn sat_refutation(
                             } else {
                                 // recreate the lemma adding the negation of the conjunction of the
                                 // assertions as one of the literals
-                                let res_lemma = if let Some((Operator::RareList, lemma_lits)) =
-                                    rw_lemma.as_op()
-                                {
+
+                                if let Some((Operator::RareList, lemma_lits)) = rw_lemma.as_op() {
                                     let mut lits = Vec::from(lemma_lits);
                                     let choice_definitions = if choice_assertions.len() > 1 {
                                         pool.add(Term::Op(Operator::And, choice_assertions))
@@ -304,8 +303,7 @@ pub fn sat_refutation(
                                     pool.add(Term::Op(Operator::RareList, lits.clone()))
                                 } else {
                                     unreachable!();
-                                };
-                                res_lemma
+                                }
                             }
                             // substitution.apply(pool, &lemma)
                         } else {

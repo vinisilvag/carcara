@@ -1,7 +1,7 @@
 # Installation
 ## Building from source
 To build Carcara from source, you will first need to install Rust and Cargo. Currently, Carcara
-requires at least Rust version 1.87. Once you have installed an appropriate version of Rust, you can
+requires at least Rust version 1.93. Once you have installed an appropriate version of Rust, you can
 download and install the latest version of Carcara by running the following command:
 ```
 cargo install --git https://github.com/ufmg-smite/carcara.git

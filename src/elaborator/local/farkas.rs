@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        pool::{PrimitivePool, TermPool},
         ContextStack, ProofNode, Rc, StepNode, Term,
+        pool::{PrimitivePool, TermPool},
     },
     checker::la_generic_partial,
     elaborator::error::ElaborationError,
