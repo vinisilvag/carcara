@@ -16,6 +16,7 @@ license = "Apache-2.0"
 carcara-macros = { path = "../carcara-macros" }
 indexmap = "2.0.0"
 log = "0.4.20"
+rapidhash = "4.5.1"
 rug = { version = "1.21.0", default-features = false, features = [
     "integer",
     "rational",

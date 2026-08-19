@@ -1,6 +1,6 @@
 use super::*;
 use crate::{ast::*, checker::error::CheckerError};
-use indexmap::IndexMap;
+use rapidhash::RapidHashMap;
 
 pub fn forall_inst(
     pool: &mut PrimitivePool,
@@ -16,7 +16,7 @@ pub fn forall_inst(
     assert_eq!(step.args.len(), bindings.len());
 
     // iterate over the bindings and arguments simultaneously, building the substitution
-    let substitution: IndexMap<_, _> = bindings
+    let substitution: RapidHashMap<_, _> = bindings
         .iter()
         .zip(&step.args)
         .map(|((var_name, sort), value)| {

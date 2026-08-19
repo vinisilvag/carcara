@@ -1,5 +1,6 @@
 use super::Rc;
-use indexmap::{map::Entry, IndexMap};
+use rapidhash::RapidHashMap;
+use std::collections::hash_map::Entry;
 
 /// The sort of a term.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -185,9 +186,9 @@ impl Sort {
     pub fn is_compatible_with_map(
         &self,
         target: &Rc<Sort>,
-        map: &mut IndexMap<String, Rc<Sort>>,
+        map: &mut RapidHashMap<String, Rc<Sort>>,
     ) -> bool {
-        fn all_compatible<'i, I>(xs: I, ys: I, map: &mut IndexMap<String, Rc<Sort>>) -> bool
+        fn all_compatible<'i, I>(xs: I, ys: I, map: &mut RapidHashMap<String, Rc<Sort>>) -> bool
         where
             I: IntoIterator<Item = &'i Rc<Sort>>,
         {

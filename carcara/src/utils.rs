@@ -1,5 +1,6 @@
 use crate::ast::{Binder, BindingList, Rc, Sort, Term};
 use indexmap::{IndexMap, IndexSet};
+use rapidhash::{HashMapExt, RapidHashMap};
 use rug::Integer;
 use std::{
     borrow::Borrow,
@@ -118,13 +119,13 @@ impl<T> AsRef<T> for HashCache<T> {
 /// returning the first value found.
 #[derive(Debug, Clone)]
 pub struct HashMapStack<K, V> {
-    scopes: Vec<IndexMap<K, V>>,
+    scopes: Vec<RapidHashMap<K, V>>,
 }
 
 impl<K, V> HashMapStack<K, V> {
     /// Creates an empty `HashMapStack`, containing a single empty scope.
     pub fn new() -> Self {
-        Self { scopes: vec![IndexMap::new()] }
+        Self { scopes: vec![RapidHashMap::new()] }
     }
 
     /// Returns the number of scopes in the stack.
@@ -134,7 +135,7 @@ impl<K, V> HashMapStack<K, V> {
 
     /// Returns `true` if every scope in the stack is empty.
     pub fn is_empty(&self) -> bool {
-        self.scopes.iter().all(IndexMap::is_empty)
+        self.scopes.iter().all(RapidHashMap::is_empty)
     }
 
     /// Clears the `HashMapStack`, removing all entries and popping all scopes except the base
@@ -145,7 +146,7 @@ impl<K, V> HashMapStack<K, V> {
 
     /// Pushes a new, empty scope onto the stack.
     pub fn push_scope(&mut self) {
-        self.scopes.push(IndexMap::new());
+        self.scopes.push(RapidHashMap::new());
     }
 
     /// Pops the topmost scope from the stack.

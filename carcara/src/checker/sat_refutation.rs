@@ -8,7 +8,7 @@ use crate::{
     checker::{error::CheckerError, rules::RuleResult, SatRefConfig},
     external,
 };
-use indexmap::IndexMap;
+use rapidhash::{HashMapExt, RapidHashMap};
 use std::{
     collections::{HashMap, HashSet},
     fs::File,
@@ -156,7 +156,7 @@ pub fn sat_refutation(
     // constant representing it.
     let mut choice_id = 0;
     let mut choice_term_const_name = Vec::new();
-    let substitution: IndexMap<_, _> = choice_terms
+    let substitution: RapidHashMap<_, _> = choice_terms
         .iter()
         .map(|epsilon| {
             log::debug!(
@@ -200,7 +200,7 @@ pub fn sat_refutation(
                 // be checking anything (the lemma would just correspond to `false`).
                 let (bindings, body) = match_term!((choice ... body) = choice_term).unwrap();
                 let mut counter = 0;
-                let mut internal_substitution = IndexMap::new();
+                let mut internal_substitution = RapidHashMap::new();
                 let mut forall_bindings = Vec::new();
                 let (choice_var_name, _) = &bindings[0];
                 let mut choice_dependencies = Vec::new();

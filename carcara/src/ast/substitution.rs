@@ -2,7 +2,7 @@
 
 use super::{pool::TermPool, BindingList, MatchCase, MatchPattern, Rc, Sort, Term};
 use crate::utils::{HashMapStack, MultiSet};
-use indexmap::{IndexMap, IndexSet};
+use rapidhash::{HashMapExt, HashSetExt, RapidHashMap, RapidHashSet};
 use thiserror::Error;
 
 /// The error type for errors when constructing or applying substitutions.
@@ -34,7 +34,7 @@ type SubstitutionResult<T> = Result<T, SubstitutionError>;
 #[derive(Debug, Clone)]
 pub struct Substitution {
     /// The substitution's mappings.
-    map: IndexMap<Rc<Term>, Rc<Term>>,
+    map: RapidHashMap<Rc<Term>, Rc<Term>>,
 
     /// Whether the substitution should be applied in a capture-avoiding way or not. By default this
     /// will be true but can be set to false.
@@ -42,7 +42,7 @@ pub struct Substitution {
 
     /// The variables that should be renamed to preserve capture-avoidance, if they are bound by a
     /// binder term.
-    should_be_renamed: Option<IndexSet<String>>,
+    should_be_renamed: Option<RapidHashSet<String>>,
 
     /// Variables that are part of the substitution, but have been shadowed by a binder.
     ///
@@ -61,7 +61,7 @@ impl Substitution {
     /// Constructs an empty substitution.
     pub fn empty() -> Self {
         Self {
-            map: IndexMap::new(),
+            map: RapidHashMap::new(),
             avoid_capture: true,
             should_be_renamed: None,
             renaming_shadow: MultiSet::new(),
@@ -81,7 +81,7 @@ impl Substitution {
     /// returns an error if any term is mapped to a term of a different sort.
     pub fn new(
         pool: &mut dyn TermPool,
-        map: IndexMap<Rc<Term>, Rc<Term>>,
+        map: RapidHashMap<Rc<Term>, Rc<Term>>,
     ) -> SubstitutionResult<Self> {
         for (k, v) in &map {
             if !pool.sort(k).is_compatible(&pool.sort(v)) {
@@ -159,7 +159,7 @@ impl Substitution {
     /// This will clear the internal cache and `self.should_be_renamed`, such that it might need to
     /// be recomputed later. Therefore, you should avoid using this method if possible.
     pub(super) fn remove(&mut self, x: &Rc<Term>) {
-        let was_present = self.map.swap_remove(x).is_some();
+        let was_present = self.map.remove(x).is_some();
         if was_present {
             self.should_be_renamed = None;
             self.cache.clear();
@@ -191,7 +191,7 @@ impl Substitution {
         //
         // See https://en.wikipedia.org/wiki/Lambda_calculus#Capture-avoiding_substitutions for
         // more details.
-        let mut should_be_renamed = IndexSet::new();
+        let mut should_be_renamed = RapidHashSet::new();
         for (x, t) in &self.map {
             // If this variable is shadowed, we treat it like it's not in `map`
             if self.is_shadowed(x) {
@@ -411,7 +411,7 @@ impl Substitution {
             return (BindingList(binding_list.to_vec()), Self::empty());
         }
         let mut new_substitution = Self::empty();
-        let mut new_vars = IndexSet::new();
+        let mut new_vars = RapidHashSet::new();
         let new_binding_list = binding_list
             .iter()
             .map(|(var, value)| {
@@ -483,14 +483,14 @@ impl BindingValue for Rc<Sort> {
 #[derive(Debug, Clone)]
 pub struct SortSubstitution {
     /// The substitution's mappings.
-    map: IndexMap<String, Rc<Sort>>,
-    cache: IndexMap<Rc<Sort>, Rc<Sort>>,
+    map: RapidHashMap<String, Rc<Sort>>,
+    cache: RapidHashMap<Rc<Sort>, Rc<Sort>>,
 }
 
 impl SortSubstitution {
     /// Constructs a new substitution from an arbitrary mapping of sort variables to other sorts.
-    pub fn new(map: IndexMap<String, Rc<Sort>>) -> Self {
-        Self { map, cache: IndexMap::new() }
+    pub fn new(map: RapidHashMap<String, Rc<Sort>>) -> Self {
+        Self { map, cache: RapidHashMap::new() }
     }
 
     /// Applies the substitution to `sort`, and returns the result as a new sort.
@@ -509,9 +509,7 @@ impl SortSubstitution {
         }
 
         let result = match sort.as_ref() {
-            Sort::Var(var) if self.map.contains_key(var) => {
-                return self.map.get(var).unwrap().clone()
-            }
+            Sort::Var(var) if self.map.contains_key(var) => return self.map[var].clone(),
             Sort::Atom(sort, args) => {
                 let new_args = apply_to_sequence!(args).into_boxed_slice();
                 pool.add_sort(Sort::Atom(sort.clone(), new_args))
@@ -572,7 +570,7 @@ mod tests {
         ast::pool::PrimitivePool,
         parser::{Config, Parser},
     };
-    use indexmap::IndexMap;
+    use rapidhash::{HashMapExt, RapidHashMap};
 
     fn run_test(definitions: &str, original: &str, x: &str, t: &str, result: &str) {
         let mut pool = PrimitivePool::new();
@@ -584,7 +582,7 @@ mod tests {
             parser.parse_term().unwrap()
         });
 
-        let mut map = IndexMap::new();
+        let mut map = RapidHashMap::new();
         map.insert(x, t);
 
         let got = Substitution::new(&mut pool, map)

@@ -11,6 +11,7 @@ use crate::{
     utils::DedupIterator,
 };
 use indexmap::{IndexMap, IndexSet};
+use rapidhash::RapidHashMap;
 
 pub fn forall_inst(
     RuleArgs {
@@ -25,7 +26,7 @@ pub fn forall_inst(
     assert_num_args(args, bindings.len())?;
 
     // iterate over the bindings and arguments simultaneously, building the substitution
-    let substitution: IndexMap<_, _> = bindings
+    let substitution: RapidHashMap<_, _> = bindings
         .iter()
         .zip(args)
         .map(|((var_name, sort), value)| {

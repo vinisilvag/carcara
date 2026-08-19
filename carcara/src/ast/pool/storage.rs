@@ -5,7 +5,7 @@
 //* clone it; otherwise, we allocate a new `Rc`.
 
 use crate::ast::*;
-use indexmap::IndexSet;
+use rapidhash::RapidHashSet;
 use std::{borrow::Borrow, hash::Hash};
 
 /// A wrapper to make `ast::Rc` operations by-value instead of by-reference.
@@ -41,7 +41,7 @@ impl<T> Borrow<T> for ByValue<T> {
 /// This struct stores objects ensuring that identical object are only allocated once, and hands out
 /// [`ast::Rc`] handles to those allocations.
 #[derive(Debug, Clone)]
-pub struct Storage<T>(IndexSet<ByValue<T>>);
+pub struct Storage<T>(RapidHashSet<ByValue<T>>);
 
 impl<T> Default for Storage<T> {
     fn default() -> Self {

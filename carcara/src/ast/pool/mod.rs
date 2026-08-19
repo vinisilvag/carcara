@@ -7,6 +7,7 @@ use super::{
     Binder, Constant, Operator, ParamOperator, Rc, Sort, SortSubstitution, SortedVar, Term,
 };
 use indexmap::{IndexMap, IndexSet};
+use rapidhash::{HashMapExt, RapidHashMap};
 use std::borrow::Cow;
 use storage::Storage;
 
@@ -387,7 +388,7 @@ impl PrimitivePool {
                 // If parametric, match with sorts of args, apply the resulting substitution on
                 // the sort
                 if is_parametric {
-                    let mut map = IndexMap::new();
+                    let mut map = RapidHashMap::new();
                     for i in 0..args.len() {
                         if !sorts[i].is_compatible_with_map(self.compute_sort(&args[i]), &mut map) {
                             unreachable!();

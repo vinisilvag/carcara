@@ -22,6 +22,7 @@ use crate::{
 use carcara_macros::GenerateSetters;
 use error::{assert_indexed_op_args_value, assert_num_args, check_relation_sort, check_set_sort};
 use indexmap::{IndexMap, IndexSet};
+use rapidhash::{HashMapExt, RapidHashMap};
 use rug::{Integer, Rational};
 use std::{iter::Iterator, path::Path, str::FromStr};
 
@@ -227,10 +228,10 @@ struct SortDef {
 #[derive(Default)]
 struct ParserState {
     symbol_table: HashMapStack<HashCache<String>, Rc<Sort>>,
-    function_defs: IndexMap<String, FunctionDef>,
-    sort_declarations: IndexMap<String, usize>,
+    function_defs: RapidHashMap<String, FunctionDef>,
+    sort_declarations: RapidHashMap<String, usize>,
     datatype_declarations: HashMapStack<String, usize>,
-    sort_defs: IndexMap<String, SortDef>,
+    sort_defs: RapidHashMap<String, SortDef>,
     step_ids: HashMapStack<HashCache<String>, usize>,
 }
 
@@ -859,7 +860,7 @@ impl<'p, 's> Parser<'p, 's> {
         };
         // We allow partial application
         assert_num_args(&args, 1..sorts.len())?;
-        let mut map = IndexMap::new();
+        let mut map = RapidHashMap::new();
         for i in 0..args.len() {
             let arg_sort_i = self.pool.sort(&args[i]);
             if param_function {
@@ -2062,11 +2063,11 @@ impl<'p, 's> Parser<'p, 's> {
 
                 Ok(result)
             }
-            Token::Symbol(s) if self.state.function_defs.get(s).is_some() => {
+            Token::Symbol(s) if self.state.function_defs.contains_key(s) => {
                 let head_pos = self.current_position;
                 let func_name = self.expect_symbol()?;
                 let args = self.parse_sequence(Self::parse_term, true)?;
-                let func = self.state.function_defs.get(&func_name).unwrap();
+                let func = &self.state.function_defs[&func_name];
 
                 func.apply(self.pool, args)
                     .map_err(|err| self.err(err, head_pos))
@@ -2101,7 +2102,7 @@ impl<'p, 's> Parser<'p, 's> {
                                     self.expect_token(Token::CloseParen)?;
                                     // unify return sort with as_sort
                                     let ret_sort = sorts.last().unwrap();
-                                    let mut map = IndexMap::<_, _>::new();
+                                    let mut map = RapidHashMap::new();
                                     if !ret_sort.is_compatible_with_map(&sort, &mut map) {
                                         return Err(self.err(
                                             ParserError::IncompatibleSorts(
@@ -2197,8 +2198,8 @@ impl<'p, 's> Parser<'p, 's> {
             }
 
             // Sort definition, from `define-sort`
-            other if self.state.sort_defs.get(other).is_some() => {
-                let def = self.state.sort_defs.get(other).unwrap();
+            other if self.state.sort_defs.contains_key(other) => {
+                let def = &self.state.sort_defs[other];
                 return if def.params.len() != args.len() {
                     Err(ParserError::WrongNumberOfArgs(
                         def.params.len().into(),
@@ -2224,8 +2225,8 @@ impl<'p, 's> Parser<'p, 's> {
             }
 
             // Sort declaration, from `declare-sort`
-            other if self.state.sort_declarations.get(other).is_some() => {
-                let arity = self.state.sort_declarations.get(other).unwrap();
+            other if self.state.sort_declarations.contains_key(other) => {
+                let arity = &self.state.sort_declarations[other];
                 if *arity == args.len() {
                     Sort::Atom(name.into_boxed_str(), args.into_boxed_slice())
                 } else {

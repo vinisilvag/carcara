@@ -1,4 +1,4 @@
-use indexmap::IndexMap;
+use rapidhash::{HashMapExt, RapidHashMap};
 
 use crate::{
     ast::{Constant, Substitution, Term},
@@ -37,7 +37,7 @@ pub fn check_rare(
         }
 
         let mut arguments = args.iter().rev();
-        let mut map = IndexMap::new();
+        let mut map = RapidHashMap::new();
 
         for arg in rare_term.arguments.iter().rev() {
             let arg_sort = rare_term.parameters.get(arg).unwrap();
