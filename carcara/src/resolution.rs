@@ -135,21 +135,25 @@ pub fn greedy_resolution(
     // Without looking at the conclusion, it is unclear if the (not p) term should be removed by the
     // p term, or if the (not (not p)) should be removed by the (not (not (not p))). We can only
     // determine this by looking at the conclusion and using it to derive the pivots.
-    let conclusion: IndexSet<_> = conclusion
+    //
+    // Note: for the hashmaps and hashsets used in this function we use `IndexSet`, to make sure
+    // the iteration order is deterministic, as some error messages depend on that; and we use
+    // `rapidhash::fast::RandomState`, to get a faster hash function.
+    let conclusion: IndexSet<_, rapidhash::fast::RandomState> = conclusion
         .iter()
         .map(Rc::remove_all_negations)
         .map(|(n, t)| (n as i32, t))
         .collect();
 
     // The working clause contains the terms from the conclusion clause that we already encountered
-    let mut working_clause = IndexSet::new();
+    let mut working_clause: IndexSet<_, rapidhash::fast::RandomState> = IndexSet::default();
 
     // The pivots are the encountered terms that are not present in the conclusion clause, and so
     // should be removed. After being used to eliminate a term, a pivot can still be used to
     // eliminate other terms. Because of that, we represent the pivots as a hash map to a boolean,
     // which represents if the pivot was already eliminated or not. At the end, this boolean should
     // be true for all pivots
-    let mut pivots = IndexMap::new();
+    let mut pivots: IndexMap<_, _, rapidhash::fast::RandomState> = IndexMap::default();
 
     for &premise in premises {
         // Only one pivot may be eliminated per clause. This restriction is required so logically

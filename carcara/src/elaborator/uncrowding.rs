@@ -6,9 +6,9 @@ use crate::{
     },
     checker::error::CheckerError,
     resolution::{literal_to_term, Literal, ResolutionError},
-    utils::{DedupIterator, MultiSet},
+    utils::MultiSet,
 };
-use std::collections::{HashMap, HashSet};
+use rapidhash::{HashMapExt, HashSetExt, RapidHashMap, RapidHashSet};
 
 fn literals_to_clause(pool: &mut PrimitivePool, clause: &[Literal]) -> Vec<Rc<Term>> {
     clause.iter().map(|l| literal_to_term(pool, *l)).collect()
@@ -114,7 +114,8 @@ pub fn uncrowd_resolution(
         }
     }
 
-    let target_conclusion: HashSet<_> = step.clause.iter().map(Rc::remove_all_negations).collect();
+    let target_conclusion: RapidHashSet<_> =
+        step.clause.iter().map(Rc::remove_all_negations).collect();
 
     let mut premises = ResolutionPremise::from_step(step);
 
@@ -192,10 +193,7 @@ fn add_partial_resolution_step<'a>(
     premises: &[ResolutionPremise<'a>],
     final_target: &[Rc<Term>],
 ) -> Result<(Rc<ProofNode>, Vec<Literal<'a>>), ElaborationError> {
-    let conclusion = apply_naive_resolution(pool, premises)?;
-    let contracted_conclusion: Vec<_> = conclusion.iter().dedup().copied().collect();
-
-    let needs_contraction = contracted_conclusion.len() != conclusion.len();
+    let mut conclusion = apply_naive_resolution(pool, premises)?;
 
     let args: Vec<_> = premises[1..]
         .iter()
@@ -220,8 +218,16 @@ fn add_partial_resolution_step<'a>(
         return Ok((resolution_step, conclusion));
     }
 
+    let original_len = conclusion.len();
+    let new_conclusion = {
+        let mut seen = RapidHashSet::new();
+        conclusion.retain(|elem| seen.insert(*elem));
+        conclusion
+    };
+    let needs_contraction = new_conclusion.len() != original_len;
+
     if needs_contraction {
-        let contracted_clause = resolution_step.clause().iter().dedup().cloned().collect();
+        let contracted_clause = literals_to_clause(pool, &new_conclusion);
         let contraction_step = Rc::new(ProofNode::Step(StepNode {
             id: ids.next_id(),
             depth,
@@ -232,9 +238,9 @@ fn add_partial_resolution_step<'a>(
             discharge: Vec::new(),
             previous_step: None,
         }));
-        Ok((contraction_step, contracted_conclusion))
+        Ok((contraction_step, new_conclusion))
     } else {
-        Ok((resolution_step, conclusion))
+        Ok((resolution_step, new_conclusion))
     }
 }
 
@@ -270,25 +276,21 @@ struct LiteralInfo {
 
 fn find_crowding_literals<'a>(
     naive_conclusion: &[Literal<'a>],
-    target_conclusion: &HashSet<Literal<'a>>,
+    target_conclusion: &RapidHashSet<Literal<'a>>,
     premises: &[ResolutionPremise<'a>],
-) -> HashMap<Literal<'a>, LiteralInfo> {
-    let mut literals: HashMap<_, _> = premises
-        .iter()
-        .flat_map(|p| &p.clause)
-        .map(|l| (*l, LiteralInfo::default()))
-        .collect();
+) -> RapidHashMap<Literal<'a>, LiteralInfo> {
+    // Giving a hint of the capacity needed is good for performance
+    let mut literals: RapidHashMap<Literal<'a>, LiteralInfo> =
+        RapidHashMap::with_capacity(premises.iter().map(|p| p.clause.len()).sum());
 
     naive_conclusion
         .iter()
         .filter(|lit| !target_conclusion.contains(lit))
-        .for_each(|lit| literals.get_mut(lit).unwrap().is_crowding = true);
+        .for_each(|lit| literals.entry(*lit).or_default().is_crowding = true);
 
     for (i, p) in premises.iter().enumerate() {
         for lit in &p.clause {
-            if let Some(info) = literals.get_mut(lit) {
-                info.last_inclusion = i;
-            }
+            literals.entry(*lit).or_default().last_inclusion = i;
         }
     }
     for (i, p) in premises[1..].iter().enumerate() {
@@ -298,17 +300,16 @@ fn find_crowding_literals<'a>(
         } else {
             (pivot.0 + 1, pivot.1)
         };
-        if let Some(info) = literals.get_mut(&pivot_in_current) {
-            if i + 1 > info.last_inclusion {
-                info.eliminator = i + 1;
-                info.polarity = polarity;
-            }
+        let info = literals.entry(pivot_in_current).or_default();
+        if i + 1 > info.last_inclusion {
+            info.eliminator = i + 1;
+            info.polarity = polarity;
         }
     }
     literals
 }
 
-fn find_needed_contractions(literals_info: HashMap<Literal, LiteralInfo>) -> Vec<usize> {
+fn find_needed_contractions(literals_info: RapidHashMap<Literal, LiteralInfo>) -> Vec<usize> {
     #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
     enum Event {
         Elimination,
@@ -335,7 +336,7 @@ fn find_needed_contractions(literals_info: HashMap<Literal, LiteralInfo>) -> Vec
     });
 
     let mut contractions = Vec::new();
-    let mut need_to_contract = HashSet::new();
+    let mut need_to_contract = RapidHashSet::new();
     for (lit, event, index) in events {
         match event {
             Event::LastInclusion => {
@@ -353,7 +354,7 @@ fn find_needed_contractions(literals_info: HashMap<Literal, LiteralInfo>) -> Vec
 }
 
 fn reorder_premises<'a>(
-    literals_info: &HashMap<Literal, LiteralInfo>,
+    literals_info: &RapidHashMap<Literal, LiteralInfo>,
     mut premises: Vec<ResolutionPremise<'a>>,
 ) -> Vec<ResolutionPremise<'a>> {
     let mut new_order: Vec<usize> = (0..premises.len()).collect();

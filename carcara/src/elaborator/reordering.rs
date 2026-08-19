@@ -1,5 +1,7 @@
+use rapidhash::{HashSetExt, RapidHashSet};
+
 use super::*;
-use crate::{checker::error::CheckerError, resolution::ResolutionError, utils::DedupIterator};
+use crate::{checker::error::CheckerError, resolution::ResolutionError};
 
 pub fn remove_reorderings(proof: ProofNodeForest) -> Result<ProofNodeForest, crate::Error> {
     proof.mutate(|_, node, premises_changed| {
@@ -48,7 +50,10 @@ fn recompute_weakening(step: &StepNode) -> Vec<Rc<Term>> {
 }
 
 fn recompute_contraction(step: &StepNode) -> Vec<Rc<Term>> {
-    let new: Vec<_> = step.premises[0].clause().iter().dedup().cloned().collect();
+    // Doing this is slightly faster than using `.iter().dedup().collect()`
+    let mut seen = RapidHashSet::new();
+    let mut new = step.premises[0].clause().to_vec();
+    new.retain(|elem| seen.insert(elem.clone()));
     new
 }
 
