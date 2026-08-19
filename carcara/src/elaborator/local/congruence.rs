@@ -426,7 +426,7 @@ fn generic_eq_congruent(
         let mut missing: MultiSet<_> = original_clause.iter().collect();
         for term in resolution.clause() {
             assert!(missing.get(&term) != 0);
-            missing.remove(term);
+            missing.remove(&term);
         }
         let mut clause = resolution.clause().to_vec();
         clause.extend(missing.into_iter().cloned());

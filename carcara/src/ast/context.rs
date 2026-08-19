@@ -189,7 +189,7 @@ impl ContextStack {
                     }
                     AnchorArg::Assign(var, value) => {
                         let var_term = pool.add(var.clone().into());
-                        let new_value = substitution.apply(pool, value);
+                        let new_value = substitution.apply_uncached(pool, value);
                         // It is safe to unwrap here because we ensure by construction that
                         // `var_term` is a variable term, with he same sort as `value`
                         substitution

@@ -249,7 +249,7 @@ fn get_weakening_clause(
         if missing.get(&term) == 0 {
             return Err(ResolutionError::MissingTermInConclusion(term.clone()));
         }
-        missing.remove(term);
+        missing.remove(&term);
     }
 
     let mut result = current.to_vec();

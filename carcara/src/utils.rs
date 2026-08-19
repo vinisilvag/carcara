@@ -116,7 +116,7 @@ impl<T> AsRef<T> for HashCache<T> {
 ///
 /// Values are inserted into the topmost scope, and lookups search scopes from the top down,
 /// returning the first value found.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HashMapStack<K, V> {
     scopes: Vec<IndexMap<K, V>>,
 }
@@ -135,6 +135,12 @@ impl<K, V> HashMapStack<K, V> {
     /// Returns `true` if every scope in the stack is empty.
     pub fn is_empty(&self) -> bool {
         self.scopes.iter().all(IndexMap::is_empty)
+    }
+
+    /// Clears the `HashMapStack`, removing all entries and popping all scopes except the base
+    /// scope.
+    pub fn clear(&mut self) {
+        *self = Self::new();
     }
 
     /// Pushes a new, empty scope onto the stack.
@@ -191,15 +197,37 @@ impl<K: Eq + Hash, V> HashMapStack<K, V> {
             .find_map(|(depth, scope)| scope.get(key).map(|v| (depth, v)))
     }
 
+    /// Like [`get`](HashMapStack::get), but only searches the topmost scope.
+    pub fn get_top<Q>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.scopes.last().unwrap().get(key)
+    }
+
     /// Inserts a key-value pair into the topmost scope.
     pub fn insert(&mut self, key: K, value: V) {
         self.scopes.last_mut().unwrap().insert(key, value);
+    }
+
+    /// Retains from the top scope only elements specified by the predicate.
+    ///
+    /// This does not change any scope besides the topmost one.
+    pub fn retain_top<F: FnMut(&K, &mut V) -> bool>(&mut self, f: F) {
+        self.scopes.last_mut().unwrap().retain(f);
     }
 }
 
 impl<K, V> Default for HashMapStack<K, V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<K: Eq + Hash, V> std::iter::Extend<(K, V)> for HashMapStack<K, V> {
+    fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
+        self.scopes.last_mut().unwrap().extend(iter);
     }
 }
 
@@ -218,6 +246,16 @@ impl<T> MultiSet<T> {
     pub fn new() -> Self {
         MultiSet(IndexMap::new())
     }
+
+    /// Returns the number of distinct elements in the multiset.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns `true` if the multiset is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// The result of comparing two multisets with [`MultiSet::symmetric_difference`].
@@ -234,7 +272,11 @@ pub enum MultiSetDifference<'a, T> {
 
 impl<T: Hash + Eq> MultiSet<T> {
     /// Returns the number of times `value` occurs in the multiset, or `0` if it is not present.
-    pub fn get(&self, value: &T) -> usize {
+    pub fn get<Q>(&self, value: &Q) -> usize
+    where
+        T: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         self.0.get(value).copied().unwrap_or_default()
     }
 
@@ -242,6 +284,15 @@ impl<T: Hash + Eq> MultiSet<T> {
     /// an entry with count `0` if `value` is not present.
     pub fn get_mut(&mut self, value: T) -> &mut usize {
         self.0.entry(value).or_default()
+    }
+
+    /// Returns the number of times `value` occurs in the multiset, or `0` if it is not present.
+    pub fn contains<Q>(&self, value: &Q) -> bool
+    where
+        T: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.get(value) > 0
     }
 
     /// Inserts `value` into the multiset once, returning the new count for `value`.
@@ -260,17 +311,17 @@ impl<T: Hash + Eq> MultiSet<T> {
     }
 
     /// Removes `value` from the multiset once, returning the remaining count for `value`.
-    pub fn remove(&mut self, value: T) -> usize {
+    pub fn remove(&mut self, value: &T) -> usize {
         self.remove_n(value, 1)
     }
 
     /// Removes up to `n` copies of `value` from the multiset, returning the remaining count.
-    pub fn remove_n(&mut self, value: T, n: usize) -> usize {
-        if self.get(&value) <= n {
-            self.0.swap_remove(&value);
+    pub fn remove_n(&mut self, value: &T, n: usize) -> usize {
+        if self.get(value) <= n {
+            self.0.swap_remove(value);
             0
         } else {
-            let v = self.get_mut(value);
+            let v = &mut self.0[value];
             *v -= n;
             *v
         }
@@ -330,6 +381,14 @@ impl<T: Clone> MultiSet<T> {
         self.0
             .into_iter()
             .flat_map(|(item, count)| std::iter::repeat_n(item, count))
+    }
+}
+
+impl<T: Eq + Hash> std::iter::Extend<T> for MultiSet<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for elem in iter {
+            self.insert(elem);
+        }
     }
 }
 
