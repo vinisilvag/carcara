@@ -153,7 +153,22 @@ impl ContextStack {
 
     /// Computes the cumulative substitution of all contexts up to the given index `up_to`.
     fn catch_up_cumulative(&mut self, pool: &mut dyn TermPool, up_to: usize) {
-        for i in self.num_cumulative_calculated..std::cmp::max(up_to + 1, self.len()) {
+        /// Maximum depth beyond which the substitution construction will not use a cache.
+        ///
+        /// This may be surprising, but in some pathological benchmarks with very deep subproof
+        /// nesting, the upkeep of using a cache causes a significant overhead, outweighing the
+        /// benefit that the cache brings. Still, disabling the cache unconditionally would harm
+        /// performance in most other benchmarks. So, we use this heursitic to try and detect these
+        /// cases---if the total subproof depth of this context is beyond this value, we disable
+        /// the cache.
+        ///
+        /// The exact value was found by extensive benchmarking.
+        const UNCACHE_DEPTH_HEURISTIC: usize = 20;
+
+        let max_depth = std::cmp::max(up_to + 1, self.len());
+        let uncached = max_depth > UNCACHE_DEPTH_HEURISTIC;
+
+        for i in self.num_cumulative_calculated..max_depth {
             // Requires read guard. Since the i-th context will be mutated far
             // below this line, we first take the read guard here and then, when
             // necessary, we require the write guard. This tries to avoid bigger
@@ -189,7 +204,12 @@ impl ContextStack {
                     }
                     AnchorArg::Assign(var, value) => {
                         let var_term = pool.add(var.clone().into());
-                        let new_value = substitution.apply_uncached(pool, value);
+
+                        let new_value = if uncached {
+                            substitution.apply_uncached(pool, value)
+                        } else {
+                            substitution.apply(pool, value)
+                        };
                         // It is safe to unwrap here because we ensure by construction that
                         // `var_term` is a variable term, with he same sort as `value`
                         substitution
