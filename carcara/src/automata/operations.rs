@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
 use crate::{
     automata::{utils::totalize, State, Transition, Trigger},
@@ -62,7 +62,7 @@ pub fn intersection(a1: Automaton, a2: Automaton) -> Result<Automaton, CheckerEr
     new_states.push(State {
         id: format!("{:?}", initial_pair),
         accept: a1.get_state(a1.initial_state).accept && a2.get_state(a2.initial_state).accept,
-        transitions: HashSet::new(),
+        transitions: BTreeSet::new(),
     });
 
     while let Some((s1, s2)) = queue.pop_front() {
@@ -77,7 +77,7 @@ pub fn intersection(a1: Automaton, a2: Automaton) -> Result<Automaton, CheckerEr
                         new_states.push(State {
                             id: format!("{:?}", dest),
                             accept: a1.all_states[t1.to].accept && a2.all_states[t2.to].accept,
-                            transitions: HashSet::new(),
+                            transitions: BTreeSet::new(),
                         });
                         queue.push_back(dest);
                         id

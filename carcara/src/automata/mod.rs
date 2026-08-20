@@ -5,7 +5,7 @@ pub mod utils;
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use crate::ast::{Constant, Operator, Rc, Term, TermPool};
 use crate::automata::utils::{has_overlapping_ranges, missing_ranges};
@@ -55,7 +55,7 @@ impl fmt::Display for Trigger {
 ///
 /// A state is identified by a symbolic identifier, may be marked as accepting,
 /// and defines a set of outgoing transitions labeled by triggers.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct State {
     /// State symbolic name.
     id: String,
@@ -64,7 +64,7 @@ pub struct State {
     accept: bool,
 
     /// Set of outgoing transitions.
-    transitions: HashSet<Transition>,
+    transitions: BTreeSet<Transition>,
 }
 
 impl State {
@@ -72,17 +72,7 @@ impl State {
         State {
             id: id.to_owned(),
             accept,
-            transitions: HashSet::new(),
-        }
-    }
-}
-
-impl Hash for State {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let mut transitions_vec: Vec<_> = self.transitions.iter().collect();
-        transitions_vec.sort_by(|a, b| a.to.cmp(&b.to).then_with(|| a.trigger.cmp(&b.trigger)));
-        for transition in transitions_vec {
-            transition.hash(state);
+            transitions: BTreeSet::new(),
         }
     }
 }
@@ -91,7 +81,7 @@ impl Hash for State {
 ///
 /// A transition leads from the enclosing source state to a destination state
 /// and is labeled by a trigger describing which input symbols enable it.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Transition {
     /// Identifier of the destination state.
     to: StateId,
@@ -224,7 +214,7 @@ impl Automaton {
     }
 
     /// Returns a set of outgoing transitions from the specified state.
-    pub fn get_state_transitions(&self, state_id: StateId) -> HashSet<Transition> {
+    pub fn get_state_transitions(&self, state_id: StateId) -> BTreeSet<Transition> {
         let state = &self.all_states[state_id];
         state.transitions.clone()
     }
@@ -328,7 +318,7 @@ impl Automaton {
         new_states.push(State {
             id: "D0".to_owned(),
             accept: init_accept,
-            transitions: HashSet::new(),
+            transitions: BTreeSet::new(),
         });
 
         state_map.insert(init_closure.clone(), 0);
@@ -361,7 +351,7 @@ impl Automaton {
                     new_states.push(State {
                         id: format!("D{}", new_id),
                         accept,
-                        transitions: HashSet::new(),
+                        transitions: BTreeSet::new(),
                     });
 
                     state_map.insert(closure.clone(), new_id);
@@ -382,7 +372,7 @@ impl Automaton {
         new_states.push(State {
             id: format!("D{}", sink_id),
             accept: false,
-            transitions: HashSet::new(),
+            transitions: BTreeSet::new(),
         });
 
         for state in new_states.iter_mut().take(sink_id) {
@@ -426,7 +416,7 @@ impl Automaton {
             .enumerate()
             .map(|(i, state)| {
                 let mut accept = false;
-                let mut transitions = HashSet::new();
+                let mut transitions = BTreeSet::new();
                 for &c in &closures[i] {
                     accept |= self.all_states[c].accept;
                     for t in &self.all_states[c].transitions {
@@ -500,7 +490,7 @@ impl Automaton {
                 states.push(State {
                     id: "new_init".to_owned(),
                     accept: true,
-                    transitions: HashSet::from([Transition {
+                    transitions: BTreeSet::from([Transition {
                         to: a.initial_state,
                         trigger: Trigger::Epsilon,
                     }]),
@@ -560,7 +550,7 @@ impl Automaton {
                             all_states: vec![State {
                                 id: "init".to_owned(),
                                 accept: false,
-                                transitions: HashSet::new(),
+                                transitions: BTreeSet::new(),
                             }],
                             initial_state: 0,
                         });
@@ -602,7 +592,7 @@ impl Automaton {
                         all_states: vec![State {
                             id: "init".to_owned(),
                             accept: true,
-                            transitions: HashSet::new(),
+                            transitions: BTreeSet::new(),
                         }],
                         initial_state: 0,
                     });
@@ -615,14 +605,14 @@ impl Automaton {
                 states.push(State {
                     id: "init".to_owned(),
                     accept: false,
-                    transitions: HashSet::from([Transition {
+                    transitions: BTreeSet::from([Transition {
                         to: 1,
                         trigger: Trigger::Range((*first_char as u32, *first_char as u32)),
                     }]),
                 });
 
                 for (index, c) in characters.iter().enumerate() {
-                    let mut transitions = HashSet::new();
+                    let mut transitions = BTreeSet::new();
                     if index != characters.len() - 1 {
                         let next_char = characters[index + 1];
                         transitions.insert(Transition {
@@ -649,7 +639,7 @@ impl Automaton {
                     State {
                         id: "init".to_owned(),
                         accept: false,
-                        transitions: HashSet::from([Transition {
+                        transitions: BTreeSet::from([Transition {
                             to: 1,
                             trigger: Trigger::Range((0, u32::MAX)),
                         }]),
@@ -657,7 +647,7 @@ impl Automaton {
                     State {
                         id: "accept".to_owned(),
                         accept: true,
-                        transitions: HashSet::new(),
+                        transitions: BTreeSet::new(),
                     },
                 ],
                 initial_state: 0,
@@ -667,7 +657,7 @@ impl Automaton {
                 all_states: vec![State {
                     id: "init".to_owned(),
                     accept: true,
-                    transitions: HashSet::from([Transition {
+                    transitions: BTreeSet::from([Transition {
                         to: 0,
                         trigger: Trigger::Range((0, u32::MAX)),
                     }]),
@@ -711,7 +701,7 @@ impl Automaton {
                         State {
                             id: "init".to_owned(),
                             accept: false,
-                            transitions: HashSet::from([Transition {
+                            transitions: BTreeSet::from([Transition {
                                 to: 1,
                                 trigger: Trigger::Range((c1 as u32, c2 as u32)),
                             }]),
@@ -719,7 +709,7 @@ impl Automaton {
                         State {
                             id: "accept".to_owned(),
                             accept: true,
-                            transitions: HashSet::new(),
+                            transitions: BTreeSet::new(),
                         },
                     ],
                     initial_state: 0,
@@ -730,7 +720,7 @@ impl Automaton {
                 all_states: vec![State {
                     id: "init".to_owned(),
                     accept: false,
-                    transitions: HashSet::from([Transition {
+                    transitions: BTreeSet::from([Transition {
                         to: 0,
                         trigger: Trigger::Range((0, u32::MAX)),
                     }]),
@@ -760,7 +750,7 @@ impl Automaton {
                 }
 
                 let mut states: Vec<State> = Vec::new();
-                let mut transitions: HashSet<Transition> = HashSet::new();
+                let mut transitions: BTreeSet<Transition> = BTreeSet::new();
                 let mut index = 1;
                 for automaton in automata {
                     states.extend(Self::shift_states(
@@ -883,7 +873,7 @@ impl Automaton {
             let next = if let Some(n) = memo.get(&(current.clone(), class)) {
                 n.clone()
             } else {
-                let computed = self.step(&current, symbol.into(), &closures);
+                let computed = self.step(&current, symbol, &closures);
                 if memo_elems < MEMO_ELEMS_LIMIT {
                     memo_elems += current.len() + computed.len();
                     memo.insert((current, class), computed.clone());
