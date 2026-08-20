@@ -235,7 +235,7 @@ pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
 
     // Check if transitions of p are subset of transitions of q
     let mut q_index: HashMap<(String, String), Vec<Trigger>> = HashMap::new();
-    for (s1, s2, trigger) in &q.get_all_transitions() {
+    for (s1, s2, trigger) in q.get_all_transitions() {
         q_index
             .entry((s1.id.clone(), s2.id.clone()))
             .or_default()
@@ -243,7 +243,7 @@ pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
     }
 
     // For every transition in p, check if it is covered in q
-    for (p_s1, p_s2, p_trig) in &p.get_all_transitions() {
+    for (p_s1, p_s2, p_trig) in p.get_all_transitions() {
         let key = (p_s1.id.clone(), p_s2.id.clone());
 
         // There must be at least one transition with same (src, dst)
@@ -252,7 +252,7 @@ pub fn is_subautomaton(p: Automaton, q: Automaton) -> bool {
         };
 
         // Check if any trigger in q covers the trigger in p
-        let covered = q_trigs.iter().any(|q_trig| q_trig.contains(p_trig));
+        let covered = q_trigs.iter().any(|q_trig| q_trig.contains(&p_trig));
         if !covered {
             return false;
         }

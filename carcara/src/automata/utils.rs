@@ -4,7 +4,7 @@ use crate::{
 };
 
 /// Computes the intersection range of two range triggers, returning `None` if they are disjoint.
-pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u16, u16)>, CheckerError> {
+pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u32, u32)>, CheckerError> {
     match (r1.clone(), r2.clone()) {
         (Trigger::Range(r1), Trigger::Range(r2)) => {
             let start = r1.0.max(r2.0);
@@ -19,7 +19,7 @@ pub fn intersect_ranges(r1: Trigger, r2: Trigger) -> Result<Option<(u16, u16)>, 
     }
 }
 
-fn normalize_ranges(mut ranges: Vec<(u16, u16)>) -> Vec<(u16, u16)> {
+fn normalize_ranges(mut ranges: Vec<(u32, u32)>) -> Vec<(u32, u32)> {
     if ranges.is_empty() {
         return ranges;
     }
@@ -30,7 +30,7 @@ fn normalize_ranges(mut ranges: Vec<(u16, u16)>) -> Vec<(u16, u16)> {
 
     for (l, r) in ranges.into_iter().skip(1) {
         let last = result.last_mut().unwrap();
-        if l <= last.1 + 1 {
+        if l <= last.1.saturating_add(1) {
             last.1 = last.1.max(r);
         } else {
             result.push((l, r));
@@ -41,10 +41,10 @@ fn normalize_ranges(mut ranges: Vec<(u16, u16)>) -> Vec<(u16, u16)> {
 
 /// Finds missing character ranges (gaps) within `[min_symbol, max_symbol]` given an existing list of ranges.
 pub fn missing_ranges(
-    existing: &[(u16, u16)],
-    min_symbol: u16,
-    max_symbol: u16,
-) -> Vec<(u16, u16)> {
+    existing: &[(u32, u32)],
+    min_symbol: u32,
+    max_symbol: u32,
+) -> Vec<(u32, u32)> {
     let normalized = normalize_ranges(existing.to_vec());
     let mut holes = Vec::new();
 
@@ -54,7 +54,7 @@ pub fn missing_ranges(
         if cursor < l {
             holes.push((cursor, l - 1));
         }
-        if r == u16::MAX {
+        if r == u32::MAX {
             return holes;
         }
         cursor = r + 1;
@@ -68,7 +68,7 @@ pub fn missing_ranges(
 }
 
 /// Returns `true` if any ranges in the provided collection overlap with each other.
-pub fn has_overlapping_ranges(ranges: Vec<(u16, u16)>) -> bool {
+pub fn has_overlapping_ranges(ranges: Vec<(u32, u32)>) -> bool {
     if ranges.len() < 2 {
         return false;
     }
@@ -100,7 +100,7 @@ pub fn totalize(states: Vec<State>) -> Vec<State> {
     let mut sink_state = State::new("sink", false);
     sink_state
         .transitions
-        .insert(Transition::new(sink_id, Trigger::Range((0, u16::MAX))));
+        .insert(Transition::new(sink_id, Trigger::Range((0, u32::MAX))));
     new_states.push(sink_state);
 
     for state in &mut new_states[..sink_id] {
@@ -111,7 +111,7 @@ pub fn totalize(states: Vec<State>) -> Vec<State> {
             }
         }
 
-        let holes = missing_ranges(&existing_ranges, 0, u16::MAX);
+        let holes = missing_ranges(&existing_ranges, 0, u32::MAX);
 
         for (l, r) in holes {
             state
@@ -128,7 +128,7 @@ mod tests {
     use super::*;
 
     // Auxiliar functions
-    fn range_to_sink(state: &State, sink_id: usize) -> Vec<(u16, u16)> {
+    fn range_to_sink(state: &State, sink_id: usize) -> Vec<(u32, u32)> {
         state
             .transitions
             .iter()
@@ -146,7 +146,7 @@ mod tests {
             .collect()
     }
 
-    fn all_ranges(state: &State) -> Vec<(u16, u16)> {
+    fn all_ranges(state: &State) -> Vec<(u32, u32)> {
         state
             .transitions
             .iter()
@@ -221,14 +221,14 @@ mod tests {
         let sink = &totalized[1];
         let ranges = all_ranges(sink);
 
-        assert!(missing_ranges(&ranges, 0, u16::MAX).is_empty());
+        assert!(missing_ranges(&ranges, 0, u32::MAX).is_empty());
     }
 
     #[test]
     fn test_state_with_full_coverage_gets_no_sink_transitions() {
         let mut s0 = State::new("q0", false);
         s0.transitions
-            .insert(Transition::new(0, Trigger::Range((0, u16::MAX))));
+            .insert(Transition::new(0, Trigger::Range((0, u32::MAX))));
 
         let totalized = totalize(vec![s0]);
         let q0 = &totalized[0];
@@ -252,7 +252,7 @@ mod tests {
         let mut sorted_ranges = sink_ranges.clone();
         sorted_ranges.sort_unstable_by_key(|(start, _)| *start);
 
-        assert_eq!(sorted_ranges, vec![(10, 19), (30, u16::MAX)]);
+        assert_eq!(sorted_ranges, vec![(10, 19), (30, u32::MAX)]);
     }
 
     #[test]
@@ -267,7 +267,7 @@ mod tests {
         let q0 = &totalized[0];
 
         let sink_ranges = range_to_sink(q0, 1);
-        assert_eq!(sink_ranges, vec![(21, u16::MAX)]);
+        assert_eq!(sink_ranges, vec![(21, u32::MAX)]);
     }
 
     #[test]
@@ -282,7 +282,7 @@ mod tests {
         let q0 = &totalized[0];
 
         let sink_ranges = range_to_sink(q0, 1);
-        assert_eq!(sink_ranges, vec![(20, u16::MAX)]);
+        assert_eq!(sink_ranges, vec![(20, u32::MAX)]);
     }
 
     #[test]
@@ -298,7 +298,7 @@ mod tests {
         all.sort();
 
         let normalized = normalize_ranges(all);
-        assert_eq!(normalized, vec![(0, u16::MAX)]);
+        assert_eq!(normalized, vec![(0, u32::MAX)]);
     }
 
     #[test]
