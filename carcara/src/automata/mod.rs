@@ -120,6 +120,23 @@ pub struct Automaton {
 }
 
 impl Automaton {
+    // Helper to obtain the existing StateId or create a new one
+    fn get_or_create_state<'a>(
+        id: &'a str,
+        state_map: &mut HashMap<&'a str, StateId>,
+        all_states: &mut Vec<State>,
+        accepting_states: &HashSet<&str>,
+    ) -> StateId {
+        if let Some(&index) = state_map.get(id) {
+            index
+        } else {
+            let index = all_states.len();
+            all_states.push(State::new(id, accepting_states.contains(id)));
+            state_map.insert(id, index);
+            index
+        }
+    }
+
     // Construct an automaton based on the automaton name, initial state id, the complete set of
     // transitions (from, to, range), and the set of accepting states
     fn new(
@@ -129,40 +146,24 @@ impl Automaton {
         accepting_states: Vec<&str>,
     ) -> Automaton {
         let accepting_states: HashSet<_> = accepting_states.into_iter().collect();
-
-        let initial_state: StateId = 0;
         let mut all_states: Vec<State> = Vec::new();
-        all_states.push(State::new(
+        let mut state_map: HashMap<&str, StateId> = HashMap::new();
+
+        let initial_state = Self::get_or_create_state(
             initial_state_id,
-            accepting_states.contains(initial_state_id),
-        ));
+            &mut state_map,
+            &mut all_states,
+            &accepting_states,
+        );
 
-        for (from, to, trigger) in transitions.clone() {
-            let mut transition_ids: Vec<StateId> = Vec::new();
-
-            // Create the state if it does not exists
-            for id in [from, to] {
-                let mut found: Option<StateId> = None;
-                for (index, state) in all_states.iter().enumerate() {
-                    if state.id == *id.to_owned() {
-                        found = Some(index);
-                        transition_ids.push(index);
-                    }
-                }
-                if found.is_none() {
-                    all_states.push(State::new(id, accepting_states.contains(id)));
-                    transition_ids.push(all_states.len() - 1);
-                }
-            }
-
-            // Handle transitions
-            for state in &mut all_states {
-                if state.id == from {
-                    state
-                        .transitions
-                        .insert(Transition::new(transition_ids[1], Trigger::Range(trigger)));
-                }
-            }
+        for (from, to, trigger) in transitions {
+            let from_id =
+                Self::get_or_create_state(from, &mut state_map, &mut all_states, &accepting_states);
+            let to_id =
+                Self::get_or_create_state(to, &mut state_map, &mut all_states, &accepting_states);
+            all_states[from_id]
+                .transitions
+                .insert(Transition::new(to_id, Trigger::Range(trigger)));
         }
 
         Automaton {
