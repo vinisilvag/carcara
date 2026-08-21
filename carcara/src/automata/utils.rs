@@ -73,12 +73,8 @@ pub fn has_overlapping_ranges(ranges: Vec<(u32, u32)>) -> bool {
         return false;
     }
 
-    // Sort by the start of the range
-    let mut sorted_ranges = ranges.clone();
-    sorted_ranges.sort_unstable_by_key(|(start, _)| *start);
-
-    let mut prev_end = sorted_ranges[0].1;
-    for &(start, end) in &sorted_ranges[1..] {
+    let mut prev_end = ranges[0].1;
+    for &(start, end) in &ranges[1..] {
         // Intersection
         if start <= prev_end {
             return true;

@@ -170,7 +170,11 @@ pub fn is_equivalent(a1: Automaton, a2: Automaton) -> bool {
 
 /// Constructs the complement automaton of `a` by making it total and inverting state acceptance.
 pub fn complement(a: Automaton) -> Automaton {
-    let mut totalized_states = totalize(a.all_states);
+    let mut totalized_states = if a.is_nfa() {
+        totalize(a.all_states)
+    } else {
+        a.all_states
+    };
 
     for state in &mut totalized_states {
         state.accept = !state.accept;
