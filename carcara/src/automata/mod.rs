@@ -81,7 +81,7 @@ impl State {
 ///
 /// A transition leads from the enclosing source state to a destination state
 /// and is labeled by a trigger describing which input symbols enable it.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Transition {
     /// Identifier of the destination state.
     to: StateId,
@@ -96,6 +96,12 @@ impl Ord for Transition {
             core::cmp::Ordering::Equal => self.to.cmp(&other.to),
             ord => ord,
         }
+    }
+}
+
+impl PartialOrd for Transition {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
