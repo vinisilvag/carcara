@@ -543,7 +543,7 @@ impl fmt::Display for Constant {
                 }
             }
             Constant::String(s) => write!(f, "\"{}\"", escape_string(s)),
-            Constant::RegLan(_, a) => write!(f, "{:?}", a), // TODO: comeback to this
+            Constant::RegLan(s, _) => write!(f, "(re.from_automaton \"{}\")", s),
             Constant::BitVec(val, width) => write!(f, "(_ bv{} {})", val, width), // TODO: comeback to this
         }
     }

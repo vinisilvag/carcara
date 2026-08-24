@@ -456,21 +456,6 @@ impl Automaton {
         }
     }
 
-    /// Returns the complement automaton by inverting the acceptance status of all states.
-    pub fn complement(&self) -> Automaton {
-        let mut new_states = self.all_states.clone();
-
-        for state in &mut new_states {
-            state.accept = !state.accept;
-        }
-
-        Automaton {
-            name: format!("{}_complement", self.name),
-            all_states: new_states,
-            initial_state: self.initial_state,
-        }
-    }
-
     // The transition sets are rebuilt from scratch: removing and re-inserting
     // transitions one at a time can collapse a shifted transition with a
     // not-yet-shifted one, losing it
@@ -689,7 +674,7 @@ impl Automaton {
                 } else {
                     a
                 };
-                Ok(dfa.complement())
+                Ok(operations::complement(dfa))
             }
             Term::Op(Operator::ReRange, args) => {
                 let c1_term = &args[0];
