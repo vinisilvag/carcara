@@ -833,10 +833,11 @@ impl Automaton {
     }
 
     /// Checks membership by simulating the NFA directly: the set of reachable
-    /// states (kept as a sorted list, so its size tracks the automaton's
-    /// actual nondeterminism rather than its state count) is advanced per
-    /// input character and epsilon-closed using per-state closures computed
-    /// once. This avoids the potentially exponential subset construction of
+    /// states (kept as a sorted list, so we only store the active states
+    /// representing the possible paths for the current input prefix, rather than
+    /// a bitset whose size scales with the total number of states) is advanced per
+    /// input character and epsilon-closed using per-state closures computed once.
+    /// This avoids the potentially exponential subset construction of
     /// determinization.
     ///
     /// Transitions are memoized per (state set, symbol class), where the
@@ -849,9 +850,9 @@ impl Automaton {
 
         let closures = self.state_closures();
 
-        // symbols between two consecutive boundaries trigger exactly the same
+        // Symbols between two consecutive boundaries trigger exactly the same
         // transitions in every state
-        let mut bounds: Vec<u64> = self
+        let bounds: BTreeSet<u64> = self
             .all_states
             .iter()
             .flat_map(|state| state.transitions.iter())
@@ -861,8 +862,6 @@ impl Automaton {
             })
             .flatten()
             .collect();
-        bounds.sort_unstable();
-        bounds.dedup();
 
         let mut memo: HashMap<(Vec<StateId>, usize), Vec<StateId>> = HashMap::new();
         let mut memo_elems = 0;
@@ -870,7 +869,7 @@ impl Automaton {
         let mut current = closures[self.initial_state].clone();
         for c in s.chars() {
             let symbol = c as u32;
-            let class = bounds.partition_point(|&b| b <= symbol as u64);
+            let class = bounds.range(..=symbol as u64).count();
             let next = if let Some(n) = memo.get(&(current.clone(), class)) {
                 n.clone()
             } else {
