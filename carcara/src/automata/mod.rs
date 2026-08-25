@@ -246,7 +246,7 @@ impl Automaton {
         states
     }
 
-    /// Returns a vector of all transitions as `(source_state, destination_state, trigger)` triples.
+    /// Returns an iterator over all transitions as `(source_state, destination_state, trigger)` triples.
     pub fn get_all_transitions(&self) -> impl Iterator<Item = (State, State, Trigger)> + use<'_> {
         self.all_states.iter().flat_map(|state| {
             state.transitions.iter().map(|transition| {
