@@ -1,3 +1,5 @@
+use indexmap::IndexMap;
+
 use super::{
     RuleArgs, RuleResult, assert_clause_len, assert_eq, assert_num_args, assert_num_premises,
     assert_polyeq_expected, get_premise_term,
@@ -7,9 +9,16 @@ use crate::{
         Binder, BindingList, Constant, Operator, Rc, Sort, Term, build_term, match_term,
         match_term_err, polyeq, pool::TermPool,
     },
-    checker::{error::CheckerError, rules::assert_polyeq},
+    automata::{
+        operations::{self, has_reachable_accepting_state, is_subautomaton},
+        Automaton,
+    },
+    checker::{
+        error::{CheckerError, StringError},
+        rules::assert_polyeq,
+    },
 };
-use std::{cmp, time::Duration};
+use std::{cmp, sync::Arc, time::Duration};
 
 /// A function that takes an `Rc<Term>` and returns a vector corresponding to
 /// the flat form of that term.
@@ -61,6 +70,10 @@ fn concat_extract(term: Rc<Term>) -> Vec<Rc<Term>> {
     flattened
 }
 
+/// A function to check if two flat-form string term vectors are compatible prefixes of each other.
+///
+/// It compares the elements of `s` and `t` pairwise from head to tail. If either vector is empty,
+/// they are considered compatible. If all overlapping elements match, it returns `true`; otherwise, `false`.
 fn is_compatible(s: Vec<Rc<Term>>, t: Vec<Rc<Term>>) -> bool {
     match (&s[..], &t[..]) {
         (_, []) => true,
@@ -75,6 +88,10 @@ fn is_compatible(s: Vec<Rc<Term>>, t: Vec<Rc<Term>>) -> bool {
     }
 }
 
+/// A function to compute the minimal index offset where `s` and `t` become compatible.
+///
+/// If `s` and `t` are already compatible, it returns `0`. Otherwise, it drops elements from the
+/// head of `s` recursively until a compatible suffix is found, returning the number of dropped terms.
 fn overlap(s: Vec<Rc<Term>>, t: Vec<Rc<Term>>) -> usize {
     match &s[..] {
         [] | [_] => 0,
@@ -313,18 +330,29 @@ fn string_check_length_one(term: Rc<Term>) -> Result<(), CheckerError> {
     Err(CheckerError::ExpectedStringConstantOfLengthOne(term))
 }
 
+// Skolems
+// TODO: change names later
+/// Builds a term representing the prefix of `u` of length `n`: `(str.substr u 0 n)`
 fn build_skolem_prefix(pool: &mut dyn TermPool, u: Rc<Term>, n: Rc<Term>) -> Rc<Term> {
     build_term!(pool, (strsubstr {u.clone()} 0 {n.clone()}))
 }
 
+/// Builds a term representing the remainder suffix of `u` after dropping `n` characters:
+/// `(str.substr u n (- (str.len u) n))`.
 fn build_skolem_suffix_rem(pool: &mut dyn TermPool, u: Rc<Term>, n: Rc<Term>) -> Rc<Term> {
     build_term!(pool, (strsubstr {u.clone()} {n.clone()} (- (strlen {u.clone()}) {n})))
 }
 
+/// Builds a term representing the suffix of `u` of length `n`:
+/// `(str.substr u (- (str.len u) n) n)`.
 fn build_skolem_suffix(pool: &mut dyn TermPool, u: Rc<Term>, n: Rc<Term>) -> Rc<Term> {
     build_term!(pool, (strsubstr {u.clone()} (- (strlen {u.clone()}) {n.clone()}) {n.clone()}))
 }
 
+/// Builds a Skolem term for prefix unification splitting between `t` and `s`.
+///
+/// If `(str.len t) >= (str.len s)`, it extracts the suffix remainder of `t` after length `(str.len s)`;
+/// otherwise, it extracts the suffix remainder of `s` after length `(str.len t)`.
 fn build_skolem_unify_split_prefix(pool: &mut dyn TermPool, t: Rc<Term>, s: Rc<Term>) -> Rc<Term> {
     let t_len = pool.add(Term::Op(Operator::StrLen, vec![t.clone()]));
     let s_len = pool.add(Term::Op(Operator::StrLen, vec![s.clone()]));
@@ -333,6 +361,10 @@ fn build_skolem_unify_split_prefix(pool: &mut dyn TermPool, t: Rc<Term>, s: Rc<T
     build_term!(pool, (ite (>= (strlen {t.clone()}) (strlen {s.clone()})) {true_branch} {false_branch}))
 }
 
+/// Builds a Skolem term for suffix unification splitting between `t` and `s`.
+///
+/// If `(str.len t) >= (str.len s)`, it extracts the prefix of `t` of length `(- (str.len t) (str.len s))`;
+/// otherwise, it extracts the prefix of `s` of length `(- (str.len s) (str.len t))`.
 fn build_skolem_unify_split_suffix(pool: &mut dyn TermPool, t: Rc<Term>, s: Rc<Term>) -> Rc<Term> {
     let t_len = pool.add(Term::Op(Operator::StrLen, vec![t.clone()]));
     let s_len = pool.add(Term::Op(Operator::StrLen, vec![s.clone()]));
@@ -343,6 +375,8 @@ fn build_skolem_unify_split_suffix(pool: &mut dyn TermPool, t: Rc<Term>, s: Rc<T
     build_term!(pool, (ite (>= (strlen {t.clone()}) (strlen {s.clone()})) {true_branch} {false_branch}))
 }
 
+/// Builds a term extracting the suffix of string `s` of length `n`:
+/// `(str.substr s (- (str.len s) n) n)`.
 fn build_str_suffix_len(pool: &mut dyn TermPool, s: Rc<Term>, n: Rc<Term>) -> Rc<Term> {
     build_term!(pool, (strsubstr {s.clone()} (- (strlen {s.clone()}) {n.clone()}) {n.clone()}))
 }
@@ -587,6 +621,61 @@ fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> Result<usize, Check
     }
 }
 
+// RCP helper rules
+
+/// Builds the automaton for a regex term, reusing the per-proof cache: proofs
+/// commonly apply many regex-eval steps to the same (hash-consed) regex.
+fn cached_automaton(
+    pool: &mut dyn TermPool,
+    cache: &mut IndexMap<Rc<Term>, Arc<Automaton>>,
+    regex: &Rc<Term>,
+) -> Result<Arc<Automaton>, CheckerError> {
+    if let Some(a) = cache.get(regex) {
+        return Ok(a.clone());
+    }
+    let a = Arc::new(Automaton::create_from_regex_operators(pool, regex)?);
+    cache.insert(regex.clone(), a.clone());
+    Ok(a)
+}
+
+/// Constructs an automaton for a string term `t` by combining the automata from the rule premises.
+///
+/// For a concatenation term `(str.++ s_0 ... s_n)`, it verifies that each component `s_i` matches
+/// its corresponding premise `(str.in_re s_i A_i)` and builds the concatenated regular expression
+/// automaton `(re.++ A_0 ... A_n)`.
+fn make_automaton_from_string(
+    pool: &mut dyn TermPool,
+    t: &Rc<Term>,
+    premise_automatas: Vec<(Rc<Term>, Rc<Term>)>,
+) -> Result<Automaton, CheckerError> {
+    match t.as_ref() {
+        Term::Op(Operator::StrConcat, ss) => {
+            if ss.len() != premise_automatas.len() {
+                return Err(StringError::ConcatTermsNumberDiffersFromPremiseTermsNumber(
+                    ss.len(),
+                    premise_automatas.len(),
+                )
+                .into());
+            }
+
+            let mut components: Vec<Rc<Term>> = Vec::new();
+            for (index, w) in ss.iter().enumerate() {
+                let premise_a = premise_automatas[index].clone();
+                assert_eq(w, &premise_a.0)?;
+                components.push(premise_a.1.clone());
+            }
+
+            let regex_a = pool.add(Term::Op(Operator::ReConcat, components));
+            Ok(Automaton::create_from_regex_operators(pool, &regex_a)?)
+        }
+        // TODO: add other forwadable functions
+        // Term::Op(Operator::Replace, _) => {}
+        // Term::Op(Operator::ReplaceAll, _) => {}
+        _ => Err(StringError::NotBackwardableOperator(t.clone()).into()),
+    }
+}
+
+// CPC Rules (a little outdated)
 pub fn concat_eq(
     RuleArgs {
         premises,
@@ -1522,4 +1611,325 @@ pub fn re_unfold_neg_concat_fixed_suffix(
     }?;
 
     assert_eq(&conclusion[0], &expanded)
+}
+
+// RCP Rules
+pub fn re_convert(RuleArgs { conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    let (w1, a1) = match_term_err!((not (strinre w a1)) = &conclusion[0])?;
+    let (w2, a2) = match_term_err!((strinre w a2) = &conclusion[1])?;
+
+    assert_eq(w1, w2)?;
+
+    let a1 = Automaton::determinize(&Automaton::create_from_regex_operators(pool, a1)?);
+    let a2 = Automaton::determinize(&a2.as_automaton_err()?);
+
+    if !operations::is_equivalent(a1.clone(), a2.clone()) {
+        return Err(StringError::ExpectedEquivalentAutomata(a1, a2).into());
+    }
+
+    Ok(())
+}
+
+pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResult {
+    let (w1, a1) = match_term_err!((not (strinre w a1)) = &conclusion[0])?;
+    let (w2, a2) = match_term_err!((not (strinre w a2)) = &conclusion[1])?;
+
+    assert_eq(w1, w2)?;
+
+    let a1 = Automaton::determinize(&a1.as_automaton_err()?);
+    let a2 = Automaton::determinize(&a2.as_automaton_err()?);
+    let intersection = operations::intersection(a1.clone(), a2.clone())?;
+
+    if has_reachable_accepting_state(&intersection) {
+        return Err(StringError::ExpectedAutomataEmptyIntersection(intersection, a1, a2).into());
+    }
+
+    Ok(())
+}
+
+pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2..)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let mut ws: Vec<Rc<Term>> = Vec::new();
+    let mut premise_automatas: Vec<Automaton> = Vec::new();
+
+    for premise in premises {
+        let term = get_premise_term(premise)?;
+        let (w, a) = match_term_err!((strinre w a1) = term)?;
+        ws.push(w.clone());
+        premise_automatas.push(Automaton::determinize(&a.as_automaton_err()?));
+    }
+
+    let (w_conc, conc_automaton) = match_term_err!(
+        (strinre w a) = &conclusion[0]
+    )?;
+
+    let mut r = 1;
+    for l in 0..(ws.len() - 1) {
+        assert_eq(&ws[l], &ws[r])?;
+        r += 1;
+    }
+    assert_eq(&ws[r - 1], w_conc)?;
+
+    let mut expected =
+        operations::intersection(premise_automatas[0].clone(), premise_automatas[1].clone())?;
+    for automaton in premise_automatas.iter().skip(2) {
+        expected = operations::intersection(expected, automaton.clone())?;
+    }
+
+    let conc_automaton = Automaton::determinize(&conc_automaton.as_automaton_err()?);
+    if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
+        return Err(StringError::ExpectedEquivalentAutomata(expected, conc_automaton).into());
+    }
+
+    Ok(())
+}
+
+pub fn re_forward_prop(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2..)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let (s, conc_automaton) = match_term_err!(
+        (strinre s a) = &conclusion[0]
+    )?;
+
+    let mut premise_automatas: Vec<(Rc<Term>, Rc<Term>)> = Vec::new();
+    for premise in premises {
+        let term = get_premise_term(premise)?;
+        let (w, a) = match_term_err!((strinre w a) = term)?;
+        premise_automatas.push((w.clone(), a.clone()));
+    }
+
+    let expected = Automaton::determinize(&make_automaton_from_string(pool, s, premise_automatas)?);
+    let conc_automaton = Automaton::determinize(&conc_automaton.as_automaton_err()?);
+
+    if !operations::is_equivalent(expected.clone(), conc_automaton.clone()) {
+        return Err(
+            StringError::ExpectedEquivalentAutomata(expected, conc_automaton.clone()).into(),
+        );
+    }
+
+    Ok(())
+}
+
+pub fn concat_bwd_propagation(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2)?;
+    assert_clause_len(conclusion, 1..)?;
+
+    let p1 = get_premise_term(&premises[0])?;
+    let p2 = get_premise_term(&premises[1])?;
+
+    let (x1, ws) = match_term_err!((= x1 (strconcat ...)) = p1)?;
+    let (x2, a) = match_term_err!((strinre x2 a) = p2)?;
+
+    assert_eq(x1, x2)?;
+
+    let a = Automaton::determinize(&Automaton::create_from_regex_operators(pool, a)?);
+
+    for and_term in conclusion {
+        let ands = match_term_err!((and ...) = and_term)?;
+        assert_eq!(&ws.len(), &ands.len());
+
+        let mut automata = Vec::new();
+        for (idx, term) in ands.iter().enumerate() {
+            let (w, re) = match_term_err!((strinre w re) = term)?;
+            assert_eq(&ws[idx], w)?;
+            automata.push(re.clone());
+        }
+
+        let re = pool.add(Term::Op(Operator::ReConcat, automata));
+        let computed = Automaton::determinize(&Automaton::create_from_regex_operators(pool, &re)?);
+
+        let intersection = operations::intersection(a.clone(), computed.clone())?;
+        if !operations::has_reachable_accepting_state(&intersection) {
+            return Err(
+                StringError::ExpectedAutomataIntersection(a.clone(), computed.clone()).into(),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+pub fn concat_aut_bwd_propagation(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
+    assert_num_premises(premises, 2)?;
+    assert_clause_len(conclusion, 1..)?;
+
+    let p1 = get_premise_term(&premises[0])?;
+    let p2 = get_premise_term(&premises[1])?;
+
+    let (x2, a) = match_term_err!((strinre x2 a) = p1)?;
+    let (x1, ws) = match_term_err!((= x1 (strconcat ...)) = p2)?;
+
+    assert_eq(x1, x2)?;
+
+    let a = a.as_automaton_err()?;
+
+    for and_term in conclusion {
+        let ands = match_term_err!((and ...) = and_term)?;
+        assert_eq!(&ws.len(), &ands.len());
+
+        for (idx, term) in ands.iter().enumerate() {
+            let (w, aut) = match_term_err!((strinre w aut) = term)?;
+            assert_eq(&ws[idx], w)?;
+
+            let aut = aut.as_automaton_err()?;
+            if !is_subautomaton(aut.clone(), a.clone()) {
+                return Err(StringError::ExpectedSubautomaton(aut, a).into());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn str_replace_re_eval(
+    RuleArgs {
+        premises,
+        conclusion,
+        pool,
+        automata_cache,
+        ..
+    }: RuleArgs,
+) -> RuleResult {
+    assert_num_premises(premises, 0)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let (s, r, t, u) = match_term_err!((= (replacere s r t) u) = &conclusion[0])?;
+
+    let s = s.as_string_err()?;
+    let t = t.as_string_err()?;
+    let u = u.as_string_err()?;
+
+    let dfa = cached_automaton(pool, automata_cache, r)?;
+
+    let expected = if dfa.accepts("") {
+        format!("{}{}", t, s)
+    } else {
+        let chars: Vec<char> = s.chars().collect();
+        let n = chars.len();
+        let mut match_found = None;
+
+        'outer: for i in 0..n {
+            for j in (i + 1)..=n {
+                let substring: String = chars[i..j].iter().collect();
+                if dfa.accepts(&substring) {
+                    match_found = Some((i, j));
+                    break 'outer;
+                }
+            }
+        }
+
+        if let Some((i, j)) = match_found {
+            let prefix: String = chars[0..i].iter().collect();
+            let suffix: String = chars[j..n].iter().collect();
+            format!("{}{}{}", prefix, t, suffix)
+        } else {
+            s.clone()
+        }
+    };
+
+    if expected != u {
+        return Err(StringError::RegexReplaceFailed {
+            s,
+            regex: r.clone(),
+            replacement: t,
+            expected: u,
+            got: expected,
+        }
+        .into());
+    }
+
+    Ok(())
+}
+
+pub fn str_replace_re_all_eval(
+    RuleArgs {
+        premises,
+        conclusion,
+        pool,
+        automata_cache,
+        ..
+    }: RuleArgs,
+) -> RuleResult {
+    assert_num_premises(premises, 0)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let (s, r, t, u) = match_term_err!((= (replacereall s r t) u) = &conclusion[0])?;
+
+    let s = s.as_string_err()?;
+    let t = t.as_string_err()?;
+    let u = u.as_string_err()?;
+
+    let dfa = cached_automaton(pool, automata_cache, r)?;
+
+    let chars: Vec<char> = s.chars().collect();
+    let n = chars.len();
+    let mut result = String::new();
+    let mut index = 0;
+
+    while index < n {
+        let mut match_found = None;
+        'outer: for i in index..n {
+            for j in (i + 1)..=n {
+                let substring: String = chars[i..j].iter().collect();
+                if dfa.accepts(&substring) {
+                    match_found = Some((i, j));
+                    break 'outer;
+                }
+            }
+        }
+
+        if let Some((i, j)) = match_found {
+            let prefix: String = chars[index..i].iter().collect();
+            result.push_str(&prefix);
+            result.push_str(&t);
+            index = j;
+        } else {
+            let suffix: String = chars[index..n].iter().collect();
+            result.push_str(&suffix);
+            break;
+        }
+    }
+
+    if result != u {
+        return Err(StringError::RegexReplaceFailed {
+            s,
+            regex: r.clone(),
+            replacement: t.clone(),
+            expected: u,
+            got: result,
+        }
+        .into());
+    }
+
+    Ok(())
+}
+
+pub fn str_in_re_eval(
+    RuleArgs {
+        premises,
+        conclusion,
+        pool,
+        automata_cache,
+        ..
+    }: RuleArgs,
+) -> RuleResult {
+    assert_num_premises(premises, 0)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let (s, r, c) = match_term_err!((= (strinre s r) c) = &conclusion[0])?;
+
+    let s = s.as_string_err()?;
+    let c = c.as_bool_err()?;
+
+    let aut = cached_automaton(pool, automata_cache, r)?;
+    let accepts = aut.accepts(&s);
+
+    if accepts != c {
+        return Err(StringError::RegexMatchFailed { s, regex: r.clone(), expected: c }.into());
+    }
+
+    Ok(())
 }

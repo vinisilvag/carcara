@@ -1196,7 +1196,7 @@ impl Term {
         }
     }
 
-    /// Tries to extract a `String` from a term. Returns `Some` if the term is a string constant.
+    /// Tries to extract a `String` from a term. Returns `Some` if the term is a String constant.
     pub fn as_string(&self) -> Option<String> {
         match self {
             Term::Const(Constant::String(s)) => Some(s.to_owned()),
@@ -1276,6 +1276,14 @@ impl Term {
     pub fn as_let(&self) -> Option<(&BindingList<Rc<Term>>, &Rc<Term>)> {
         match self {
             Term::Let(b, t) => Some((b, t)),
+            _ => None,
+        }
+    }
+
+    /// Tries to unwrap an [`Automaton`] from a term. Returns `None` if the term is not a `RegLan` term.
+    pub fn as_automaton(&self) -> Option<Automaton> {
+        match self {
+            Term::Const(Constant::RegLan(_, a)) => Some(a.clone()),
             _ => None,
         }
     }
@@ -1370,6 +1378,12 @@ impl Rc<Term> {
             .ok_or_else(|| CheckerError::ExpectedBitvector(self.clone()))
     }
 
+    /// Similar to `Term::as_string`, but returns a `CheckerError` on failure.
+    pub fn as_string_err(&self) -> Result<String, CheckerError> {
+        self.as_string()
+            .ok_or_else(|| CheckerError::ExpectedAnyString(self.clone()))
+    }
+
     /// Similar to `Term::as_fraction`, but returns a `CheckerError` on failure.
     pub fn as_fraction_err(&self) -> Result<Rational, CheckerError> {
         self.as_fraction()
@@ -1408,6 +1422,12 @@ impl Rc<Term> {
     pub fn as_let_err(&self) -> Result<(&BindingList<Rc<Term>>, &Rc<Term>), CheckerError> {
         self.as_let()
             .ok_or_else(|| CheckerError::ExpectedLetTerm(self.clone()))
+    }
+
+    /// Similar to `Term::as_automaton`, but returns a `CheckerError` on failure.
+    pub fn as_automaton_err(&self) -> Result<Automaton, CheckerError> {
+        self.as_automaton()
+            .ok_or_else(|| CheckerError::ExpectedAutomaton(self.clone()))
     }
 }
 
