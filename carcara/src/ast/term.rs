@@ -125,6 +125,9 @@ pub enum Constant {
     String(String),
 
     /// A regular expression term.
+    ///
+    /// The associated values are the textual term representation (e.g. `re.from_automaton ...`)
+    /// and its internal [`Automaton`] representation, respectively
     RegLan(String, Automaton),
 
     /// A bitvector literal term.
