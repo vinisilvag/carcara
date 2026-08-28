@@ -19,7 +19,7 @@ impl Logger {
         } else {
             Style::new()
         };
-        style.paint(format!("[{}]", level))
+        style.paint(format!("{}:", level).to_lowercase())
     }
 }
 
