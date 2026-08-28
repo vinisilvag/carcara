@@ -61,6 +61,7 @@ mod utils;
 use benchmarking::{CollectResults, OnlineBenchmarkResults, RunMeasurement};
 use checker::{error::CheckerError, CheckerStatistics};
 use elaborator::error::ElaborationError;
+use elaborator::ElaborationPass;
 use parser::{ParserError, Position};
 use std::io;
 use std::path::PathBuf;
@@ -142,13 +143,19 @@ pub enum Error {
     #[error("elaboration failed on step '{step}' with rule '{rule}': {inner}")]
     Elaborator {
         /// The underlying elaboration error.
-        inner: ElaborationError,
+        inner: Box<ElaborationError>,
 
         /// The rule that was being elaborated when the error occurred.
         rule: Box<str>,
 
         /// The ID of the step in which the error occurred.
         step: Box<str>,
+
+        /// The elaboration pass where the error occurred.
+        pass: ElaborationPass,
+
+        /// The proof file path.
+        file: PathBuf,
     },
 }
 
@@ -342,9 +349,12 @@ pub fn check_and_elaborate<'s>(
     let elaboration = Instant::now();
 
     let node = ast::ProofNodeForest::from_commands(proof.commands);
-    let (elaborated, pipeline_durations) =
-        elaborator::Elaborator::new(&mut pool, &problem, elaborator_config)
-            .elaborate_with_stats(node, pipeline)?;
+    let (elaborated, pipeline_durations) = elaborator::Elaborator::new(
+        &mut pool,
+        &problem,
+        elaborator_config,
+    )
+    .elaborate_with_stats(node, &proof.filename, pipeline)?;
     let elaborated = ast::Proof {
         commands: elaborated.into_commands(),
         ..proof

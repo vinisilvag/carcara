@@ -48,7 +48,7 @@ fn run_test(
     let elab_config = elaborator::Config::new().uncrowd_rotation(true);
     let node = ast::ProofNodeForest::from_commands(proof.commands.clone());
     let elaborated_node = elaborator::Elaborator::new(&mut pool, &problem, elab_config.clone())
-        .elaborate_with_default_pipeline(node)?;
+        .elaborate_with_default_pipeline(node, &proof.filename)?;
     let elaborated = ast::Proof {
         constant_definitions: proof.constant_definitions.clone(),
         commands: elaborated_node.into_commands(),
@@ -62,7 +62,7 @@ fn run_test(
     // Finally, we elaborate the already elaborated proof, to make sure the elaboration is
     // idempotent
     let elaborated_twice = elaborator::Elaborator::new(&mut pool, &problem, elab_config)
-        .elaborate_with_default_pipeline(elaborated_node)?;
+        .elaborate_with_default_pipeline(elaborated_node, &elaborated.filename)?;
     assert!(
         elaborated.commands == elaborated_twice.into_commands(),
         "elaboration was not idempotent!"

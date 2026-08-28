@@ -3,7 +3,9 @@ use rapidhash::{HashSetExt, RapidHashSet};
 use super::*;
 use crate::{checker::error::CheckerError, resolution::ResolutionError};
 
-pub fn remove_reorderings(proof: ProofNodeForest) -> Result<ProofNodeForest, crate::Error> {
+pub fn remove_reorderings(
+    proof: ProofNodeForest,
+) -> Result<ProofNodeForest, ElaborationErrorAtStep> {
     proof.mutate(|_, node, premises_changed| {
         let Some(step) = node.as_step() else {
             return Ok(node.clone());

@@ -19,11 +19,12 @@ use crate::{
     Error,
 };
 use carcara_macros::GenerateSetters;
-use error::ElaborationError;
+use error::{ElaborationError, ElaborationErrorAtStep};
 use indexmap::IndexSet;
 use polyeq::PolyeqElaborator;
 use std::{
     collections::{HashMap, HashSet},
+    path::Path,
     time::{Duration, Instant},
 };
 
@@ -101,19 +102,23 @@ impl<'e> Elaborator<'e> {
     pub fn elaborate_with_default_pipeline(
         &mut self,
         proof: ProofNodeForest,
+        proof_filename: &Path,
     ) -> Result<ProofNodeForest, Error> {
         use ElaborationPass::*;
         let pipeline = vec![Polyeq, Hole, Local, Uncrowd, Reordering];
-        self.elaborate(proof, pipeline)
+        self.elaborate(proof, proof_filename, pipeline)
     }
 
     /// Elaborates a proof, applying the given `pipeline` of passes, in order.
     pub fn elaborate(
         &mut self,
         proof: ProofNodeForest,
+        proof_filename: &Path,
         pipeline: Vec<ElaborationPass>,
     ) -> Result<ProofNodeForest, Error> {
-        Ok(self.elaborate_with_stats(proof, pipeline)?.0)
+        Ok(self
+            .elaborate_with_stats(proof, proof_filename, pipeline)?
+            .0)
     }
 
     /// Elaborates a proof, applying the given `pipeline` of passes in order, and returns the
@@ -121,16 +126,17 @@ impl<'e> Elaborator<'e> {
     pub fn elaborate_with_stats(
         &mut self,
         proof: ProofNodeForest,
+        proof_filename: &Path,
         pipeline: Vec<ElaborationPass>,
     ) -> Result<(ProofNodeForest, Vec<Duration>), Error> {
         let mut durations = Vec::new();
         let mut current = proof;
         for pass in pipeline {
             let time = Instant::now();
-            current = match pass {
-                ElaborationPass::Polyeq => self.elaborate_polyeq(current)?,
-                ElaborationPass::Hole => self.elaborate_hole(current)?,
-                ElaborationPass::Local => self.elaborate_local(current)?,
+            let result = match pass {
+                ElaborationPass::Polyeq => self.elaborate_polyeq(current),
+                ElaborationPass::Hole => self.elaborate_hole(current),
+                ElaborationPass::Local => self.elaborate_local(current),
                 ElaborationPass::Uncrowd => current.mutate(|_, node, _| match node.as_ref() {
                     ProofNode::Step(s)
                         if (s.rule == "resolution" || s.rule == "th_resolution")
@@ -140,31 +146,33 @@ impl<'e> Elaborator<'e> {
                             .map_err(|e| e.at(s))
                     }
                     _ => Ok(node.clone()),
-                })?,
-                ElaborationPass::Reordering => reordering::remove_reorderings(current)?,
+                }),
+                ElaborationPass::Reordering => reordering::remove_reorderings(current),
                 ElaborationPass::SatRefutation => {
                     if self.config.sat_ref_tools.is_some() {
-                        // TODO: proper error handling
-                        current
-                            .mutate::<_, ()>(|_, node, _| match node.as_ref() {
-                                ProofNode::Step(s) if (s.rule == "sat_refutation") => {
-                                    Ok(sat_refutation::sat_refutation(self, s)
-                                        .unwrap_or_else(|| node.clone()))
-                                }
-                                _ => Ok(node.clone()),
-                            })
-                            .unwrap()
+                        current.mutate(|_, node, _| match node.as_ref() {
+                            ProofNode::Step(s) if (s.rule == "sat_refutation") => {
+                                // TODO: proper error handling
+                                Ok(sat_refutation::sat_refutation(self, s)
+                                    .unwrap_or_else(|| node.clone()))
+                            }
+                            _ => Ok(node.clone()),
+                        })
                     } else {
-                        current
+                        Ok(current)
                     }
                 }
             };
+            current = result.map_err(|e| e.at(proof_filename, pass))?;
             durations.push(time.elapsed());
         }
         Ok((current, durations))
     }
 
-    fn elaborate_polyeq(&mut self, proof: ProofNodeForest) -> Result<ProofNodeForest, Error> {
+    fn elaborate_polyeq(
+        &mut self,
+        proof: ProofNodeForest,
+    ) -> Result<ProofNodeForest, ElaborationErrorAtStep> {
         fn get_elaboration_function(rule: &str) -> Option<ElaborationFunc> {
             Some(match rule {
                 "refl" => polyeq::reflexivity::refl,
@@ -193,7 +201,10 @@ impl<'e> Elaborator<'e> {
         })
     }
 
-    fn elaborate_hole(&mut self, proof: ProofNodeForest) -> Result<ProofNodeForest, Error> {
+    fn elaborate_hole(
+        &mut self,
+        proof: ProofNodeForest,
+    ) -> Result<ProofNodeForest, ElaborationErrorAtStep> {
         // Skip `mutate` in the common case where neither option was given
         if self.config.hole_solver.is_none() && self.config.lia_solver.is_none() {
             return Ok(proof);
@@ -213,7 +224,10 @@ impl<'e> Elaborator<'e> {
         })
     }
 
-    fn elaborate_local(&mut self, proof: ProofNodeForest) -> Result<ProofNodeForest, Error> {
+    fn elaborate_local(
+        &mut self,
+        proof: ProofNodeForest,
+    ) -> Result<ProofNodeForest, ElaborationErrorAtStep> {
         fn get_elaboration_function(rule: &str) -> Option<ElaborationFunc> {
             Some(match rule {
                 "eq_transitive" => local::transitivity::eq_transitive,

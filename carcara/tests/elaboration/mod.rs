@@ -41,6 +41,7 @@ fn run_tests(
         let elaborated = elab
             .elaborate(
                 ProofNodeForest::from_commands(proof.commands.clone()),
+                &proof.filename,
                 pipeline.clone(),
             )
             .expect("elaboration error")

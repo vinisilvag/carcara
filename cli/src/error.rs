@@ -1,5 +1,5 @@
 use ansi_term::{Color, Style};
-use carcara::parser::Position;
+use carcara::{elaborator::ElaborationPass, parser::Position};
 use std::{
     fmt,
     path::{Path, PathBuf},
@@ -49,14 +49,15 @@ impl From<carcara::Error> for CliError {
 
 impl fmt::Display for CliError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use carcara::Error;
         match self {
-            CliError::CarcaraError(carcara::Error::Io { inner, file }) => {
+            CliError::CarcaraError(Error::Io { inner, file }) => {
                 pretty_error(f, "IO error", file, None, Some(inner))
             }
-            CliError::CarcaraError(carcara::Error::Parser(e, pos, file)) => {
+            CliError::CarcaraError(Error::Parser(e, pos, file)) => {
                 pretty_error(f, e, file, Some(*pos), None::<String>)
             }
-            CliError::CarcaraError(carcara::Error::Checker { inner, rule, step, file }) => {
+            CliError::CarcaraError(Error::Checker { inner, rule, step, file }) => {
                 let info = format!(
                     "checking failed on step {} with rule {}",
                     Color::Yellow.paint(&**step),
@@ -64,12 +65,26 @@ impl fmt::Display for CliError {
                 );
                 pretty_error(f, inner, file, None, Some(info))
             }
-            CliError::CarcaraError(carcara::Error::DoesNotReachEmptyClause { file }) => {
+            CliError::CarcaraError(Error::DoesNotReachEmptyClause { file }) => {
                 let e = "proof does not conclude empty clause";
                 pretty_error(f, e, file, None, None::<String>)
             }
-            CliError::CarcaraError(e @ carcara::Error::Elaborator { .. }) => {
-                write!(f, "{}", e) // TODO: prettier errors for elaborator error
+            CliError::CarcaraError(Error::Elaborator { inner, rule, step, pass, file }) => {
+                let pass = match pass {
+                    ElaborationPass::Polyeq => "polyeq",
+                    ElaborationPass::Hole => "hole",
+                    ElaborationPass::Local => "local",
+                    ElaborationPass::Uncrowd => "uncrowd",
+                    ElaborationPass::Reordering => "reordering",
+                    ElaborationPass::SatRefutation => "sat-refutation",
+                };
+                let info = format!(
+                    "elaboration failed during {} elaboration pass, on step {} with rule {}",
+                    Color::Yellow.paint(pass),
+                    Color::Yellow.paint(&**step),
+                    Color::Yellow.paint(&**rule),
+                );
+                pretty_error(f, inner, file, None, Some(info))
             }
             CliError::CantInferProblemFile(p) => {
                 write!(f, "can't infer problem file: {}", p.display())

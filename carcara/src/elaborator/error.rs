@@ -1,6 +1,39 @@
 //! Errors produced while elaborating a proof.
+use std::path::Path;
+
 use crate::{resolution::ResolutionError, CheckerError};
 use thiserror::Error;
+
+use super::ElaborationPass;
+
+/// An elaboration error, with information about the step and rule in which it occurred.
+///
+/// Note that this still does not contain information about the file and elaboration pass, which is
+/// added when this is converted into a [`crate::Error`].
+pub(super) struct ElaborationErrorAtStep {
+    /// The underlying elaboration error.
+    inner: ElaborationError,
+
+    /// The rule that was being elaborated when the error occurred.
+    rule: Box<str>,
+
+    /// The ID of the step in which the error occurred.
+    step: Box<str>,
+}
+
+impl ElaborationErrorAtStep {
+    /// Converts the [`ElaborationErrorAtStep`] into an [`Error`] by locating it to a specific file
+    /// and elaboration pass.
+    pub fn at(self, filename: &Path, pass: ElaborationPass) -> crate::Error {
+        crate::Error::Elaborator {
+            inner: Box::new(self.inner),
+            rule: self.rule,
+            step: self.step,
+            pass,
+            file: filename.into(),
+        }
+    }
+}
 
 /// An error that occurred while elaborating a proof.
 #[derive(Debug, Error)]
@@ -25,9 +58,10 @@ pub enum ElaborationError {
 }
 
 impl ElaborationError {
-    /// Converts the [`ElaborationError`] into an [`Error`] by locating it to a specific step node.
-    pub fn at(self, step: &crate::ast::StepNode) -> crate::Error {
-        crate::Error::Elaborator {
+    /// Converts the [`ElaborationError`] into an [`ElaborationErrorAtStep`] by locating it to a
+    /// specific step node.
+    pub(super) fn at(self, step: &crate::ast::StepNode) -> ElaborationErrorAtStep {
+        ElaborationErrorAtStep {
             inner: self,
             rule: step.rule.as_str().into(),
             step: step.id.as_str().into(),
