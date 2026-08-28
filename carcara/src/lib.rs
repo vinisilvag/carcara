@@ -63,6 +63,7 @@ use checker::{error::CheckerError, CheckerStatistics};
 use elaborator::error::ElaborationError;
 use parser::{ParserError, Position};
 use std::io;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 
@@ -99,31 +100,43 @@ fn wrap_parser_error_message(e: &ParserError, pos: &Position) -> String {
 #[derive(Debug, Error)]
 pub enum Error {
     /// An IO error.
-    #[error("IO error: {0}")]
-    Io(#[from] io::Error),
+    #[error("IO error: {inner}")]
+    Io {
+        /// The underlying IO error.
+        inner: io::Error,
 
-    /// A parsing error, with the position in the input where it occurred and the source file name.
+        /// The file where the error occurred.
+        file: PathBuf,
+    },
+
+    /// A parsing error, with the position in the input where it occurred and the source file path.
     #[error("{}", wrap_parser_error_message(.0, .1))]
-    Parser(ParserError, Position, Box<str>),
+    Parser(ParserError, Position, PathBuf),
 
     /// An error while checking a proof, indicating the step where it occurred.
     #[error("checking failed on step '{step}' with rule '{rule}': {inner}")]
     Checker {
         /// The underlying checking error.
-        inner: CheckerError,
+        inner: Box<CheckerError>,
 
         /// The rule that was being checked when the error occurred.
         rule: Box<str>,
 
         /// The id of the step in which the error occurred.
         step: Box<str>,
+
+        /// The proof file path.
+        file: PathBuf,
     },
 
     // While this is a kind of checking error, it does not happen in a specific step like all other
     // checker errors, so we model it as a different variant
     /// The proof being checked did not conclude the empty clause.
     #[error("checker error: proof does not conclude empty clause")]
-    DoesNotReachEmptyClause,
+    DoesNotReachEmptyClause {
+        /// The proof file path.
+        file: PathBuf,
+    },
 
     /// An error while elaborating a proof, indicating the step where it occurred.
     #[error("elaboration failed on step '{step}' with rule '{rule}': {inner}")]

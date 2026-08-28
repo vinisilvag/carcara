@@ -7,7 +7,7 @@ mod tests;
 pub use metrics::*;
 
 use indexmap::{map::Entry, IndexMap, IndexSet};
-use std::{fmt, hash::Hash, io, sync::Arc, time::Duration};
+use std::{fmt, fs, hash::Hash, io, sync::Arc, time::Duration};
 
 fn combine_map<S, K, V, M>(mut a: IndexMap<S, M>, b: IndexMap<S, M>) -> IndexMap<S, M>
 where
@@ -381,13 +381,13 @@ impl CsvBenchmarkResults {
 
     /// Writes the benchmark results to the given writers: one CSV for the run measurements and one
     /// for the step measurements.
-    pub fn write_csv(
-        self,
-        runs_dest: &mut dyn io::Write,
-        steps_dest: &mut dyn io::Write,
-    ) -> io::Result<()> {
-        Self::write_runs_csv(self.runs, runs_dest)?;
-        Self::write_steps_csv(self.steps, steps_dest)
+    pub fn write_csv(self, runs_file: &str, steps_file: &str) -> Result<(), crate::Error> {
+        fs::File::create(runs_file)
+            .and_then(|mut f| Self::write_runs_csv(self.runs, &mut f))
+            .map_err(|inner| crate::Error::Io { inner, file: runs_file.into() })?;
+        fs::File::create(steps_file)
+            .and_then(|mut f| Self::write_steps_csv(self.steps, &mut f))
+            .map_err(|inner| crate::Error::Io { inner, file: steps_file.into() })
     }
 
     fn write_runs_csv(

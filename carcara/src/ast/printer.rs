@@ -31,9 +31,11 @@ pub fn print_proof(
     prelude: &ProblemPrelude,
     proof: &Proof,
     use_sharing: bool,
-) -> io::Result<()> {
+) -> Result<(), crate::Error> {
     let mut stdout = io::stdout();
-    AlethePrinter::new(pool, prelude, use_sharing, &mut stdout).write_proof(proof)
+    AlethePrinter::new(pool, prelude, use_sharing, &mut stdout)
+        .write_proof(proof)
+        .map_err(|inner| crate::Error::Io { inner, file: "<stdout>".into() })
 }
 
 /// Writes a proof to the provided destination.

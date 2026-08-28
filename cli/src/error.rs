@@ -1,6 +1,9 @@
 use ansi_term::{Color, Style};
 use carcara::parser::Position;
-use std::{fmt, io, path::PathBuf};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug)]
 pub enum CliError {
@@ -12,19 +15,20 @@ pub enum CliError {
 
 pub type CliResult<T> = Result<T, CliError>;
 
+// TODO: this does not respect `--no-color`
 fn pretty_error(
     f: &mut fmt::Formatter,
     error: impl fmt::Display,
-    file: &str,
+    file: &Path,
     pos: Option<Position>,
-    more_info: Option<String>,
+    more_info: Option<impl fmt::Display>,
 ) -> fmt::Result {
     writeln!(f, "{}", error)?;
     write!(
         f,
         "  {} in file {}",
         Color::Blue.paint("-->"),
-        Color::Blue.underline().paint(file),
+        Color::Blue.underline().paint(file.to_string_lossy()),
     )?;
     if let Some((line, column)) = pos {
         writeln!(f, ":{}:{}", line, column)?;
@@ -37,12 +41,6 @@ fn pretty_error(
     Ok(())
 }
 
-impl From<io::Error> for CliError {
-    fn from(e: io::Error) -> Self {
-        Self::CarcaraError(carcara::Error::Io(e))
-    }
-}
-
 impl From<carcara::Error> for CliError {
     fn from(e: carcara::Error) -> Self {
         Self::CarcaraError(e)
@@ -52,10 +50,27 @@ impl From<carcara::Error> for CliError {
 impl fmt::Display for CliError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            CliError::CarcaraError(carcara::Error::Parser(e, pos, file)) => {
-                pretty_error(f, e, file, Some(*pos), None)
+            CliError::CarcaraError(carcara::Error::Io { inner, file }) => {
+                pretty_error(f, "IO error", file, None, Some(inner))
             }
-            CliError::CarcaraError(e) => write!(f, "{}", e), // TODO: prettier errors for other types
+            CliError::CarcaraError(carcara::Error::Parser(e, pos, file)) => {
+                pretty_error(f, e, file, Some(*pos), None::<String>)
+            }
+            CliError::CarcaraError(carcara::Error::Checker { inner, rule, step, file }) => {
+                let info = format!(
+                    "checking failed on step {} with rule {}",
+                    Color::Yellow.paint(&**step),
+                    Color::Yellow.paint(&**rule),
+                );
+                pretty_error(f, inner, file, None, Some(info))
+            }
+            CliError::CarcaraError(carcara::Error::DoesNotReachEmptyClause { file }) => {
+                let e = "proof does not conclude empty clause";
+                pretty_error(f, e, file, None, None::<String>)
+            }
+            CliError::CarcaraError(e @ carcara::Error::Elaborator { .. }) => {
+                write!(f, "{}", e) // TODO: prettier errors for elaborator error
+            }
             CliError::CantInferProblemFile(p) => {
                 write!(f, "can't infer problem file: {}", p.display())
             }

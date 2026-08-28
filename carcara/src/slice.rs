@@ -353,6 +353,7 @@ pub fn slice(
     let new_proof: Proof = Proof {
         constant_definitions: proof.constant_definitions.clone(),
         commands: sliced_step_commands,
+        filename: "<sliced proof>".into(),
     };
 
     // Create an assertion in the problem for each assumption in the proof.

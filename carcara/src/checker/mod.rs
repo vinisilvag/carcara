@@ -195,9 +195,10 @@ impl<'c> ProofChecker<'c> {
                     };
                     self.check_step(step, previous_command, &iter, &mut stats, &problem.prelude)
                         .map_err(|e| Error::Checker {
-                            inner: e,
+                            inner: Box::new(e),
                             rule: step.rule.as_str().into(),
                             step: step.id.as_str().into(),
+                            file: proof.filename.clone(),
                         })?;
 
                     // If this is the last command of a subproof, we have to pop the subproof
@@ -236,9 +237,10 @@ impl<'c> ProofChecker<'c> {
                 ProofCommand::Assume { id, term } => {
                     if !self.check_assume(id, term, &problem.premises, &iter, &mut stats) {
                         return Err(Error::Checker {
-                            inner: CheckerError::Assume(term.clone()),
+                            inner: Box::new(CheckerError::Assume(term.clone())),
                             rule: "assume".into(),
                             step: id.as_str().into(),
+                            file: proof.filename.clone(),
                         });
                     }
                 }
@@ -251,7 +253,7 @@ impl<'c> ProofChecker<'c> {
                 Status::Valid
             })
         } else {
-            Err(Error::DoesNotReachEmptyClause)
+            Err(Error::DoesNotReachEmptyClause { file: proof.filename.clone() })
         }
     }
 

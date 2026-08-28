@@ -7,7 +7,10 @@ use crate::{
     CarcaraResult, Error,
 };
 use rug::{ops::Pow, Integer, Rational};
-use std::str::{Chars, FromStr};
+use std::{
+    path::Path,
+    str::{Chars, FromStr},
+};
 
 /// A token in the SMT-LIB and Alethe formats.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -173,7 +176,7 @@ pub struct Lexer<'s> {
     line_start: usize,
     lines_read: usize,
     source_len: usize,
-    pub source_name: &'s str,
+    pub source_name: &'s Path,
 }
 
 impl<'s> Lexer<'s> {

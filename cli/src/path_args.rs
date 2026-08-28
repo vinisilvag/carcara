@@ -21,7 +21,9 @@ fn get_instances_from_dir(
     path: PathBuf,
     acc: &mut Vec<(PathBuf, PathBuf)>,
 ) -> Result<(), CliError> {
-    let file_type = fs::metadata(&path)?.file_type();
+    let file_type = fs::metadata(&path)
+        .map_err(|inner| carcara::Error::Io { inner, file: path.clone() })?
+        .file_type();
     if file_type.is_file() {
         let is_proof_file = path
             .extension()
@@ -32,8 +34,11 @@ fn get_instances_from_dir(
             acc.push((problem_file, path))
         }
     } else if file_type.is_dir() {
-        for entry in fs::read_dir(path)? {
-            get_instances_from_dir(entry?.path(), acc)?;
+        let dir = fs::read_dir(&path)
+            .map_err(|inner| carcara::Error::Io { inner, file: path.clone() })?;
+        for entry in dir {
+            let entry = entry.map_err(|inner| carcara::Error::Io { inner, file: path.clone() })?;
+            get_instances_from_dir(entry.path(), acc)?;
         }
     }
     // We ignore anything that `fs::metadata` doesn't report as either a file or a directory.
@@ -48,7 +53,9 @@ where
 {
     let mut result = Vec::new();
     for p in paths {
-        let file_type = fs::metadata(p)?.file_type();
+        let file_type = fs::metadata(p)
+            .map_err(|inner| carcara::Error::Io { inner, file: p.into() })?
+            .file_type();
         if file_type.is_file() {
             let problem_file = infer_problem_path(p)?;
             result.push((problem_file, p.into()))

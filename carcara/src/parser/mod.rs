@@ -31,13 +31,13 @@ pub use lexer::{Position, Reserved, Token};
 
 /// A code source for [`Parser`], with a name and contents.
 pub struct Source<'s> {
-    name: &'s str,
+    name: &'s Path,
     contents: &'s str,
 }
 
 impl<'s> Source<'s> {
     /// Constructs a new `Source` from `name` and `contents` strings.
-    pub fn new(name: &'s str, contents: &'s str) -> Self {
+    pub fn new(name: &'s Path, contents: &'s str) -> Self {
         Self { name, contents }
     }
 
@@ -48,17 +48,22 @@ impl<'s> Source<'s> {
     pub fn file(path: &'s Path, buf: &'s mut String) -> CarcaraResult<Self> {
         use std::io::Read;
 
-        std::fs::File::open(path)?.read_to_string(buf)?;
-        Ok(Self {
-            name: path.to_str().unwrap(),
-            contents: buf,
-        })
+        std::fs::File::open(path)
+            .and_then(|mut f| f.read_to_string(buf))
+            .map_err(|e| Error::Io {
+                inner: e,
+                file: path.to_str().unwrap().into(),
+            })?;
+        Ok(Self { name: path, contents: buf })
     }
 }
 
 impl<'s> From<&'s str> for Source<'s> {
     fn from(value: &'s str) -> Self {
-        Self { name: "<str>", contents: value }
+        Self {
+            name: Path::new("<str>"),
+            contents: value,
+        }
     }
 }
 
@@ -1255,7 +1260,11 @@ impl<'p, 's> Parser<'p, 's> {
                 ))
             }
         };
-        Ok(Proof { constant_definitions, commands })
+        Ok(Proof {
+            constant_definitions,
+            commands,
+            filename: self.lexer.source_name.into(),
+        })
     }
 
     /// Parses an `assume` proof command. This method assumes that the `(` and `assume` tokens were

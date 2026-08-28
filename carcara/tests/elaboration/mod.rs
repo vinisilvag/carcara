@@ -17,6 +17,7 @@ fn print_proof(pool: &mut PrimitivePool, prelude: &ProblemPrelude, commands: Vec
     let proof = Proof {
         constant_definitions: Vec::new(),
         commands,
+        filename: "dummy".into(),
     };
     write_proof_to_dest(pool, prelude, &proof, &mut buf, false).unwrap();
     let result = std::str::from_utf8(&buf).unwrap();

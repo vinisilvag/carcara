@@ -52,6 +52,7 @@ fn run_test(
     let elaborated = ast::Proof {
         constant_definitions: proof.constant_definitions.clone(),
         commands: elaborated_node.into_commands(),
+        filename: "<elaborated proof>".into(),
     };
 
     // After that, we check the elaborated proof to make sure it is valid
@@ -96,10 +97,10 @@ fn test_file(proof_path: &str) {
         // Error messages are sometimes pretty big, so printing them fully can be very bad for
         // performance
         let short_message = match e {
-            Error::Io(_) => "IO error".to_owned(),
+            Error::Io { .. } => "IO error".to_owned(),
             Error::Parser(_, (line, column), _) => format!("parser error at {}:{}", line, column),
             Error::Checker { rule, step, .. } => format!("checker error at '{}' ({})", step, rule),
-            Error::DoesNotReachEmptyClause => format!("{}", e), // This one is already pretty short
+            Error::DoesNotReachEmptyClause { .. } => format!("{}", e), // This one is already pretty short
             Error::Elaborator { rule, step, .. } => {
                 format!("elaborator error at '{}' ({})", step, rule)
             }

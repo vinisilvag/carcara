@@ -5,7 +5,6 @@ use carcara::{
 };
 use crossbeam_queue::ArrayQueue;
 use std::{
-    io,
     path::{Path, PathBuf},
     thread,
     time::{Duration, Instant},
@@ -170,9 +169,9 @@ pub fn run_csv_benchmark(
     parser_config: parser::Config,
     checker_config: checker::Config,
     elaborator_config: Option<(elaborator::Config, Vec<elaborator::ElaborationPass>)>,
-    runs_dest: &mut dyn io::Write,
-    steps_dest: &mut dyn io::Write,
-) -> io::Result<()> {
+    runs_file: &str,
+    steps_file: &str,
+) -> Result<(), carcara::Error> {
     let result: CsvBenchmarkResults = run_benchmark(
         instances,
         num_runs,
@@ -192,5 +191,5 @@ pub fn run_csv_benchmark(
     } else {
         println!("valid");
     }
-    result.write_csv(runs_dest, steps_dest)
+    result.write_csv(runs_file, steps_file)
 }

@@ -149,7 +149,7 @@ impl<'c> ParallelProofChecker<'c> {
             if reached {
                 Ok(if holey { Status::Holey } else { Status::Valid })
             } else {
-                Err(Error::DoesNotReachEmptyClause)
+                Err(Error::DoesNotReachEmptyClause { file: proof.filename.clone() })
             }
         })
     }
@@ -251,7 +251,7 @@ impl<'c> ParallelProofChecker<'c> {
             if reached {
                 Ok(if holey { Status::Holey } else { Status::Valid })
             } else {
-                Err(Error::DoesNotReachEmptyClause)
+                Err(Error::DoesNotReachEmptyClause { file: proof.filename.clone() })
             }
         })
     }
@@ -303,9 +303,10 @@ impl<'c> ParallelProofChecker<'c> {
                             // Signalize to other threads to stop the proof checking
                             should_abort.store(true, Ordering::Release);
                             Error::Checker {
-                                inner: e,
+                                inner: Box::new(e),
                                 rule: step.rule.as_str().into(),
                                 step: step.id.as_str().into(),
+                                file: proof.filename.clone(),
                             }
                         })?;
 
@@ -340,9 +341,10 @@ impl<'c> ParallelProofChecker<'c> {
                         // Signalize to other threads to stop the proof checking
                         should_abort.store(true, Ordering::Release);
                         return Err(Error::Checker {
-                            inner: CheckerError::Assume(term.clone()),
+                            inner: Box::new(CheckerError::Assume(term.clone())),
                             rule: "assume".into(),
                             step: id.as_str().into(),
+                            file: proof.filename.clone(),
                         });
                     }
                 }

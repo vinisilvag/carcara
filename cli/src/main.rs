@@ -16,6 +16,7 @@ use path_args::{get_instances_from_paths, infer_problem_path};
 use std::{
     fs::File,
     io::{self, IsTerminal, Read, Write},
+    path::PathBuf,
     sync::atomic,
 };
 
@@ -72,9 +73,9 @@ fn main() {
 }
 
 struct Instance {
-    problem: (String, String),
-    proof: (String, String),
-    rules: Option<(String, String)>,
+    problem: (PathBuf, String),
+    proof: (PathBuf, String),
+    rules: Option<(PathBuf, String)>,
 }
 
 impl Instance {
@@ -93,14 +94,17 @@ impl Instance {
 }
 
 fn get_instance(options: &Input) -> CliResult<Instance> {
-    let file_source = |path: &str| -> Result<(String, String), io::Error> {
-        let contents = std::fs::read_to_string(path)?;
-        Ok((path.to_owned(), contents))
+    let file_source = |path: &str| -> Result<(PathBuf, String), carcara::Error> {
+        let contents = std::fs::read_to_string(path)
+            .map_err(|e| carcara::Error::Io { inner: e, file: path.into() })?;
+        Ok((path.into(), contents))
     };
-    let stdin_source = || -> Result<(String, String), io::Error> {
+    let stdin_source = || -> Result<(PathBuf, String), carcara::Error> {
         let mut buf = String::new();
-        io::stdin().read_to_string(&mut buf)?;
-        Ok(("<stdin>".to_owned(), buf))
+        io::stdin()
+            .read_to_string(&mut buf)
+            .map_err(|e| carcara::Error::Io { inner: e, file: "<stdin>".into() })?;
+        Ok(("<stdin>".into(), buf))
     };
 
     let (problem, proof) = match (options.problem_file.as_deref(), options.proof_file.as_str()) {
@@ -215,8 +219,8 @@ fn bench_command(options: BenchCommandOptions) -> CliResult<()> {
             options.parsing.into_config(),
             checker_config,
             options.elaborate.then_some((elab_config, pipeline)),
-            &mut File::create("runs.csv")?,
-            &mut File::create("steps.csv")?,
+            "runs.csv",
+            "steps.csv",
         )?;
         return Ok(());
     }
@@ -249,7 +253,6 @@ fn slice_command(
     options: SliceCommandOptions,
     no_print_with_sharing: bool,
 ) -> CliResult<(ast::Problem, ast::Proof, ast::pool::PrimitivePool)> {
-    use std::fs;
     let instance = get_instance(&options.input)?;
     let (problem, proof, _, mut pool) = parser::parse_instance(
         instance.problem(),
@@ -269,30 +272,40 @@ fn slice_command(
 
         // Write sliced problem and proof to output paths, if provided
         if let Some(files) = options.sliced_output {
-            let (sliced_proof_file_name, sliced_problem_file_name) = (&files[0], &files[1]);
-            let mut sliced_problem_file = fs::File::create(sliced_problem_file_name)?;
-            sliced_problem_file
-                .write_all(format!("{}", problem.prelude).as_bytes())
-                .unwrap();
-            ast::printer::write_asserts(
-                &mut pool,
-                &problem.prelude,
-                &mut sliced_problem_file,
-                &sliced_asserts,
-                false,
-            )?;
-            sliced_problem_file.write_all(b"(check-sat)\n")?;
-            sliced_problem_file.write_all(b"(exit)\n")?;
+            let (proof_filename, problem_filename) = (&files[0], &files[1]);
+            File::create(problem_filename)
+                .and_then(|mut f| {
+                    f.write_all(format!("{}", problem.prelude).as_bytes())?;
+                    ast::printer::write_asserts(
+                        &mut pool,
+                        &problem.prelude,
+                        &mut f,
+                        &sliced_asserts,
+                        false,
+                    )?;
+                    f.write_all(b"(check-sat)\n")?;
+                    f.write_all(b"(exit)\n")
+                })
+                .map_err(|inner| carcara::Error::Io {
+                    inner,
+                    file: problem_filename.as_str().into(),
+                })?;
 
-            let mut sliced_proof_file = fs::File::create(sliced_proof_file_name)?;
-            ast::printer::write_proof_to_dest(
-                &mut pool,
-                &problem.prelude,
-                &sliced_proof,
-                &mut sliced_proof_file,
-                !no_print_with_sharing,
-            )?;
-            sliced_proof_file.write_all(b"\n")?;
+            File::create(proof_filename)
+                .and_then(|mut f| {
+                    ast::printer::write_proof_to_dest(
+                        &mut pool,
+                        &problem.prelude,
+                        &sliced_proof,
+                        &mut f,
+                        !no_print_with_sharing,
+                    )?;
+                    f.write_all(b"\n")
+                })
+                .map_err(|inner| carcara::Error::Io {
+                    inner,
+                    file: proof_filename.as_str().into(),
+                })?;
         }
 
         sliced_proof
@@ -315,8 +328,9 @@ fn generate_lia_problems_command(options: ParseCommandOptions, use_sharing: bool
     )?;
     for (id, content) in instances {
         let file_name = format!("{}-{}.lia_smt2", root_file_name, id);
-        let mut f = File::create(file_name)?;
-        write!(f, "{}", content)?;
+        File::create(&file_name)
+            .and_then(|mut f| write!(f, "{}", content))
+            .map_err(|inner| carcara::Error::Io { inner, file: file_name.into() })?;
     }
 
     Ok(())

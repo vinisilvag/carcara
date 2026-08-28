@@ -1,4 +1,5 @@
 use super::{ProofIter, Rc, SortedVar, Term};
+use std::path::PathBuf;
 
 /// A proof in the Alethe format.
 #[derive(Debug, Clone)]
@@ -10,6 +11,11 @@ pub struct Proof {
 
     /// The proof commands.
     pub commands: Vec<ProofCommand>,
+
+    /// The path of the proof file.
+    ///
+    /// This is used for error reporting.
+    pub filename: PathBuf,
 }
 
 /// A proof command.
