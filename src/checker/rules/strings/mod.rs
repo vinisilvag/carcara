@@ -4,14 +4,15 @@ use super::{
     RuleArgs, RuleResult, assert_clause_len, assert_eq, assert_num_args, assert_num_premises,
     assert_polyeq_expected, get_premise_term,
 };
+
 use crate::{
     ast::{
         Binder, BindingList, Constant, Operator, Rc, Sort, Term, build_term, match_term,
         match_term_err, polyeq, pool::TermPool,
     },
     automata::{
-        operations::{self, has_reachable_accepting_state, is_subautomaton},
         Automaton,
+        operations::{self, has_reachable_accepting_state, is_subautomaton},
     },
     checker::{
         error::{CheckerError, StringError},
@@ -70,39 +71,29 @@ fn concat_extract(term: Rc<Term>) -> Vec<Rc<Term>> {
     flattened
 }
 
-/// A function to check if two flat-form string term vectors are compatible prefixes of each other.
+/// A function to check if two flat-form string term slices are compatible prefixes of each other.
 ///
-/// It compares the elements of `s` and `t` pairwise from head to tail. If either vector is empty,
+/// It compares the elements of `s` and `t` pairwise from head to tail. If either slice is empty,
 /// they are considered compatible. If all overlapping elements match, it returns `true`; otherwise, `false`.
-fn is_compatible(s: Vec<Rc<Term>>, t: Vec<Rc<Term>>) -> bool {
-    match (&s[..], &t[..]) {
-        (_, []) => true,
-        ([], _) => true,
-        ([h1, t1 @ ..], [h2, t2 @ ..]) => {
-            if h1 == h2 {
-                is_compatible(t1.to_vec(), t2.to_vec())
-            } else {
-                false
-            }
-        }
-    }
+fn is_compatible(s: &[Rc<Term>], t: &[Rc<Term>]) -> bool {
+    s.iter().zip(t).all(|(a, b)| a == b)
 }
 
 /// A function to compute the minimal index offset where `s` and `t` become compatible.
 ///
 /// If `s` and `t` are already compatible, it returns `0`. Otherwise, it drops elements from the
-/// head of `s` recursively until a compatible suffix is found, returning the number of dropped terms.
-fn overlap(s: Vec<Rc<Term>>, t: Vec<Rc<Term>>) -> usize {
-    match &s[..] {
-        [] | [_] => 0,
-        [_, tail @ ..] => {
-            if is_compatible(s.clone(), t.clone()) {
-                0
-            } else {
-                1 + overlap(tail.to_vec(), t.clone())
-            }
+/// head of `s` until a compatible suffix is found, returning the number of dropped terms.
+fn overlap(s: &[Rc<Term>], t: &[Rc<Term>]) -> usize {
+    let mut current = s;
+    let mut dropped = 0;
+    while current.len() > 1 {
+        if is_compatible(current, t) {
+            return dropped;
         }
+        current = &current[1..];
+        dropped += 1;
     }
+    dropped
 }
 
 /// A function to standardize String constants and `str.++` applications
@@ -1162,11 +1153,11 @@ pub fn concat_cprop_prefix(RuleArgs { premises, conclusion, pool, .. }: RuleArgs
     };
 
     let sc = string_concat_flatten(pool, ss[0].clone());
-    let sc_tail = sc[1..].to_vec();
+    let sc_tail = sc.get(1..).unwrap_or_default();
 
     let t_2_flat = string_concat_flatten(pool, args_t[1].clone());
 
-    let v = 1 + overlap(sc_tail.clone(), t_2_flat.clone());
+    let v = 1 + overlap(sc_tail, &t_2_flat);
     let v = pool.add(Term::new_int(v));
     let oc = build_skolem_prefix(pool, ss[0].clone(), v);
     let oc_len = build_term!(pool, (strlen {oc.clone()}));
@@ -1209,12 +1200,12 @@ pub fn concat_cprop_suffix(RuleArgs { premises, conclusion, pool, .. }: RuleArgs
 
     let mut sc = string_concat_flatten(pool, ss[1].clone());
     sc.reverse();
-    let sc_tail = &sc[1..];
+    let sc_tail = sc.get(1..).unwrap_or_default();
 
     let mut t_2_flat = string_concat_flatten(pool, args_t[1].clone());
     t_2_flat.reverse();
 
-    let v = 1 + overlap(sc_tail.to_vec(), t_2_flat.clone());
+    let v = 1 + overlap(sc_tail, &t_2_flat);
     let v = pool.add(Term::new_int(v));
     let oc = build_str_suffix_len(pool, ss[1].clone(), v);
 
