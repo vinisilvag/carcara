@@ -5,11 +5,12 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 
 use crate::{
-    ast::{Operator, Rc, Term, build_term, pool::TermPool},
+    ast::{Constant, Operator, Rc, Term, build_term, pool::TermPool},
     automata::Automaton,
     checker::error::{CheckerError, StringError},
 };
 
+// CPC utils
 /// Orientation for string operations that distinguish between prefix and suffix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Orientation {
@@ -95,6 +96,67 @@ impl<T: TermPool + ?Sized> StringTermBuilder for T {
             }
         };
         build_term!(self, (ite (>= (strlen {t.clone()}) (strlen {s.clone()})) {true_branch} {false_branch}))
+    }
+}
+
+/// A function to calculate the fixed length of a regular expression `r` (size of strings that
+/// match that RE) if it can be inferred.
+///
+/// It takes an `Rc<Term>` and recursively match over the regular expression operators whose length
+/// can be inferred. It throws an error if the term length cannot be evaluated, i.e., if the length
+/// of the term itself or one of its arguments cannot be inferred.
+pub fn str_fixed_len_re(r: &Rc<Term>) -> Result<usize, CheckerError> {
+    fn has_same_length(
+        args: &[Rc<Term>],
+        r: &Rc<Term>,
+        ignore: Operator,
+    ) -> Result<usize, CheckerError> {
+        let should_ignore = |term: &Term| term.as_op().is_some_and(|(op, _)| op == ignore);
+        let mut iter = args
+            .iter()
+            .filter(|a| !should_ignore(a))
+            .map(str_fixed_len_re);
+        let Some(first) = iter.next() else {
+            return Err(CheckerError::LengthCannotBeEvaluated(r.clone()));
+        };
+        let first = first?;
+        for size in iter {
+            let size = size?;
+            if size != first {
+                return Err(CheckerError::LengthCannotBeEvaluated(r.clone()));
+            }
+        }
+        Ok(first)
+    }
+
+    match r.as_ref() {
+        Term::Op(Operator::ReConcat, args) => {
+            let mut lengths = args.iter().map(str_fixed_len_re);
+            lengths.try_fold(0, |acc, x| Ok(acc + x?))
+        }
+        Term::Op(Operator::ReAllChar, _) => Ok(1),
+        Term::Op(Operator::ReRange, _) => Ok(1),
+        Term::Op(Operator::StrToRe, args) => {
+            let s_1 = args.first().unwrap();
+            match s_1.as_ref() {
+                Term::Const(Constant::String(s)) => Ok(s.len()),
+                _ => Err(CheckerError::LengthCannotBeEvaluated(r.clone())),
+            }
+        }
+        Term::Op(Operator::ReUnion, args) => has_same_length(args, r, Operator::ReNone),
+        Term::Op(Operator::ReIntersection, args) => has_same_length(args, r, Operator::ReAll),
+        _ => Err(CheckerError::LengthCannotBeEvaluated(r.clone())),
+    }
+}
+
+/// A function that takes a list of regular expressions and returns the term corresponding to the
+/// application of the concatenation operator to them.
+///
+/// If the list contains only one regular expression, it returns it directly.
+pub fn singleton_elim(pool: &mut dyn TermPool, r_list: &[Rc<Term>]) -> Rc<Term> {
+    match r_list {
+        [single] => single.clone(),
+        _ => pool.add(Term::Op(Operator::ReConcat, r_list.to_vec())),
     }
 }
 

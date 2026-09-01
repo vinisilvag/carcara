@@ -21,28 +21,7 @@ use crate::{
 pub use normalization::NormalizedConcat;
 pub use utils::*;
 
-/// Helper function to properly extract the arguments of the `concat_cprop` rule.
-fn extract_arguments(t: &Rc<Term>) -> Result<&[Rc<Term>], CheckerError> {
-    match t.as_ref() {
-        Term::Op(Operator::StrConcat, args) if args.len() == 3 => Ok(args),
-        _ => Err(CheckerError::TermOfWrongForm(
-            "(str.++ t1 t2 t3)",
-            t.clone(),
-        )),
-    }
-}
-
-/// A function that takes a list of regular expressions and returns the term corresponding to the
-/// application of the concatenation operator to them.
-///
-/// If the list contains only one regular expression, it returns it directly.
-fn singleton_elim(pool: &mut dyn TermPool, r_list: &[Rc<Term>]) -> Rc<Term> {
-    match r_list {
-        [single] => single.clone(),
-        _ => pool.add(Term::Op(Operator::ReConcat, r_list.to_vec())),
-    }
-}
-
+// CPC rule part
 /// Helper function for implementing the `re_kleene_unfold_pos` and `re_concat_unfold_pos` rules.
 ///
 /// Internally handles the generation of the Skolem term resulting from `re_unfold_pos_component`,
@@ -103,9 +82,7 @@ fn re_unfold_pos_concat(
         exists_binding_list.push((name_r_i, reglan_sort.clone()));
         and_args.push(build_term!(pool, (strinre {x.clone()} {r_i.clone()})));
         for (j, prev_r) in previous_rs.iter().enumerate() {
-            and_args.push(
-                build_term!(pool, (strinre {previous_ks[j].clone()} {prev_r.clone()})),
-            );
+            and_args.push(build_term!(pool, (strinre {previous_ks[j].clone()} {prev_r.clone()})));
             let sum = i + j + 1;
             exists_binding_list.push((format!("R_{sum}"), reglan_sort.clone()));
         }
@@ -196,60 +173,6 @@ fn re_unfold_pos_concat(
         &mut Vec::new(),
         0,
     )
-}
-
-/// A function to calculate the fixed length of a regular expression `r` (size of strings that
-/// match that RE) if it can be inferred.
-///
-/// It takes an `Rc<Term>` and recursively match over the regular expression operators whose length
-/// can be inferred. It throws an error if the term length cannot be evaluated, i.e., if the length
-/// of the term itself or one of its arguments cannot be inferred.
-fn str_fixed_len_re(r: &Rc<Term>) -> Result<usize, CheckerError> {
-    fn has_same_length(
-        args: &[Rc<Term>],
-        r: &Rc<Term>,
-        ignore: Operator,
-    ) -> Result<usize, CheckerError> {
-        let should_ignore = |term: &Term| term.as_op().is_some_and(|(op, _)| op == ignore);
-        let mut iter = args
-            .iter()
-            .filter(|a| !should_ignore(a))
-            .map(str_fixed_len_re);
-        let Some(first) = iter.next() else {
-            return Err(CheckerError::LengthCannotBeEvaluated(r.clone()));
-        };
-        let first = first?;
-        for size in iter {
-            let size = size?;
-            if size != first {
-                return Err(CheckerError::LengthCannotBeEvaluated(r.clone()));
-            }
-        }
-        Ok(first)
-    }
-
-    match r.as_ref() {
-        Term::Op(Operator::ReConcat, args) => {
-            let mut lengths = args.iter().map(str_fixed_len_re);
-            lengths.try_fold(0, |acc, x| Ok(acc + x?))
-        }
-        Term::Op(Operator::ReAllChar, _) => Ok(1),
-        Term::Op(Operator::ReRange, _) => Ok(1),
-        Term::Op(Operator::StrToRe, args) => {
-            let s_1 = args.first().unwrap();
-            match s_1.as_ref() {
-                Term::Const(Constant::String(s)) => Ok(s.len()),
-                _ => Err(CheckerError::LengthCannotBeEvaluated(r.clone())),
-            }
-        }
-        Term::Op(Operator::ReUnion, args) => {
-            has_same_length(args, r, Operator::ReNone)
-        }
-        Term::Op(Operator::ReIntersection, args) => {
-            has_same_length(args, r, Operator::ReAll)
-        }
-        _ => Err(CheckerError::LengthCannotBeEvaluated(r.clone())),
-    }
 }
 
 // CPC Rules (a little outdated)
@@ -749,7 +672,13 @@ pub fn concat_cprop_prefix(RuleArgs { premises, conclusion, pool, .. }: RuleArgs
     let (t, s) = match_term_err!((= t s) = terms)?;
     let t_1 = match_term_err!((not (= (strlen t_1) 0)) = length)?;
 
-    let args_t = extract_arguments(t)?;
+    let args_t = match t.as_ref() {
+        Term::Op(Operator::StrConcat, args) if args.len() == 3 => Ok(args),
+        _ => Err(CheckerError::TermOfWrongForm(
+            "(str.++ t1 t2 t3)",
+            t.clone(),
+        )),
+    }?;
 
     assert_eq(&args_t[0], t_1)?;
 
@@ -795,7 +724,13 @@ pub fn concat_cprop_suffix(RuleArgs { premises, conclusion, pool, .. }: RuleArgs
     let (t, s) = match_term_err!((= t s) = terms)?;
     let t_2 = match_term_err!((not (= (strlen t_2) 0)) = length)?;
 
-    let args_t = extract_arguments(t)?;
+    let args_t = match t.as_ref() {
+        Term::Op(Operator::StrConcat, args) if args.len() == 3 => Ok(args),
+        _ => Err(CheckerError::TermOfWrongForm(
+            "(str.++ t1 t2 t3)",
+            t.clone(),
+        )),
+    }?;
 
     assert_eq(&args_t[2], t_2)?;
 
