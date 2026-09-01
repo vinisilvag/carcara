@@ -22,35 +22,24 @@ pub use normalization::NormalizedConcat;
 pub use utils::*;
 
 /// Helper function to properly extract the arguments of the `concat_cprop` rule.
-fn extract_arguments(t: &Rc<Term>) -> Result<Vec<Rc<Term>>, CheckerError> {
-    let args_t = match t.as_ref() {
-        Term::Op(Operator::StrConcat, args) => {
-            if args.len() != 3 {
-                return Err(CheckerError::TermOfWrongForm(
-                    "(str.++ t1 t2 t3)",
-                    t.clone(),
-                ));
-            }
-            args
-        }
-        _ => {
-            return Err(CheckerError::TermOfWrongForm(
-                "(str.++ t1 t2 t3)",
-                t.clone(),
-            ));
-        }
-    };
-    Ok(args_t.clone())
+fn extract_arguments(t: &Rc<Term>) -> Result<&[Rc<Term>], CheckerError> {
+    match t.as_ref() {
+        Term::Op(Operator::StrConcat, args) if args.len() == 3 => Ok(args),
+        _ => Err(CheckerError::TermOfWrongForm(
+            "(str.++ t1 t2 t3)",
+            t.clone(),
+        )),
+    }
 }
 
 /// A function that takes a list of regular expressions and returns the term corresponding to the
 /// application of the concatenation operator to them.
 ///
 /// If the list contains only one regular expression, it returns it directly.
-fn singleton_elim(pool: &mut dyn TermPool, r_list: Vec<Rc<Term>>) -> Rc<Term> {
-    match r_list.len() {
-        1 => r_list[0].clone(),
-        _ => pool.add(Term::Op(Operator::ReConcat, r_list)),
+fn singleton_elim(pool: &mut dyn TermPool, r_list: &[Rc<Term>]) -> Rc<Term> {
+    match r_list {
+        [single] => single.clone(),
+        _ => pool.add(Term::Op(Operator::ReConcat, r_list.to_vec())),
     }
 }
 
@@ -95,24 +84,27 @@ fn re_unfold_pos_concat(
         let mut exists_binding_list: Vec<(String, Rc<Sort>)> = Vec::new();
 
         for j in 0..i {
-            let k_j = pool.add(Term::new_var(format!("k_{j}"), str_sort.clone()));
-            let r_j = pool.add(Term::new_var(format!("R_{j}"), reglan_sort.clone()));
+            let name_k = format!("k_{j}");
+            let name_r = format!("R_{j}");
+            let k_j = pool.add(Term::new_var(name_k.clone(), str_sort.clone()));
+            let r_j = pool.add(Term::new_var(name_r.clone(), reglan_sort.clone()));
             concat_args.push(k_j.clone());
-            and_args.push(build_term!(pool, (strinre {k_j.clone()} {r_j.clone()})));
-            exists_binding_list.push((format!("k_{j}"), str_sort.clone()));
-            exists_binding_list.push((format!("R_{j}"), reglan_sort.clone()));
+            and_args.push(build_term!(pool, (strinre {k_j} {r_j})));
+            exists_binding_list.push((name_k, str_sort.clone()));
+            exists_binding_list.push((name_r, reglan_sort.clone()));
         }
 
         concat_args.push(x.clone());
         concat_args.extend(previous_ks.clone());
         let ks_concat = pool.add(Term::Op(Operator::StrConcat, concat_args));
 
-        let r_i = pool.add(Term::new_var(format!("R_{i}"), reglan_sort.clone()));
-        exists_binding_list.push((format!("R_{i}"), reglan_sort.clone()));
+        let name_r_i = format!("R_{i}");
+        let r_i = pool.add(Term::new_var(name_r_i.clone(), reglan_sort.clone()));
+        exists_binding_list.push((name_r_i, reglan_sort.clone()));
         and_args.push(build_term!(pool, (strinre {x.clone()} {r_i.clone()})));
-        for (j, _) in previous_rs.iter().enumerate() {
+        for (j, prev_r) in previous_rs.iter().enumerate() {
             and_args.push(
-                build_term!(pool, (strinre {previous_ks[j].clone()} {previous_rs[j].clone()})),
+                build_term!(pool, (strinre {previous_ks[j].clone()} {prev_r.clone()})),
             );
             let sum = i + j + 1;
             exists_binding_list.push((format!("R_{sum}"), reglan_sort.clone()));
@@ -212,18 +204,17 @@ fn re_unfold_pos_concat(
 /// It takes an `Rc<Term>` and recursively match over the regular expression operators whose length
 /// can be inferred. It throws an error if the term length cannot be evaluated, i.e., if the length
 /// of the term itself or one of its arguments cannot be inferred.
-fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> Result<usize, CheckerError> {
+fn str_fixed_len_re(r: &Rc<Term>) -> Result<usize, CheckerError> {
     fn has_same_length(
-        pool: &mut dyn TermPool,
         args: &[Rc<Term>],
-        r: Rc<Term>,
+        r: &Rc<Term>,
         ignore: Operator,
     ) -> Result<usize, CheckerError> {
         let should_ignore = |term: &Term| term.as_op().is_some_and(|(op, _)| op == ignore);
         let mut iter = args
             .iter()
             .filter(|a| !should_ignore(a))
-            .map(|a| str_fixed_len_re(pool, a.clone()));
+            .map(str_fixed_len_re);
         let Some(first) = iter.next() else {
             return Err(CheckerError::LengthCannotBeEvaluated(r.clone()));
         };
@@ -239,7 +230,7 @@ fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> Result<usize, Check
 
     match r.as_ref() {
         Term::Op(Operator::ReConcat, args) => {
-            let mut lengths = args.iter().map(|a| str_fixed_len_re(pool, a.clone()));
+            let mut lengths = args.iter().map(str_fixed_len_re);
             lengths.try_fold(0, |acc, x| Ok(acc + x?))
         }
         Term::Op(Operator::ReAllChar, _) => Ok(1),
@@ -252,10 +243,10 @@ fn str_fixed_len_re(pool: &mut dyn TermPool, r: Rc<Term>) -> Result<usize, Check
             }
         }
         Term::Op(Operator::ReUnion, args) => {
-            has_same_length(pool, args, r.clone(), Operator::ReNone)
+            has_same_length(args, r, Operator::ReNone)
         }
         Term::Op(Operator::ReIntersection, args) => {
-            has_same_length(pool, args, r.clone(), Operator::ReAll)
+            has_same_length(args, r, Operator::ReAll)
         }
         _ => Err(CheckerError::LengthCannotBeEvaluated(r.clone())),
     }
@@ -363,18 +354,17 @@ pub fn concat_conflict(
     let (s, t) = match_term_err!((= s t) = term)?;
     let s_norm = NormalizedConcat::from_term(pool, s);
     let t_norm = NormalizedConcat::from_term(pool, t);
-    let (mut ss, mut ts) = s_norm.strip_prefix_or_suffix(&t_norm, s, t, rev, polyeq_time)?;
-    if rev {
-        ss.reverse();
-        ts.reverse();
-    }
+    let (ss, ts) = s_norm.strip_prefix_or_suffix(&t_norm, s, t, rev, polyeq_time)?;
 
-    if let Some(ss_head) = ss.first() {
+    let ss_head = if rev { ss.last() } else { ss.first() };
+    let ts_head = if rev { ts.last() } else { ts.first() };
+
+    if let Some(ss_head) = ss_head {
         NormalizedConcat::assert_length_one(ss_head)?;
-        if let Some(ts_head) = ts.first() {
+        if let Some(ts_head) = ts_head {
             NormalizedConcat::assert_length_one(ts_head)?;
         }
-    } else if let Some(ts_head) = ts.first() {
+    } else if let Some(ts_head) = ts_head {
         NormalizedConcat::assert_length_one(ts_head)?;
     } else {
         return Err(CheckerError::ExpectedDifferentConstantPrefixes(
@@ -1122,7 +1112,7 @@ pub fn re_unfold_neg(RuleArgs { premises, conclusion, pool, .. }: RuleArgs) -> R
                         (< {l.clone()} 0)
                         (< (strlen {t.clone()}) {l.clone()})
                         (not (strinre {pref.clone()} {r_1.clone()}))
-                        (not (strinre {suff.clone()} {singleton_elim(pool, r_2.to_vec())}))
+                        (not (strinre {suff.clone()} {singleton_elim(pool, r_2)}))
                     )
                 );
                 let quantifier = pool.add(Term::Binder(
@@ -1162,14 +1152,14 @@ pub fn re_unfold_neg_concat_fixed_prefix(
 
     let expanded = if let Term::Op(Operator::ReConcat, args) = r.as_ref() {
         if let [r_1, r_2 @ ..] = &args[..] {
-            let n = Term::new_int(str_fixed_len_re(pool, r_1.clone())?);
+            let n = Term::new_int(str_fixed_len_re(r_1)?);
             let n = pool.add(n);
             let pref = pool.build_str_prefix(s, &n);
             let suff = pool.build_str_suffix_rem(s, &n);
             Ok(build_term!(pool,
                 (or
                     (not (strinre {pref.clone()} {r_1.clone()}))
-                    (not (strinre {suff.clone()} {singleton_elim(pool, r_2.to_vec())}))
+                    (not (strinre {suff.clone()} {singleton_elim(pool, r_2)}))
                 )
             ))
         } else {
@@ -1203,7 +1193,7 @@ pub fn re_unfold_neg_concat_fixed_suffix(
         args_rev.reverse();
 
         if let [r_1, r_2 @ ..] = &args_rev[..] {
-            let n = Term::new_int(str_fixed_len_re(pool, r_1.clone())?);
+            let n = Term::new_int(str_fixed_len_re(r_1)?);
             let n = pool.add(n);
             let suff = pool.build_str_suffix(s, &n);
             let size = build_term!(pool, (- (strlen {s.clone()}) {n.clone()}));
@@ -1213,7 +1203,7 @@ pub fn re_unfold_neg_concat_fixed_suffix(
             Ok(build_term!(pool,
                 (or
                     (not (strinre {suff.clone()} {r_1.clone()}))
-                    (not (strinre {pref.clone()} {singleton_elim(pool, r_2_rev.clone())}))
+                    (not (strinre {pref.clone()} {singleton_elim(pool, &r_2_rev)}))
                 )
             ))
         } else {
