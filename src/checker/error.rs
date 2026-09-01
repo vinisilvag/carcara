@@ -4,9 +4,7 @@ use crate::automata::{Automaton, Trigger};
 use crate::external::ExternalError;
 use crate::{
     ast::*,
-    automata::Trigger,
     checker::rules::linear_arithmetic::LinearComb,
-    external::ExternalError,
     utils::{Range, TypeName},
 };
 use rug::{Integer, Rational};
@@ -203,12 +201,6 @@ pub enum CheckerError {
     /// A term was expected to be a numeric constant.
     #[error("expected term '{0}' to be a numerical constant")]
     ExpectedAnyNumber(Rc<Term>),
-
-    #[error("expected term '{0}' to be a string constant")]
-    ExpectedAnyString(Rc<Term>),
-
-    #[error("expected an 'automaton' term, got '{0}'")]
-    ExpectedAutomaton(Rc<Term>),
 
     #[error("expected term '{0}' to be a string constant")]
     ExpectedAnyString(Rc<Term>),
