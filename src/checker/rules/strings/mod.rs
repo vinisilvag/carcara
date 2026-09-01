@@ -1,6 +1,9 @@
 pub mod normalization;
 pub mod utils;
 
+pub use normalization::NormalizedConcat;
+pub use utils::*;
+
 use super::{
     RuleArgs, RuleResult, assert_clause_len, assert_eq, assert_num_args, assert_num_premises,
     assert_polyeq, get_premise_term,
@@ -17,9 +20,6 @@ use crate::{
     },
     checker::error::{CheckerError, StringError},
 };
-
-pub use normalization::NormalizedConcat;
-pub use utils::*;
 
 // CPC rule part
 /// Helper function for implementing the `re_kleene_unfold_pos` and `re_concat_unfold_pos` rules.
@@ -1174,8 +1174,16 @@ pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResul
 
     assert_eq(w1, w2)?;
 
-    let a1 = Automaton::determinize(&a1.as_automaton_err()?);
-    let a2 = Automaton::determinize(&a2.as_automaton_err()?);
+    let a1 = a1.as_automaton_err()?;
+    let a2 = a2.as_automaton_err()?;
+
+    // Short circuit
+    if !has_reachable_accepting_state(&a1) || !has_reachable_accepting_state(&a2) {
+        return Ok(());
+    }
+
+    let a1 = Automaton::determinize(&a1);
+    let a2 = Automaton::determinize(&a2);
     let intersection = operations::intersection(a1.clone(), a2.clone())?;
 
     if has_reachable_accepting_state(&intersection) {
@@ -1185,6 +1193,8 @@ pub fn re_empty_intersection(RuleArgs { conclusion, .. }: RuleArgs) -> RuleResul
     Ok(())
 }
 
+// TODO: implementar short circuit aqui também (qualquer autômato que não aceita nenhuma cadeia
+// torna a interseção vazia, basta comparar se a conclusão é vazia também)
 pub fn re_intersection(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
     assert_num_premises(premises, 2..)?;
     assert_clause_len(conclusion, 1)?;
