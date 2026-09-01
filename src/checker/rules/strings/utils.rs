@@ -150,3 +150,125 @@ pub fn make_automaton_from_string(
         _ => Err(StringError::NotBackwardableOperator(t.clone()).into()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{match_term, pool::PrimitivePool};
+
+    #[test]
+    fn test_build_str_prefix() {
+        let mut pool = PrimitivePool::new();
+        let str_sort = pool.add_sort(crate::ast::Sort::String);
+        let int_sort = pool.add_sort(crate::ast::Sort::Int);
+        let u = pool.add(Term::new_var("u", str_sort));
+        let n = pool.add(Term::new_var("n", int_sort));
+
+        let term = pool.build_str_prefix(&u, &n);
+        let expected = build_term!(pool, (strsubstr {u} 0 {n}));
+        assert_eq!(term, expected);
+    }
+
+    #[test]
+    fn test_build_str_suffix() {
+        let mut pool = PrimitivePool::new();
+        let str_sort = pool.add_sort(crate::ast::Sort::String);
+        let int_sort = pool.add_sort(crate::ast::Sort::Int);
+        let u = pool.add(Term::new_var("u", str_sort));
+        let n = pool.add(Term::new_var("n", int_sort));
+
+        let term = pool.build_str_suffix(&u, &n);
+        let expected = build_term!(pool, (strsubstr {u.clone()} (- (strlen {u}) {n.clone()}) {n}));
+        assert_eq!(term, expected);
+    }
+
+    #[test]
+    fn test_build_str_suffix_rem() {
+        let mut pool = PrimitivePool::new();
+        let str_sort = pool.add_sort(crate::ast::Sort::String);
+        let int_sort = pool.add_sort(crate::ast::Sort::Int);
+        let u = pool.add(Term::new_var("u", str_sort));
+        let n = pool.add(Term::new_var("n", int_sort));
+
+        let term = pool.build_str_suffix_rem(&u, &n);
+        let expected = build_term!(pool, (strsubstr {u.clone()} {n.clone()} (- (strlen {u}) {n})));
+        assert_eq!(term, expected);
+    }
+
+    #[test]
+    fn test_build_str_unify_split_prefix_and_suffix() {
+        let mut pool = PrimitivePool::new();
+        let str_sort = pool.add_sort(crate::ast::Sort::String);
+        let t = pool.add(Term::new_var("t", str_sort.clone()));
+        let s = pool.add(Term::new_var("s", str_sort));
+
+        let pref_term = pool.build_str_unify_split(&t, &s, Orientation::Prefix);
+        let suff_term = pool.build_str_unify_split(&t, &s, Orientation::Suffix);
+
+        assert!(
+            match_term!(
+                (ite (>= (strlen ...) (strlen ...)) (strsubstr ...) (strsubstr ...)) = &pref_term
+            )
+            .is_some()
+        );
+        assert!(
+            match_term!(
+                (ite (>= (strlen ...) (strlen ...)) (strsubstr ...) (strsubstr ...)) = &suff_term
+            )
+            .is_some()
+        );
+        assert_ne!(pref_term, suff_term);
+    }
+
+    #[test]
+    fn test_cached_automaton() {
+        let mut pool = PrimitivePool::new();
+        let mut cache = IndexMap::new();
+
+        let a = pool.add(Term::new_string("a"));
+        let re_a = pool.add(Term::Op(Operator::StrToRe, vec![a]));
+
+        let auto1 = cached_automaton(&mut pool, &mut cache, &re_a).unwrap();
+        let auto2 = cached_automaton(&mut pool, &mut cache, &re_a).unwrap();
+
+        assert!(Arc::ptr_eq(&auto1, &auto2));
+        assert_eq!(cache.len(), 1);
+    }
+
+    #[test]
+    fn test_make_automaton_from_string_success() {
+        let mut pool = PrimitivePool::new();
+        let s1 = pool.add(Term::new_string("a"));
+        let s2 = pool.add(Term::new_string("b"));
+        let concat = pool.add(Term::Op(Operator::StrConcat, vec![s1.clone(), s2.clone()]));
+
+        let re1 = pool.add(Term::Op(Operator::StrToRe, vec![s1.clone()]));
+        let re2 = pool.add(Term::Op(Operator::StrToRe, vec![s2.clone()]));
+
+        let premises = vec![(s1, re1), (s2, re2)];
+        let automaton = make_automaton_from_string(&mut pool, &concat, premises);
+        assert!(automaton.is_ok());
+    }
+
+    #[test]
+    fn test_make_automaton_from_string_mismatch() {
+        let mut pool = PrimitivePool::new();
+        let s1 = pool.add(Term::new_string("a"));
+        let s2 = pool.add(Term::new_string("b"));
+        let concat = pool.add(Term::Op(Operator::StrConcat, vec![s1.clone(), s2.clone()]));
+
+        let re1 = pool.add(Term::Op(Operator::StrToRe, vec![s1.clone()]));
+        let premises = vec![(s1, re1)]; // Wrong number of premises
+
+        let result = make_automaton_from_string(&mut pool, &concat, premises);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_make_automaton_from_string_invalid_operator() {
+        let mut pool = PrimitivePool::new();
+        let s = pool.add(Term::new_string("a"));
+        let result = make_automaton_from_string(&mut pool, &s, vec![]);
+        assert!(result.is_err());
+    }
+}

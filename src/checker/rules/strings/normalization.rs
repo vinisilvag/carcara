@@ -1,14 +1,12 @@
 use crate::{
-    ast::{
-        Constant, MatchCase, Operator, Rc, Term, match_term,
-        pool::TermPool, polyeq,
-    },
-    checker::{
-        error::CheckerError,
-        rules::assert_polyeq_expected,
-    },
+    ast::{Constant, MatchCase, Operator, Rc, Term, match_term, polyeq, pool::TermPool},
+    checker::{error::CheckerError, rules::assert_polyeq_expected},
 };
-use std::{cmp, ops::{Deref, DerefMut}, time::Duration};
+use std::{
+    cmp,
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 
 /// A normalized representation of a string concatenation term.
 ///
@@ -26,6 +24,11 @@ impl NormalizedConcat {
     /// Creates a new `NormalizedConcat` wrapping a vector of terms.
     pub fn new(terms: Vec<Rc<Term>>) -> Self {
         Self(terms)
+    }
+
+    /// Returns a slice of the underlying terms.
+    pub fn as_slice(&self) -> &[Rc<Term>] {
+        &self.0
     }
 
     /// Normalizes a string term into flat form.
@@ -153,7 +156,7 @@ impl NormalizedConcat {
     pub fn assert_is_prefix_or_suffix_of(
         &self,
         target: &Self,
-        orig_prefix: &Rc<Term>,
+        orig_substr: &Rc<Term>,
         orig_target: &Rc<Term>,
         rev: bool,
         polyeq_time: &mut Duration,
@@ -161,12 +164,12 @@ impl NormalizedConcat {
         if self.len() > target.len() {
             if rev {
                 return Err(CheckerError::ExpectedToBeSuffix(
-                    orig_prefix.clone(),
+                    orig_substr.clone(),
                     orig_target.clone(),
                 ));
             } else {
                 return Err(CheckerError::ExpectedToBePrefix(
-                    orig_prefix.clone(),
+                    orig_substr.clone(),
                     orig_target.clone(),
                 ));
             }
@@ -181,6 +184,7 @@ impl NormalizedConcat {
                 assert_polyeq_expected(el, t_el.clone(), polyeq_time)?;
             }
         }
+
         Ok(())
     }
 
@@ -198,10 +202,16 @@ impl NormalizedConcat {
         polyeq_time: &mut Duration,
     ) -> Result<(Self, Self), CheckerError> {
         if self.is_empty() {
-            return Err(CheckerError::TermOfWrongForm("(str.++ ...)", orig_self.clone()));
+            return Err(CheckerError::TermOfWrongForm(
+                "(str.++ ...)",
+                orig_self.clone(),
+            ));
         }
         if other.is_empty() {
-            return Err(CheckerError::TermOfWrongForm("(str.++ ...)", orig_other.clone()));
+            return Err(CheckerError::TermOfWrongForm(
+                "(str.++ ...)",
+                orig_other.clone(),
+            ));
         }
 
         let mut prefix_len = 0;
@@ -221,8 +231,7 @@ impl NormalizedConcat {
             let t_rem = other[..other.len() - prefix_len].to_vec();
             Ok((Self(s_rem), Self(t_rem)))
         } else {
-            while prefix_len < min_len
-                && polyeq(&self[prefix_len], &other[prefix_len], polyeq_time)
+            while prefix_len < min_len && polyeq(&self[prefix_len], &other[prefix_len], polyeq_time)
             {
                 prefix_len += 1;
             }
@@ -320,7 +329,9 @@ impl NormalizedConcat {
         {
             return Ok(());
         }
-        Err(CheckerError::ExpectedStringConstantOfLengthOne(term.clone()))
+        Err(CheckerError::ExpectedStringConstantOfLengthOne(
+            term.clone(),
+        ))
     }
 }
 
@@ -366,5 +377,244 @@ impl From<Vec<Rc<Term>>> for NormalizedConcat {
 impl From<NormalizedConcat> for Vec<Rc<Term>> {
     fn from(n: NormalizedConcat) -> Self {
         n.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::pool::PrimitivePool;
+    use std::slice;
+    use std::time::Duration;
+
+    #[test]
+    fn test_from_term_flatten_constants() {
+        let mut pool = PrimitivePool::new();
+        let term = pool.add(Term::new_string("abc"));
+        let norm = NormalizedConcat::from_term(&mut pool, &term);
+
+        assert_eq!(norm.len(), 3);
+        assert_eq!(norm[0], pool.add(Term::new_string("a")));
+        assert_eq!(norm[1], pool.add(Term::new_string("b")));
+        assert_eq!(norm[2], pool.add(Term::new_string("c")));
+    }
+
+    #[test]
+    fn test_from_term_omits_empty_strings() {
+        let mut pool = PrimitivePool::new();
+        let empty = pool.add(Term::new_string(""));
+        let norm = NormalizedConcat::from_term(&mut pool, &empty);
+        assert!(norm.is_empty());
+
+        let a = pool.add(Term::new_string("a"));
+        let concat_with_empty = pool.add(Term::Op(Operator::StrConcat, vec![empty, a.clone()]));
+        let norm2 = NormalizedConcat::from_term(&mut pool, &concat_with_empty);
+        assert_eq!(norm2.as_slice(), &[a]);
+    }
+
+    #[test]
+    fn test_from_term_nested_concat() {
+        let mut pool = PrimitivePool::new();
+        let str_sort = pool.add_sort(crate::ast::Sort::String);
+        let x = pool.add(Term::new_var("x", str_sort));
+        let ab = pool.add(Term::new_string("ab"));
+        let c = pool.add(Term::new_string("c"));
+
+        let inner = pool.add(Term::Op(Operator::StrConcat, vec![x.clone(), ab]));
+        let outer = pool.add(Term::Op(Operator::StrConcat, vec![inner, c]));
+
+        let norm = NormalizedConcat::from_term(&mut pool, &outer);
+        let a = pool.add(Term::new_string("a"));
+        let b = pool.add(Term::new_string("b"));
+        let c = pool.add(Term::new_string("c"));
+
+        assert_eq!(norm.as_slice(), &[x, a, b, c]);
+    }
+
+    #[test]
+    fn test_from_term_unsplit() {
+        let mut pool = PrimitivePool::new();
+        let hello = pool.add(Term::new_string("hello"));
+        let world = pool.add(Term::new_string("world"));
+        let empty = pool.add(Term::new_string(""));
+
+        let concat = pool.add(Term::Op(
+            Operator::StrConcat,
+            vec![hello.clone(), empty, world.clone()],
+        ));
+        let norm = NormalizedConcat::from_term_unsplit(&concat);
+
+        assert_eq!(norm.as_slice(), &[hello, world]);
+    }
+
+    #[test]
+    fn test_to_term_and_into_term() {
+        let mut pool = PrimitivePool::new();
+        let a = pool.add(Term::new_string("a"));
+        let b = pool.add(Term::new_string("b"));
+
+        // Empty
+        let empty_norm = NormalizedConcat::new(vec![]);
+        assert_eq!(
+            empty_norm.to_term(&mut pool),
+            pool.add(Term::new_string(""))
+        );
+
+        // Single
+        let single_norm = NormalizedConcat::new(vec![a.clone()]);
+        assert_eq!(single_norm.to_term(&mut pool), a);
+
+        // Multiple
+        let multi_norm = NormalizedConcat::new(vec![a.clone(), b.clone()]);
+        let expected = pool.add(Term::Op(Operator::StrConcat, vec![a, b]));
+        assert_eq!(multi_norm.into_term(&mut pool), expected);
+    }
+
+    #[test]
+    fn test_is_compatible() {
+        let mut pool = PrimitivePool::new();
+        let a = pool.add(Term::new_string("a"));
+        let b = pool.add(Term::new_string("b"));
+        let c = pool.add(Term::new_string("c"));
+
+        // Both empty or one empty
+        assert!(NormalizedConcat::is_compatible(&[], &[]));
+        assert!(NormalizedConcat::is_compatible(slice::from_ref(&a), &[]));
+        assert!(NormalizedConcat::is_compatible(&[], slice::from_ref(&a)));
+
+        // Matching prefix
+        assert!(NormalizedConcat::is_compatible(
+            &[a.clone(), b.clone()],
+            &[a.clone(), b.clone(), c.clone()]
+        ));
+
+        // Mismatched
+        assert!(!NormalizedConcat::is_compatible(&[a.clone(), b], &[a, c]));
+    }
+
+    #[test]
+    fn test_overlap() {
+        let mut pool = PrimitivePool::new();
+        let a = pool.add(Term::new_string("a"));
+        let b = pool.add(Term::new_string("b"));
+        let c = pool.add(Term::new_string("c"));
+
+        // Already compatible (offset 0)
+        let s1 = vec![a.clone(), b.clone()];
+        let t1 = vec![a.clone(), b.clone(), c.clone()];
+        assert_eq!(NormalizedConcat::overlap(&s1, &t1), 0);
+
+        // Compatible after dropping 1 element
+        let s2 = vec![c.clone(), a.clone(), b.clone()];
+        let t2 = vec![a.clone(), b.clone()];
+        assert_eq!(NormalizedConcat::overlap(&s2, &t2), 1);
+
+        // Incompatible until last element
+        let s3 = vec![a.clone(), b.clone(), c.clone()];
+        let t3 = vec![pool.add(Term::new_string("d"))];
+        assert_eq!(NormalizedConcat::overlap(&s3, &t3), 2);
+    }
+
+    #[test]
+    fn test_strip_prefix_or_suffix() {
+        let mut pool = PrimitivePool::new();
+        let mut polyeq_time = Duration::ZERO;
+
+        let a = pool.add(Term::new_string("a"));
+        let b = pool.add(Term::new_string("b"));
+        let c = pool.add(Term::new_string("c"));
+        let d = pool.add(Term::new_string("d"));
+
+        // Prefix stripping (rev = false)
+        let s = NormalizedConcat::new(vec![a.clone(), b.clone(), c.clone()]);
+        let t = NormalizedConcat::new(vec![a.clone(), b.clone(), d.clone()]);
+        let (s_rem, t_rem) = s
+            .strip_prefix_or_suffix(&t, &a, &a, false, &mut polyeq_time)
+            .unwrap();
+        assert_eq!(s_rem.as_slice(), slice::from_ref(&c));
+        assert_eq!(t_rem.as_slice(), slice::from_ref(&d));
+
+        // Suffix stripping (rev = true)
+        let s_suff = NormalizedConcat::new(vec![c.clone(), a.clone(), b.clone()]);
+        let t_suff = NormalizedConcat::new(vec![d.clone(), a.clone(), b.clone()]);
+        let (s_rem2, t_rem2) = s_suff
+            .strip_prefix_or_suffix(&t_suff, &a, &a, true, &mut polyeq_time)
+            .unwrap();
+        assert_eq!(s_rem2.as_slice(), &[c]);
+        assert_eq!(t_rem2.as_slice(), &[d]);
+
+        // Empty input returns error
+        let empty = NormalizedConcat::new(vec![]);
+        assert!(
+            s.strip_prefix_or_suffix(&empty, &a, &a, false, &mut polyeq_time)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_assert_is_prefix_and_suffix() {
+        let mut pool = PrimitivePool::new();
+        let mut polyeq_time = Duration::ZERO;
+
+        let a = pool.add(Term::new_string("a"));
+        let b = pool.add(Term::new_string("b"));
+        let c = pool.add(Term::new_string("c"));
+
+        let target = NormalizedConcat::new(vec![a.clone(), b.clone(), c.clone()]);
+        let prefix = NormalizedConcat::new(vec![a.clone(), b.clone()]);
+        let suffix = NormalizedConcat::new(vec![b.clone(), c.clone()]);
+
+        assert!(
+            prefix
+                .assert_is_prefix_of(&target, &a, &a, &mut polyeq_time)
+                .is_ok()
+        );
+        assert!(
+            suffix
+                .assert_is_suffix_of(&target, &a, &a, &mut polyeq_time)
+                .is_ok()
+        );
+
+        // Prefix too long
+        let too_long = NormalizedConcat::new(vec![a.clone(), b.clone(), c.clone(), a.clone()]);
+        assert!(
+            too_long
+                .assert_is_prefix_of(&target, &a, &a, &mut polyeq_time)
+                .is_err()
+        );
+
+        // Mismatched prefix
+        let mismatch = NormalizedConcat::new(vec![b.clone(), a.clone()]);
+        assert!(
+            mismatch
+                .assert_is_prefix_of(&target, &a, &a, &mut polyeq_time)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_assert_length_one() {
+        let mut pool = PrimitivePool::new();
+        let one = pool.add(Term::new_string("x"));
+        let two = pool.add(Term::new_string("xy"));
+        let empty = pool.add(Term::new_string(""));
+        let int_term = pool.add(Term::new_int(1));
+
+        assert!(NormalizedConcat::assert_length_one(&one).is_ok());
+        assert!(NormalizedConcat::assert_length_one(&two).is_err());
+        assert!(NormalizedConcat::assert_length_one(&empty).is_err());
+        assert!(NormalizedConcat::assert_length_one(&int_term).is_err());
+    }
+
+    #[test]
+    fn test_expand_constants() {
+        let mut pool = PrimitivePool::new();
+        let ab = pool.add(Term::new_string("ab"));
+        let expanded = NormalizedConcat::expand_constants(&mut pool, &ab);
+
+        let a = pool.add(Term::new_string("a"));
+        let b = pool.add(Term::new_string("b"));
+        let expected = pool.add(Term::Op(Operator::StrConcat, vec![a, b]));
+        assert_eq!(expanded, expected);
     }
 }
