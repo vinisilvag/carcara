@@ -1,0 +1,152 @@
+use super::assert_eq;
+
+use std::sync::Arc;
+
+use indexmap::IndexMap;
+
+use crate::{
+    ast::{Operator, Rc, Term, build_term, pool::TermPool},
+    automata::Automaton,
+    checker::error::{CheckerError, StringError},
+};
+
+/// Orientation for string operations that distinguish between prefix and suffix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Orientation {
+    Prefix,
+    Suffix,
+}
+
+/// Extension trait for [`TermPool`] providing helper methods to build common
+/// string theory terms (prefixes, suffixes, remainder suffixes, and Skolem unification splits).
+pub trait StringTermBuilder {
+    /// Builds a term representing the prefix of `u` of length `n`:
+    /// `(str.substr u 0 n)`
+    fn build_str_prefix(&mut self, u: &Rc<Term>, n: &Rc<Term>) -> Rc<Term>;
+
+    /// Builds a term representing the remainder suffix of `u` after dropping `n` characters:
+    /// `(str.substr u n (- (str.len u) n))`
+    fn build_str_suffix_rem(&mut self, u: &Rc<Term>, n: &Rc<Term>) -> Rc<Term>;
+
+    /// Builds a term representing the suffix of `u` of length `n`:
+    /// `(str.substr u (- (str.len u) n) n)`
+    fn build_str_suffix(&mut self, u: &Rc<Term>, n: &Rc<Term>) -> Rc<Term>;
+
+    /// Builds a Skolem term for unification splitting between `t` and `s`.
+    ///
+    /// - If `orientation` is `Orientation::Prefix`:
+    ///   If `(str.len t) >= (str.len s)`, extracts remainder suffix of `t` after length `(str.len s)`;
+    ///   otherwise, extracts remainder suffix of `s` after length `(str.len t)`.
+    /// - If `orientation` is `Orientation::Suffix`:
+    ///   If `(str.len t) >= (str.len s)`, extracts prefix of `t` of length `(- (str.len t) (str.len s))`;
+    ///   otherwise, extracts prefix of `s` of length `(- (str.len s) (str.len t))`.
+    fn build_str_unify_split(
+        &mut self,
+        t: &Rc<Term>,
+        s: &Rc<Term>,
+        orientation: Orientation,
+    ) -> Rc<Term>;
+
+    /// Builds a prefix unification splitting term between `t` and `s`.
+    fn build_str_unify_split_prefix(&mut self, t: &Rc<Term>, s: &Rc<Term>) -> Rc<Term> {
+        self.build_str_unify_split(t, s, Orientation::Prefix)
+    }
+
+    /// Builds a suffix unification splitting term between `t` and `s`.
+    fn build_str_unify_split_suffix(&mut self, t: &Rc<Term>, s: &Rc<Term>) -> Rc<Term> {
+        self.build_str_unify_split(t, s, Orientation::Suffix)
+    }
+}
+
+impl<T: TermPool + ?Sized> StringTermBuilder for T {
+    fn build_str_prefix(&mut self, u: &Rc<Term>, n: &Rc<Term>) -> Rc<Term> {
+        build_term!(self, (strsubstr {u.clone()} 0 {n.clone()}))
+    }
+
+    fn build_str_suffix_rem(&mut self, u: &Rc<Term>, n: &Rc<Term>) -> Rc<Term> {
+        build_term!(self, (strsubstr {u.clone()} {n.clone()} (- (strlen {u.clone()}) {n.clone()})))
+    }
+
+    fn build_str_suffix(&mut self, u: &Rc<Term>, n: &Rc<Term>) -> Rc<Term> {
+        build_term!(self, (strsubstr {u.clone()} (- (strlen {u.clone()}) {n.clone()}) {n.clone()}))
+    }
+
+    fn build_str_unify_split(
+        &mut self,
+        t: &Rc<Term>,
+        s: &Rc<Term>,
+        orientation: Orientation,
+    ) -> Rc<Term> {
+        let t_len = self.add(Term::Op(Operator::StrLen, vec![t.clone()]));
+        let s_len = self.add(Term::Op(Operator::StrLen, vec![s.clone()]));
+
+        let (true_branch, false_branch) = match orientation {
+            Orientation::Prefix => (
+                self.build_str_suffix_rem(t, &s_len),
+                self.build_str_suffix_rem(s, &t_len),
+            ),
+            Orientation::Suffix => {
+                let n_t = build_term!(self, (- {t_len.clone()} {s_len.clone()}));
+                let n_s = build_term!(self, (- {s_len.clone()} {t_len.clone()}));
+                (
+                    self.build_str_prefix(t, &n_t),
+                    self.build_str_prefix(s, &n_s),
+                )
+            }
+        };
+        build_term!(self, (ite (>= (strlen {t.clone()}) (strlen {s.clone()})) {true_branch} {false_branch}))
+    }
+}
+
+// RCP utils
+/// Builds the automaton for a regex term, reusing the per-proof cache: proofs
+/// commonly apply many regex-eval steps to the same (hash-consed) regex.
+pub fn cached_automaton(
+    pool: &mut dyn TermPool,
+    cache: &mut IndexMap<Rc<Term>, Arc<Automaton>>,
+    regex: &Rc<Term>,
+) -> Result<Arc<Automaton>, CheckerError> {
+    if let Some(a) = cache.get(regex) {
+        return Ok(a.clone());
+    }
+    let a = Arc::new(Automaton::create_from_regex_operators(pool, regex)?);
+    cache.insert(regex.clone(), a.clone());
+    Ok(a)
+}
+
+/// Constructs an automaton for a string term `t` by combining the automata from the rule premises.
+///
+/// For a concatenation term `(str.++ s_0 ... s_n)`, it verifies that each component `s_i` matches
+/// its corresponding premise `(str.in_re s_i A_i)` and builds the concatenated regular expression
+/// automaton `(re.++ A_0 ... A_n)`.
+pub fn make_automaton_from_string(
+    pool: &mut dyn TermPool,
+    t: &Rc<Term>,
+    premise_automatas: Vec<(Rc<Term>, Rc<Term>)>,
+) -> Result<Automaton, CheckerError> {
+    match t.as_ref() {
+        Term::Op(Operator::StrConcat, ss) => {
+            if ss.len() != premise_automatas.len() {
+                return Err(StringError::ConcatTermsNumberDiffersFromPremiseTermsNumber(
+                    ss.len(),
+                    premise_automatas.len(),
+                )
+                .into());
+            }
+
+            let mut components: Vec<Rc<Term>> = Vec::new();
+            for (index, w) in ss.iter().enumerate() {
+                let premise_a = premise_automatas[index].clone();
+                assert_eq(w, &premise_a.0)?;
+                components.push(premise_a.1.clone());
+            }
+
+            let regex_a = pool.add(Term::Op(Operator::ReConcat, components));
+            Ok(Automaton::create_from_regex_operators(pool, &regex_a)?)
+        }
+        // TODO: add other forwadable functions
+        // Term::Op(Operator::Replace, _) => {}
+        // Term::Op(Operator::ReplaceAll, _) => {}
+        _ => Err(StringError::NotBackwardableOperator(t.clone()).into()),
+    }
+}
