@@ -392,11 +392,6 @@ pub fn get_rule(
         "cp_literal" => cutting_planes::cp_literal,
         "cp_normalize" => cutting_planes::cp_normalize,
 
-        // Common String rules
-        "str_in_re_eval" => strings::str_in_re_eval,
-        "str_replace_re_eval" => strings::str_replace_re_eval,
-        "str_replace_re_all_eval" => strings::str_replace_re_all_eval,
-
         // CPC String rules
         "string_decompose" => strings::string_decompose,
         "string_length_pos" => strings::string_length_pos,
@@ -415,6 +410,12 @@ pub fn get_rule(
         "re_forward_prop" => strings::re_forward_prop,
         "concat_bwd_propagation" => strings::concat_bwd_propagation,
         "concat_aut_bwd_propagation" => strings::concat_aut_bwd_propagation,
+
+        // RE eval rules
+        "str_indexof_re_eval" => strings::str_indexof_re_eval,
+        "str_replace_re_eval" => strings::str_replace_re_eval,
+        "str_replace_re_all_eval" => strings::str_replace_re_all_eval,
+        "str_in_re_eval" => strings::str_in_re_eval,
 
         // Drup format rules
         "drup" => |x| crate::checker::rules::drup::drup(false, x),

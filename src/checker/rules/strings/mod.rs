@@ -20,8 +20,9 @@ use crate::{
     },
     checker::error::{CheckerError, StringError},
 };
+use rug::Integer;
 
-// CPC rule part
+// CPC rule helper
 /// Helper function for implementing the `re_kleene_unfold_pos` and `re_concat_unfold_pos` rules.
 ///
 /// Internally handles the generation of the Skolem term resulting from `re_unfold_pos_component`,
@@ -1327,6 +1328,64 @@ pub fn concat_aut_bwd_propagation(RuleArgs { premises, conclusion, .. }: RuleArg
                 return Err(StringError::ExpectedSubautomaton(aut, a).into());
             }
         }
+    }
+
+    Ok(())
+}
+
+pub fn str_indexof_re_eval(
+    RuleArgs {
+        premises,
+        conclusion,
+        pool,
+        automata_cache,
+        ..
+    }: RuleArgs,
+) -> RuleResult {
+    assert_num_premises(premises, 0)?;
+    assert_clause_len(conclusion, 1)?;
+
+    let (s, r, n, m) = match_term_err!((= (indexofre s r n) m) = &conclusion[0])?;
+
+    let s = s.as_string_err()?;
+    let dfa = cached_automaton(pool, automata_cache, r)?;
+    let n = n.as_signed_integer_err()?;
+    let m = m.as_signed_integer_err()?;
+
+    let chars: Vec<char> = s.chars().collect();
+    let len = chars.len();
+
+    let expected: Integer = if n < 0 || n > len {
+        Integer::from(-1)
+    } else if dfa.accepts("") {
+        n.clone()
+    } else {
+        let start_idx = n.to_usize().unwrap();
+        let mut match_pos = None;
+        'outer: for i in start_idx..len {
+            for j in (i + 1)..=len {
+                let substring: String = chars[i..j].iter().collect();
+                if dfa.accepts(&substring) {
+                    match_pos = Some(i);
+                    break 'outer;
+                }
+            }
+        }
+        match match_pos {
+            Some(i) => Integer::from(i),
+            None => Integer::from(-1),
+        }
+    };
+
+    if expected != m {
+        return Err(StringError::RegexIndexOfFailed {
+            s,
+            regex: r.clone(),
+            index: n,
+            expected: m,
+            got: expected,
+        }
+        .into());
     }
 
     Ok(())

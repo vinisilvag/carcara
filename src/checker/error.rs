@@ -588,6 +588,17 @@ pub enum StringError {
         got: String,
     },
 
+    #[error(
+        "regular expression index of failed: index of '{regex}' in '{s}' starting at '{index}' expected to be '{expected}', got '{got}'"
+    )]
+    RegexIndexOfFailed {
+        s: String,
+        regex: Rc<Term>,
+        index: Integer,
+        expected: Integer,
+        got: Integer,
+    },
+
     #[error("expected automata '{0}' and '{1}' to be equivalent")]
     ExpectedEquivalentAutomata(Automaton, Automaton),
 

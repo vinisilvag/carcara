@@ -1356,6 +1356,12 @@ impl Rc<Term> {
             .ok_or_else(|| CheckerError::ExpectedAnyInteger(self.clone()))
     }
 
+    /// Similar to `Term::as_signed_integer`, but returns a `CheckerError` on failure.
+    pub fn as_signed_integer_err(&self) -> Result<Integer, CheckerError> {
+        self.as_signed_integer()
+            .ok_or_else(|| CheckerError::ExpectedAnyInteger(self.clone()))
+    }
+
     /// Similar to `Term::as_integer_err`, but also checks if non-negative.
     pub fn as_usize_err(&self) -> Result<usize, CheckerError> {
         if let Some(i) = self.as_integer()
