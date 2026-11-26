@@ -230,25 +230,21 @@ pub fn concat_aut_bwd_propagation(RuleArgs { premises, conclusion, .. }: RuleArg
 }
 
 pub fn str_concat_len(RuleArgs { premises, conclusion, .. }: RuleArgs) -> RuleResult {
-    assert_num_premises(premises, 1)?;
+    assert_num_premises(premises, 0)?;
     assert_clause_len(conclusion, 1)?;
 
-    let premise = get_premise_term(&premises[0])?;
-    let (s1, ts) = match_term_err!((= s1 (strconcat ...)) = premise)?;
-    let (s2, t_lens) = match_term_err!((= (strlen s2) (+ ...)) = &conclusion[0])?;
+    let (ss, t_lens) = match_term_err!((= (strlen (strconcat ...)) (+ ...)) = &conclusion[0])?;
 
-    assert_eq(s1, s2)?;
-
-    if ts.len() != t_lens.len() {
+    if ss.len() != t_lens.len() {
         return Err(CheckerError::TermOfWrongForm(
-            "(= (str.len s) (+ (str.len a_1) ... (str.len a_n)))",
+            "(= (str.len (str.++ a_1 ... a_n)) (+ (str.len a_1) ... (str.len a_n)))",
             conclusion[0].clone(),
         ));
     }
 
-    for (t1, t2) in std::iter::zip(ts, t_lens) {
-        let inner = match_term_err!((strlen inner) = t2)?;
-        assert_eq(t1, inner)?;
+    for (s, t_len) in std::iter::zip(ss, t_lens) {
+        let inner = match_term_err!((strlen inner) = t_len)?;
+        assert_eq(s, inner)?;
     }
 
     Ok(())

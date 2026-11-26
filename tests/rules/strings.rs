@@ -1890,64 +1890,42 @@ fn str_concat_len() {
             (declare-fun d () String)
         ",
         "Simple working examples" {
-            r#"(assume h1 (= s (str.++ a b)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b)))) :rule str_concat_len :premises (h1))"#: true,
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b) (str.len c)))) :rule str_concat_len :premises (h1))"#: true,
-            r#"(assume h1 (= s (str.++ a b c d)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b) (str.len c) (str.len d)))) :rule str_concat_len :premises (h1))"#: true,
-            r#"(assume h1 (= s (str.++ a "xyz" b)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len "xyz") (str.len b)))) :rule str_concat_len :premises (h1))"#: true,
+            r#"(step t1 (cl (= (str.len (str.++ a b)) (+ (str.len a) (str.len b)))) :rule str_concat_len)"#: true,
+            r#"(step t1 (cl (= (str.len (str.++ a b c)) (+ (str.len a) (str.len b) (str.len c)))) :rule str_concat_len)"#: true,
+            r#"(step t1 (cl (= (str.len (str.++ a b c d)) (+ (str.len a) (str.len b) (str.len c) (str.len d)))) :rule str_concat_len)"#: true,
+            r#"(step t1 (cl (= (str.len (str.++ a "xyz" b)) (+ (str.len a) (str.len "xyz") (str.len b)))) :rule str_concat_len)"#: true,
         }
-        "Switched sides in premise or conclusion" {
-            r#"(assume h1 (= (str.++ a b c) s))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b) (str.len c)))) :rule str_concat_len :premises (h1))"#: false,
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (= (+ (str.len a) (str.len b) (str.len c)) (str.len s))) :rule str_concat_len :premises (h1))"#: false,
+        "Switched sides in conclusion" {
+            r#"(step t1 (cl (= (+ (str.len a) (str.len b) (str.len c)) (str.len (str.++ a b c)))) :rule str_concat_len)"#: false,
         }
-        "Mismatched string variable" {
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (= (str.len d) (+ (str.len a) (str.len b) (str.len c)))) :rule str_concat_len :premises (h1))"#: false,
+        "Length argument is not a concatenation" {
+            r#"(step t1 (cl (= (str.len s) (+ (str.len a) (str.len b)))) :rule str_concat_len)"#: false,
+            r#"(step t1 (cl (= (str.len a) (+ (str.len a) (str.len b)))) :rule str_concat_len)"#: false,
         }
         "Mismatched number of terms" {
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b)))) :rule str_concat_len :premises (h1))"#: false,
-            r#"(assume h1 (= s (str.++ a b)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b) (str.len c)))) :rule str_concat_len :premises (h1))"#: false,
+            r#"(step t1 (cl (= (str.len (str.++ a b c)) (+ (str.len a) (str.len b)))) :rule str_concat_len)"#: false,
+            r#"(step t1 (cl (= (str.len (str.++ a b)) (+ (str.len a) (str.len b) (str.len c)))) :rule str_concat_len)"#: false,
         }
         "Wrong order or wrong terms in summation" {
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (= (str.len s) (+ (str.len b) (str.len a) (str.len c)))) :rule str_concat_len :premises (h1))"#: false,
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len d) (str.len c)))) :rule str_concat_len :premises (h1))"#: false,
+            r#"(step t1 (cl (= (str.len (str.++ a b c)) (+ (str.len b) (str.len a) (str.len c)))) :rule str_concat_len)"#: false,
+            r#"(step t1 (cl (= (str.len (str.++ a b c)) (+ (str.len a) (str.len d) (str.len c)))) :rule str_concat_len)"#: false,
         }
         "Non-strlen operand in summation" {
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) 0 (str.len c)))) :rule str_concat_len :premises (h1))"#: false,
-            r#"(assume h1 (= s (str.++ a b)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) 1))) :rule str_concat_len :premises (h1))"#: false,
-        }
-        "Premise is not an equality or not a concatenation" {
-            r#"(assume h1 (not (= s (str.++ a b c))))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b) (str.len c)))) :rule str_concat_len :premises (h1))"#: false,
-            r#"(assume h1 (= s a))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b)))) :rule str_concat_len :premises (h1))"#: false,
+            r#"(step t1 (cl (= (str.len (str.++ a b c)) (+ (str.len a) 0 (str.len c)))) :rule str_concat_len)"#: false,
+            r#"(step t1 (cl (= (str.len (str.++ a b)) (+ (str.len a) 1))) :rule str_concat_len)"#: false,
         }
         "Conclusion is not an equality or not a summation" {
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (not (= (str.len s) (+ (str.len a) (str.len b) (str.len c))))) :rule str_concat_len :premises (h1))"#: false,
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (= (str.len s) (* (str.len a) (str.len b) (str.len c)))) :rule str_concat_len :premises (h1))"#: false,
-            r#"(assume h1 (= s (str.++ a b c)))
-               (step t1 (cl (= 0 (+ (str.len a) (str.len b) (str.len c)))) :rule str_concat_len :premises (h1))"#: false,
+            r#"(step t1 (cl (not (= (str.len (str.++ a b c)) (+ (str.len a) (str.len b) (str.len c))))) :rule str_concat_len)"#: false,
+            r#"(step t1 (cl (= (str.len (str.++ a b c)) (* (str.len a) (str.len b) (str.len c)))) :rule str_concat_len)"#: false,
+            r#"(step t1 (cl (= 0 (+ (str.len a) (str.len b) (str.len c)))) :rule str_concat_len)"#: false,
         }
-        "Wrong number of premises or conclusion clauses" {
-            r#"(step t1 (cl (= (str.len s) (+ (str.len a) (str.len b)))) :rule str_concat_len)"#: false,
+        "Rule does not take premises" {
             r#"(assume h1 (= s (str.++ a b)))
-               (assume h2 (= s (str.++ a b)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b)))) :rule str_concat_len :premises (h1 h2))"#: false,
-            r#"(assume h1 (= s (str.++ a b)))
-               (step t1 (cl (= (str.len s) (+ (str.len a) (str.len b))) false) :rule str_concat_len :premises (h1))"#: false,
+               (step t1 (cl (= (str.len (str.++ a b)) (+ (str.len a) (str.len b)))) :rule str_concat_len :premises (h1))"#: false,
+        }
+        "Wrong number of conclusion clauses" {
+            r#"(step t1 (cl (= (str.len (str.++ a b)) (+ (str.len a) (str.len b))) false) :rule str_concat_len)"#: false,
+            r#"(step t1 (cl) :rule str_concat_len)"#: false,
         }
     }
 }
